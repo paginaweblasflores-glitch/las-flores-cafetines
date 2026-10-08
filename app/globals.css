@@ -1,0 +1,96 @@
+@import "tailwindcss";
+
+/* Paleta tomada del diseño (verde + panel oscuro) y del logo (rojo de la flor) */
+@theme {
+  --font-sans: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
+
+  --color-panel: #0f1a14;
+  --color-panel-2: #1a2820;
+  --color-panel-3: #24362b;
+  --color-panel-text: #8d9c93;
+
+  --color-fondo: #f3f5f3;
+  --color-borde: #e7ebe8;
+  --color-tinta: #17201b;
+  --color-suave: #6b7770;
+
+  --color-verde-50: #effaf0;
+  --color-verde-100: #d9f3dc;
+  --color-verde-200: #b3e6b9;
+  --color-verde: #3bb54a;
+  --color-verde-600: #2f9c3d;
+  --color-verde-700: #237a2f;
+  --color-verde-oscuro: #12391a;
+
+  --color-rojo: #d71f2a;
+  --color-rojo-50: #fdeeee;
+  --color-ambar: #e8a317;
+  --color-ambar-50: #fdf6e6;
+}
+
+html,
+body {
+  background: var(--color-fondo);
+  color: var(--color-tinta);
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Quita flechas de los inputs numéricos */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-borde bg-white;
+  }
+  .btn-primario,
+  .btn-secundario,
+  .btn-peligro,
+  .btn-fantasma {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primario {
+    @apply bg-verde text-white hover:bg-verde-600;
+  }
+  .btn-secundario {
+    @apply border border-borde bg-white text-tinta hover:bg-fondo;
+  }
+  .btn-peligro {
+    @apply bg-rojo text-white hover:bg-rojo/90;
+  }
+  .btn-fantasma {
+    @apply px-2.5 py-1.5 text-verde-600 hover:bg-verde-50;
+  }
+  .input {
+    @apply w-full rounded-xl border border-borde bg-white px-3.5 py-2.5 text-sm text-tinta outline-none transition placeholder:text-suave/60 focus:border-verde focus:ring-4 focus:ring-verde/15;
+  }
+  .label {
+    @apply mb-1.5 block text-xs font-medium text-suave;
+  }
+  .tabla {
+    @apply w-full text-sm;
+  }
+  .tabla th {
+    @apply whitespace-nowrap border-b border-borde bg-[#fafbfa] px-3 py-3 text-left text-xs font-medium text-suave;
+  }
+  .tabla td {
+    @apply border-b border-borde px-3 py-3 align-middle;
+  }
+  .tabla tbody tr:hover td {
+    @apply bg-[#fafbfa];
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+}
