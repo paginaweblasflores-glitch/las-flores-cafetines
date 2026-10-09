@@ -94,7 +94,7 @@ La administradora puede crear usuarios, cambiar contraseñas y desactivar acceso
 
 ### Aplicativo en el celular (Android)
 1. La administradora abre el link del sistema en **Chrome** del celular, entra con su usuario y va a **Usuarios**.
-2. Toca **Descargar aplicativo** → **Instalar**. Queda el ícono *Las Flores* en la pantalla del celular.
+2. Toca **Descargar aplicativo** → **Instalar**. Queda el ícono *Cafetines* en la pantalla del celular.
 3. **Cierra su sesión** (el aplicativo comparte la sesión con Chrome) y la persona entra con su propio usuario.
 
 Funciona solo con HTTPS (Vercel). Si Chrome no muestra el botón, se instala desde el menú ⋮ → *Instalar aplicación*.

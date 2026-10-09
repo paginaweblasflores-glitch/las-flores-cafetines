@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
     name: "Las Flores · Cafetines",
-    short_name: "Las Flores",
+    short_name: "Cafetines",
     description: "Control de inventario y ventas de los cafetines del Restaurante Las Flores",
     lang: "es",
     // "/" lleva a cada uno a su pantalla según su rol (o al login)
@@ -13,7 +13,7 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: "/",
     display: "standalone",
     orientation: "portrait",
-    background_color: "#0f1a14",
+    background_color: "#175235",
     theme_color: "#0f1a14",
     icons: [
       { src: "/app-192.png", sizes: "192x192", type: "image/png", purpose: "any" },

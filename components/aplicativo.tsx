@@ -82,7 +82,7 @@ export function DescargarAplicativo() {
           {estado === "instalado" ? (
             <p className="flex items-start gap-2 rounded-xl bg-verde-50 p-3 text-verde-700">
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-              Listo: el ícono <b>Las Flores</b> ya está en la pantalla del celular.
+              Listo: el ícono <b>Cafetines</b> ya está en la pantalla del celular.
             </p>
           ) : (
             <>
@@ -108,7 +108,7 @@ export function DescargarAplicativo() {
               <Smartphone className="h-4 w-4" /> Antes de entregar el celular
             </p>
             <p className="mt-1 text-suave">
-              Cierra tu sesión: el aplicativo comparte la sesión con Chrome. Luego la persona abre <b>Las Flores</b> y
+              Cierra tu sesión: el aplicativo comparte la sesión con Chrome. Luego la persona abre <b>Cafetines</b> y
               entra con su propio usuario.
             </p>
           </div>

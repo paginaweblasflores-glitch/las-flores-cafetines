@@ -16,6 +16,16 @@ export const metadata: Metadata = {
     template: "%s · Las Flores",
   },
   description: "Control de inventario y ventas de los cafetines del Restaurante Las Flores",
+  // Vista previa al compartir el link (WhatsApp, Facebook…): la imagen es app/opengraph-image.jpg.
+  // En Vercel, Next.js arma la URL completa de la imagen con el dominio de producción.
+  openGraph: {
+    type: "website",
+    locale: "es_PE",
+    siteName: "Las Flores",
+    title: "Sistema de Cafetines · Las Flores",
+    description: "Control de stock, ventas y reposiciones en tiempo real para el Restaurante Turístico Las Flores.",
+  },
+  twitter: { card: "summary_large_image" },
 };
 
 export const viewport: Viewport = {
