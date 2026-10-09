@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Poppins } from "next/font/google";
 import "./globals.css";
 import { SeleccionarNumeros } from "@/components/seleccionar-numeros";
+import { RegistrarAplicativo } from "@/components/aplicativo";
 
 const poppins = Poppins({
   variable: "--font-poppins",
@@ -26,6 +27,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="es" className={`${poppins.variable} h-full antialiased`}>
       <body className="min-h-full">
         <SeleccionarNumeros />
+        <RegistrarAplicativo />
         {children}
       </body>
     </html>

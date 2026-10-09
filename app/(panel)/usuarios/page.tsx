@@ -4,6 +4,7 @@ import { obtenerColegios } from "@/lib/data";
 import { check, db } from "@/lib/supabase";
 import { Encabezado } from "@/components/encabezado";
 import { ListaUsuarios } from "./lista";
+import { DescargarAplicativo } from "@/components/aplicativo";
 import type { Rol } from "@/lib/types";
 
 export const metadata: Metadata = { title: "Usuarios" };
@@ -16,7 +17,11 @@ export default async function PaginaUsuarios() {
   ]);
   return (
     <div className="mx-auto max-w-[1100px]">
-      <Encabezado titulo="Usuarios" descripcion="Quién puede entrar al sistema y qué puede hacer." />
+      <Encabezado
+        titulo="Usuarios"
+        descripcion="Quién puede entrar al sistema y qué puede hacer."
+        acciones={<DescargarAplicativo />}
+      />
       <ListaUsuarios
         yo={sesion.uid}
         colegios={colegios.map((c) => ({ id: c.id, nombre: c.nombre }))}
