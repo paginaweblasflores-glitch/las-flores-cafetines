@@ -1,29 +1,30 @@
 import "server-only";
 import { cache } from "react";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { COOKIE_SESION, inicioPorRol, leerToken } from "./session";
+import { inicioPorRol } from "./session";
 import { db } from "./supabase";
+import { supabaseSesion } from "./supabase-sesion";
 import type { Rol, Sesion } from "./types";
 
 export const obtenerSesion = cache(async (): Promise<Sesion | null> => {
-  const token = (await cookies()).get(COOKIE_SESION)?.value;
-  const sesion = await leerToken(token);
-  if (!sesion) return null;
+  // Supabase Auth verifica la sesión (firma y vencimiento) y dice qué cuenta es
+  const { data } = await (await supabaseSesion()).auth.getClaims();
+  const authId = data?.claims?.sub;
+  if (!authId) return null;
   // Se revisa contra la base: si la administradora desactiva o cambia a un usuario, aplica al instante
-  const { data } = await db()
+  const { data: u } = await db()
     .from("usuarios")
-    .select("usuario, nombre, rol, colegio_id, activo")
-    .eq("id", sesion.uid)
+    .select("id, usuario, nombre, rol, colegio_id, activo")
+    .eq("auth_id", authId)
     .maybeSingle();
-  if (!data || !data.activo) return null;
-  return { uid: sesion.uid, usuario: data.usuario, nombre: data.nombre, rol: data.rol, colegioId: data.colegio_id };
+  if (!u || !u.activo) return null;
+  return { uid: u.id, usuario: u.usuario, nombre: u.nombre, rol: u.rol, colegioId: u.colegio_id };
 });
 
 /** Exige sesión (y opcionalmente un rol). Si no cumple, redirige. */
 export async function requerirSesion(roles?: Rol[]): Promise<Sesion> {
   const sesion = await obtenerSesion();
-  // /salir borra la cookie vencida o de un usuario desactivado y lleva al login
+  // /salir cierra la sesión vencida o de un usuario desactivado y lleva al login
   if (!sesion) redirect("/salir");
   if (roles && !roles.includes(sesion.rol)) redirect(inicioPorRol(sesion.rol));
   return sesion;

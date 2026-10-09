@@ -78,13 +78,18 @@ create table colegios (
 );
 
 -- ---------------------------------------------------------------------
--- USUARIOS del sistema (login propio con usuario + contraseña)
+-- USUARIOS del sistema. El inicio de sesión lo maneja Supabase Auth: cada
+-- usuario tiene un correo interno (auth_id = auth.users.id). Ver
+-- scripts/usuarios-a-supabase-auth.mjs para crear las cuentas.
 -- ---------------------------------------------------------------------
 create table usuarios (
   id             bigint generated always as identity primary key,
   usuario        text not null,
   nombre         text not null,
-  password_hash  text not null,
+  -- Solo para pasar las cuentas a Supabase Auth (que guarda la contraseña desde entonces)
+  password_hash  text,
+  auth_id        uuid,
+  email          text,
   rol            text not null check (rol in ('ADMIN', 'LOGISTICA', 'PERSONAL', 'COCINA')),
   colegio_id     bigint references colegios(id) on delete restrict,
   activo         boolean not null default true,
@@ -93,6 +98,8 @@ create table usuarios (
   constraint personal_requiere_colegio check (rol <> 'PERSONAL' or colegio_id is not null)
 );
 create unique index usuarios_usuario_unico on usuarios (lower(usuario));
+create unique index usuarios_auth_id_unico on usuarios (auth_id) where auth_id is not null;
+create unique index usuarios_email_unico on usuarios (lower(email)) where email is not null;
 
 -- ---------------------------------------------------------------------
 -- CATÁLOGO GENERAL

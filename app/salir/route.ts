@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { COOKIE_SESION } from "@/lib/session";
+import { supabaseSesion } from "@/lib/supabase-sesion";
 
-export function GET(request: NextRequest) {
-  const res = NextResponse.redirect(new URL("/login", request.url));
-  res.cookies.delete(COOKIE_SESION);
-  return res;
+/** Cierra la sesión (vencida, o de un usuario desactivado) y lleva al login */
+export async function GET(request: NextRequest) {
+  await (await supabaseSesion()).auth.signOut();
+  return NextResponse.redirect(new URL("/login", request.url));
 }

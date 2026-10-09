@@ -1,10 +1,10 @@
 "use server";
 
-import bcrypt from "bcryptjs";
 import { refresh } from "next/cache";
 import { sesionAccion } from "@/lib/auth";
 import { check, db, mensajeError } from "@/lib/supabase";
 import { normalizar } from "@/lib/format";
+import { correoDeUsuario } from "@/lib/correo";
 import type { Resultado, Rol } from "@/lib/types";
 
 /* ------------------------------ Colegios ------------------------------ */
@@ -73,17 +73,41 @@ export async function guardarUsuario(
       return { ok: false, error: "Ya existe un usuario con ese nombre." };
     }
 
-    const datos: Record<string, unknown> = {
-      usuario,
-      nombre,
-      rol: d.rol,
-      colegio_id: d.rol === "PERSONAL" ? d.colegioId : null,
-      activo: d.activo,
-    };
-    if (d.password) datos.password_hash = await bcrypt.hash(d.password, 10);
+    const colegioId = d.rol === "PERSONAL" ? d.colegioId : null;
+    const datos = { usuario, nombre, rol: d.rol, colegio_id: colegioId, activo: d.activo };
+    // El rol va también en la cuenta de Supabase Auth (lo usa proxy.ts para los permisos)
+    const appMetadata = { rol: d.rol, colegio_id: colegioId };
+    // Desactivado = cuenta bloqueada en Supabase Auth (no puede iniciar sesión)
+    const bloqueo = d.activo ? "none" : "876000h";
+    const auth = db().auth.admin;
 
-    if (id) check(await db().from("usuarios").update(datos).eq("id", id));
-    else check(await db().from("usuarios").insert(datos));
+    if (id) {
+      const actual = check(await db().from("usuarios").select("auth_id").eq("id", id).single()) as { auth_id: string | null };
+      if (!actual.auth_id) return { ok: false, error: "Este usuario todavía no tiene cuenta en Supabase Auth." };
+      const { error } = await auth.updateUserById(actual.auth_id, {
+        app_metadata: appMetadata,
+        ban_duration: bloqueo,
+        ...(d.password ? { password: d.password } : {}),
+      });
+      if (error) return { ok: false, error: `Supabase Auth: ${error.message}` };
+      check(await db().from("usuarios").update(datos).eq("id", id));
+    } else {
+      // Correo interno sin repetir (administradora@lasflores.co, administradora.2@lasflores.co…)
+      const usados = new Set(
+        (check(await db().from("usuarios").select("email")) as { email: string | null }[]).map((u) => (u.email ?? "").toLowerCase()),
+      );
+      let email = correoDeUsuario(usuario);
+      for (let n = 2; usados.has(email); n++) email = correoDeUsuario(usuario).replace("@", `.${n}@`);
+
+      const { data, error } = await auth.createUser({ email, password: d.password, email_confirm: true, app_metadata: appMetadata });
+      if (error || !data.user) return { ok: false, error: `Supabase Auth: ${error?.message ?? "no se pudo crear la cuenta"}` };
+      if (!d.activo) await auth.updateUserById(data.user.id, { ban_duration: bloqueo });
+      const { error: errorInsert } = await db().from("usuarios").insert({ ...datos, auth_id: data.user.id, email });
+      if (errorInsert) {
+        await auth.deleteUser(data.user.id); // no dejar una cuenta suelta
+        return { ok: false, error: mensajeError(errorInsert) };
+      }
+    }
     refresh();
     return { ok: true, mensaje: id ? "Usuario actualizado." : "Usuario creado." };
   } catch (e) {

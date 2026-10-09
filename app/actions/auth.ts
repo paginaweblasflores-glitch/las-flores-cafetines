@@ -1,15 +1,18 @@
 "use server";
 
-import bcrypt from "bcryptjs";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { check, db, mensajeError } from "@/lib/supabase";
-import { COOKIE_SESION, DURACION_SESION_SEG, firmarSesion, inicioPorRol } from "@/lib/session";
+import { supabaseSesion } from "@/lib/supabase-sesion";
+import { inicioPorRol } from "@/lib/session";
 import { normalizar } from "@/lib/format";
 import type { Rol } from "@/lib/types";
 
 export type EstadoLogin = { error?: string; usuario?: string };
 
+/**
+ * En el login se elige el usuario (no el correo): aquí se busca su correo interno
+ * y Supabase Auth verifica la contraseña y abre la sesión (cookies sb-…).
+ */
 export async function iniciarSesion(_prev: EstadoLogin, formData: FormData): Promise<EstadoLogin> {
   const usuario = String(formData.get("usuario") ?? "").trim();
   const password = String(formData.get("password") ?? "");
@@ -21,33 +24,21 @@ export async function iniciarSesion(_prev: EstadoLogin, formData: FormData): Pro
   let destino: string;
   try {
     const usuarios = check(
-      await db().from("usuarios").select("id, usuario, nombre, password_hash, rol, colegio_id").eq("activo", true),
-    ) as { id: number; usuario: string; nombre: string; password_hash: string; rol: Rol; colegio_id: number | null }[];
+      await db().from("usuarios").select("id, usuario, email, auth_id, rol").eq("activo", true),
+    ) as { id: number; usuario: string; email: string | null; auth_id: string | null; rol: Rol }[];
 
     const buscado = normalizar(usuario);
     const u = usuarios.find((x) => normalizar(x.usuario) === buscado);
-    const valido = u ? await bcrypt.compare(password, u.password_hash) : false;
+    if (u && (!u.email || !u.auth_id)) {
+      return { error: "Este usuario todavía no tiene cuenta en Supabase Auth. Avisa a la administración.", usuario };
+    }
 
-    if (!u || !valido) {
+    const supa = await supabaseSesion();
+    const { error } = u ? await supa.auth.signInWithPassword({ email: u.email!, password }) : { error: true };
+    if (!u || error) {
       await new Promise((r) => setTimeout(r, 400));
       return { error: "Usuario o contraseña incorrectos.", usuario };
     }
-
-    const token = await firmarSesion({
-      uid: u.id,
-      usuario: u.usuario,
-      nombre: u.nombre,
-      rol: u.rol,
-      colegioId: u.colegio_id,
-    });
-
-    (await cookies()).set(COOKIE_SESION, token, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: DURACION_SESION_SEG,
-    });
 
     await db().from("usuarios").update({ ultimo_acceso: new Date().toISOString() }).eq("id", u.id);
     destino = inicioPorRol(u.rol);
@@ -58,6 +49,6 @@ export async function iniciarSesion(_prev: EstadoLogin, formData: FormData): Pro
 }
 
 export async function cerrarSesion() {
-  (await cookies()).delete(COOKIE_SESION);
+  await (await supabaseSesion()).auth.signOut();
   redirect("/login");
 }

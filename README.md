@@ -31,6 +31,7 @@ Reemplaza los Excel `INVENTARIO.xlsx` (Administración), `CONTROL BOSCO.xlsx` y 
 > Y luego `database/13_reportes_mensuales.sql` (historial del reporte mensual en PDF).
 > Y luego `database/14_costo_fuera_catalogo.sql` (logística anota el costo de lo comprado fuera del catálogo).
 > Y luego `database/15_reposicion_comprada.sql` (logística aprueba, compra y cierra las reposiciones con "Comprado").
+> Y luego `database/16_usuarios_supabase_auth.sql` y **`node scripts/usuarios-a-supabase-auth.mjs`** (ver "Inicio de sesión").
 >
 > **Empezar en limpio:** (después del 11) `database/10_vaciar_datos_prueba.sql` borra para siempre productos, stock, ventas, historial,
 > envíos y reposiciones. Conserva colegios, usuarios y categorías. Después los productos se crean desde el Catálogo.
@@ -48,7 +49,24 @@ En Supabase → **Project Settings → API** copia los 3 datos al archivo `.env`
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `anon` `public` (o *publishable key*) |
 | `SUPABASE_SERVICE_ROLE_KEY` | `service_role` (o *secret key*) — **no compartir** |
 
-`SESSION_SECRET` ya viene generado.
+### Inicio de sesión (Supabase Auth)
+Los usuarios entran con **Supabase Auth**. Cada usuario del sistema tiene una cuenta en
+*Authentication → Users* con un correo interno que nadie usa (no se verifica):
+
+| Usuario | Correo interno |
+|---|---|
+| Administradora | administradora@lasflores.co |
+| Logística | logistica@lasflores.co |
+| Personal de Bosco | bosco@lasflores.co |
+| Personal de Romero | romero@lasflores.co |
+| Cocina | cocina@lasflores.co |
+
+Después de cargar la base (incluida la migración 16), crear esas cuentas una sola vez con:
+```bash
+node scripts/usuarios-a-supabase-auth.mjs
+```
+Conserva las contraseñas actuales (copia su cifrado). Los usuarios nuevos que se creen desde
+**Usuarios** en el panel ya nacen con su cuenta.
 
 ### c) Ejecutar
 ```bash
@@ -57,7 +75,7 @@ npm run dev
 ```
 Abrir http://localhost:3000
 
-Para producción: `npm run build` y `npm start` (o subir a Vercel y copiar las mismas variables del `.env`).
+Para producción: `npm run build` y `npm start` (o subir a Vercel con las 3 variables de arriba).
 
 ---
 
@@ -71,7 +89,7 @@ Para producción: `npm run build` y `npm start` (o subir a Vercel y copiar las m
 | Personal de Romero | ROMERO2026 | Personal | Solo la pantalla de registro de su colegio |
 | Cocina | COCINA2026 | Cocina | Solo registra los productos del día que envía a cada colegio |
 
-El usuario no distingue mayúsculas ni tildes (`logistica` = `Logística`).
+En el login se elige el usuario (no el correo). El usuario no distingue mayúsculas ni tildes (`logistica` = `Logística`).
 La administradora puede crear usuarios, cambiar contraseñas y desactivar accesos desde **Usuarios**.
 
 ---
@@ -143,9 +161,11 @@ app/
   actions/          Acciones del servidor (guardar, registrar, etc.)
   api/exportar/     Descarga de Excel
 lib/                Sesión, consultas, formatos
-database/           01_tablas.sql y 02_datos.sql
+database/           01_tablas.sql, 02_datos.sql y migraciones
+scripts/            usuarios-a-supabase-auth.mjs (crear las cuentas de Supabase Auth)
 proxy.ts            Protección de rutas por rol
 ```
 
 **Seguridad:** el navegador nunca habla directo con la base. Todo pasa por el servidor con la *service_role key*;
-las tablas tienen RLS activo sin políticas, así que la llave pública no puede leer nada. Contraseñas cifradas con bcrypt.
+las tablas tienen RLS activo sin políticas, así que la llave pública no puede leer nada. Las contraseñas y las
+sesiones las maneja Supabase Auth; el rol de cada cuenta va en su `app_metadata` (solo lo cambia el servidor).
