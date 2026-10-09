@@ -884,3 +884,14 @@ revoke all on all functions in schema public from anon, authenticated, public;
 grant  execute on all functions in schema public to service_role;
 grant  all on all tables    in schema public to service_role;
 grant  all on all sequences in schema public to service_role;
+
+-- Ping diario para que Supabase no pause el proyecto (.github/workflows/keepalive.yml).
+-- Solo devuelve 1: es lo único que la llave pública (anon) puede ejecutar.
+create or replace function fn_ping()
+returns int
+language sql
+stable
+set search_path = public
+as $$ select 1 $$;
+revoke all on function fn_ping() from public;
+grant execute on function fn_ping() to anon;

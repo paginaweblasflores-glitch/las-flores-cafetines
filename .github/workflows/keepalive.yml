@@ -1,0 +1,70 @@
+# Mantiene despierto el proyecto de Supabase (plan gratuito: se pausa tras
+# 7 dias sin actividad de API). Hace UNA peticion de solo lectura por dia.
+# No escribe nada.
+#
+# Requiere dos "secrets" en el repositorio
+# (Settings -> Secrets and variables -> Actions):
+#   SUPABASE_URL       = Project URL  (ej: https://xxxx.supabase.co)
+#   SUPABASE_ANON_KEY  = anon / publishable key (clave publica)
+
+name: Keep Supabase alive
+
+on:
+  schedule:
+    - cron: "17 6 * * *" # todos los dias a las 06:17 UTC (01:17 en Peru)
+  workflow_dispatch: {} # permite ejecutarlo a mano desde la pestana Actions
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping de solo lectura a Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          set -u
+
+          # Limpia espacios, saltos de linea y barra final que se cuelan al pegar el secret.
+          url=$(printf '%s' "$SUPABASE_URL" | tr -d '[:space:]' | sed 's:/*$::')
+          key=$(printf '%s' "$SUPABASE_ANON_KEY" | tr -d '[:space:]')
+
+          if [ -z "$url" ] || [ -z "$key" ]; then
+            echo "::error::Faltan los secrets SUPABASE_URL / SUPABASE_ANON_KEY en el repositorio."
+            exit 1
+          fi
+
+          echo "Host destino: $(printf '%s' "$url" | sed -E 's#^https?://##')"
+          echo "Longitud de la anon key: ${#key} caracteres"
+
+          # En este proyecto la llave publica no puede leer ninguna tabla: se llama a
+          # fn_ping() (database/17_keepalive_ping.sql), que solo devuelve 1.
+          # La respuesta correcta es HTTP 200 con cuerpo 1.
+          endpoint="$url/rest/v1/rpc/fn_ping"
+          resp=$(curl -s -m 30 -w '\n%{http_code}' -X POST \
+            -H "apikey: $key" \
+            -H "Authorization: Bearer $key" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            "$endpoint")
+
+          code=$(printf '%s' "$resp" | tail -n1)
+          body=$(printf '%s' "$resp" | sed '$d' | head -c 300)
+
+          echo "Respuesta HTTP: $code"
+          echo "Cuerpo: $body"
+
+          if [ "$code" = "000" ]; then
+            echo "::error::No se pudo contactar a Supabase. Revisa que SUPABASE_URL sea https://<ref>.supabase.co (sin /rest ni barra final)."
+            exit 1
+          fi
+
+          if [ "$code" = "200" ]; then
+            echo "OK - Supabase respondio 200. Proyecto activo."
+            exit 0
+          fi
+
+          # Cualquier otra respuesta (401, 404, etc.) igual toca el proyecto y
+          # reinicia el contador de inactividad, pero avisamos porque algo no cuadra.
+          echo "::warning::Supabase respondio $code (se esperaba 200). El ping igual mantiene vivo el proyecto, pero revisa la anon key, la URL o si falta ejecutar database/17_keepalive_ping.sql."
+          exit 0

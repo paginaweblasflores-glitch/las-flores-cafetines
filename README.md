@@ -32,6 +32,7 @@ Reemplaza los Excel `INVENTARIO.xlsx` (Administración), `CONTROL BOSCO.xlsx` y 
 > Y luego `database/14_costo_fuera_catalogo.sql` (logística anota el costo de lo comprado fuera del catálogo).
 > Y luego `database/15_reposicion_comprada.sql` (logística aprueba, compra y cierra las reposiciones con "Comprado").
 > Y luego `database/16_usuarios_supabase_auth.sql` y **`node scripts/usuarios-a-supabase-auth.mjs`** (ver "Inicio de sesión").
+> Y luego `database/17_keepalive_ping.sql` (ping diario para que Supabase no pause el proyecto; ver "Supabase no se pausa").
 >
 > **Empezar en limpio:** (después del 11) `database/10_vaciar_datos_prueba.sql` borra para siempre productos, stock, ventas, historial,
 > envíos y reposiciones. Conserva colegios, usuarios y categorías. Después los productos se crean desde el Catálogo.
@@ -67,6 +68,18 @@ node scripts/usuarios-a-supabase-auth.mjs
 ```
 Conserva las contraseñas actuales (copia su cifrado). Los usuarios nuevos que se creen desde
 **Usuarios** en el panel ya nacen con su cuenta.
+
+### Supabase no se pausa (plan gratuito)
+En el plan gratuito, Supabase pausa el proyecto tras **7 días sin actividad** (por ejemplo, en vacaciones).
+El workflow `.github/workflows/keepalive.yml` lo evita: una vez al día GitHub llama a `fn_ping()`,
+que solo devuelve 1 (no lee ni escribe datos). Necesita:
+1. Ejecutar `database/17_keepalive_ping.sql` en Supabase.
+2. En GitHub → **Settings → Secrets and variables → Actions → New repository secret**:
+   `SUPABASE_URL` (igual a `NEXT_PUBLIC_SUPABASE_URL`) y `SUPABASE_ANON_KEY` (igual a `NEXT_PUBLIC_SUPABASE_ANON_KEY`).
+3. Probarlo: **Actions → Keep Supabase alive → Run workflow**. Debe decir `Respuesta HTTP: 200`.
+
+GitHub desactiva los workflows programados si el repositorio pasa **60 días sin commits**;
+si eso pasa, se reactiva en **Actions** con *Enable workflow*.
 
 ### c) Ejecutar
 ```bash
