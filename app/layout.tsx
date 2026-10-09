@@ -31,11 +31,11 @@ export const metadata: Metadata = {
     description: "Control de stock, ventas y reposiciones en tiempo real para el Restaurante Turístico Las Flores.",
     images: [
       {
-        url: "/compartir.jpg",
+        url: "/vista-previa.jpg",
         width: 1200,
-        height: 1200,
+        height: 630,
         type: "image/jpeg",
-        alt: "Sistema de Cafetines del Restaurante Turístico Las Flores en laptop, tablet y celular",
+        alt: "Sistema de Cafetines · Restaurante Turístico Las Flores",
       },
     ],
   },
