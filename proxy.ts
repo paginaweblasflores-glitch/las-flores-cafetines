@@ -64,5 +64,5 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   // Todo menos archivos estáticos (el manifiesto y sw.js deben verse sin sesión para instalar el aplicativo)
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.png|logo.png|manifest.webmanifest|sw.js|.*\\.(?:png|jpg|jpeg|svg|webp)$).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.png|logo.png|manifest.webmanifest|sw.js|robots.txt|.*\\.(?:png|jpg|jpeg|svg|webp)$).*)"],
 };

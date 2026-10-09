@@ -1,6 +1,6 @@
 "use server";
 
-import { refresh } from "next/cache";
+import { refresh, revalidatePath } from "next/cache";
 import { sesionAccion } from "@/lib/auth";
 import { check, db, mensajeError } from "@/lib/supabase";
 import { normalizar } from "@/lib/format";
@@ -108,6 +108,7 @@ export async function guardarUsuario(
         return { ok: false, error: mensajeError(errorInsert) };
       }
     }
+    revalidatePath("/login"); // la lista de usuarios del login
     refresh();
     return { ok: true, mensaje: id ? "Usuario actualizado." : "Usuario creado." };
   } catch (e) {

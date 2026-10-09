@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import { connection } from "next/server";
 import { check, db } from "@/lib/supabase";
 import { FormularioLogin } from "./formulario";
 
 export const metadata: Metadata = { title: "Ingresar" };
 
+// Página guardada en caché (responde al instante, también a WhatsApp al armar la vista previa del link).
+// La lista de usuarios se renueva cada minuto y al guardar un usuario (revalidatePath en actions/admin.ts).
+export const revalidate = 60;
+
 async function usuariosActivos() {
-  await connection(); // se lee en cada visita para mostrar usuarios nuevos
   try {
     const filas = check(await db().from("usuarios").select("usuario, rol").eq("activo", true).order("id")) as {
       usuario: string;
