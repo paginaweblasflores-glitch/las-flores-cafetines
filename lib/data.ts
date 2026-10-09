@@ -87,17 +87,19 @@ export async function obtenerMovimientos(f: {
   desde?: string | null;
   hasta?: string | null;
   limite?: number;
+  /** Trae todas las filas del rango (en bloques de 1000), sin límite */
+  todos?: boolean;
 }) {
-  let q = db()
-    .from("movimientos")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(f.limite ?? 300);
-  if (f.colegioId) q = q.eq("colegio_id", f.colegioId);
-  if (f.tipo) q = q.eq("tipo", f.tipo);
-  if (f.desde) q = q.gte("fecha", f.desde);
-  if (f.hasta) q = q.lte("fecha", f.hasta);
-  return check(await q) as Movimiento[];
+  const consulta = () => {
+    let q = db().from("movimientos").select("*").order("created_at", { ascending: false }).order("id", { ascending: false });
+    if (f.colegioId) q = q.eq("colegio_id", f.colegioId);
+    if (f.tipo) q = q.eq("tipo", f.tipo);
+    if (f.desde) q = q.gte("fecha", f.desde);
+    if (f.hasta) q = q.lte("fecha", f.hasta);
+    return q;
+  };
+  if (f.todos) return (await todas(consulta)) as Movimiento[];
+  return check(await consulta().limit(f.limite ?? 300)) as Movimiento[];
 }
 
 export const obtenerProductosMapa = cache(async () => {

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { History } from "lucide-react";
+import Link from "next/link";
+import { ChevronRight, History } from "lucide-react";
 import { requerirSesion, ROLES_PANEL } from "@/lib/auth";
 import {
   obtenerCambiosPrecio,
@@ -8,41 +9,15 @@ import {
   obtenerProductosMapa,
   obtenerUsuariosMapa,
 } from "@/lib/data";
-import { fechaCorta, horaLima, mesActual, numero, rangoMes, soles } from "@/lib/format";
+import { fechaCorta, horaLima, mesActual, rangoMes, soles } from "@/lib/format";
 import { Encabezado } from "@/components/encabezado";
 import { Vacio } from "@/components/ui";
 import { TablaPaginada } from "@/components/paginacion";
-import type { TipoMovimiento } from "@/lib/types";
+import { agrupar, armarFilas, TIPOS, totales, type Tipo } from "./registros";
+import { Cantidad, Precio } from "./celdas";
+import { FilaEnlace } from "./grupo";
 
 export const metadata: Metadata = { title: "Historial" };
-
-type Tipo = TipoMovimiento | "PRECIO";
-
-const TIPOS: Record<Tipo, { texto: string; clase: string }> = {
-  VENTA: { texto: "Venta", clase: "bg-verde-50 text-verde-700" },
-  INGRESO: { texto: "Entrega", clase: "bg-[#e8f0fb] text-[#2b5ea7]" },
-  AJUSTE: { texto: "Ajuste", clase: "bg-ambar-50 text-[#8a5a00]" },
-  MERMA: { texto: "Merma", clase: "bg-rojo-50 text-rojo" },
-  PRECIO: { texto: "Cambio de precio", clase: "bg-[#f1ebfa] text-[#6a3fb0]" },
-};
-
-const LIMITE = 1000;
-
-// Fila común para movimientos de stock y cambios de precio
-type Registro = {
-  clave: string;
-  fecha: string;
-  hora: string;
-  tipo: Tipo;
-  etiqueta: string;
-  productoId: number;
-  colegioId: number;
-  cantidad: React.ReactNode;
-  monto: React.ReactNode;
-  stock: React.ReactNode;
-  usuarioId: number | null;
-  detalle: string | null;
-};
 
 export default async function PaginaMovimientos({ searchParams }: PageProps<"/movimientos">) {
   await requerirSesion(ROLES_PANEL);
@@ -60,85 +35,23 @@ export default async function PaginaMovimientos({ searchParams }: PageProps<"/mo
   const verPrecios = tipo === "" || tipo === "PRECIO";
 
   const [movs, precios, productos, usuarios] = await Promise.all([
-    verMovimientos ? obtenerMovimientos({ colegioId, tipo: tipo || null, desde, hasta, limite: LIMITE }) : [],
-    verPrecios ? obtenerCambiosPrecio({ colegioId, desde, hasta, limite: LIMITE }) : [],
+    verMovimientos ? obtenerMovimientos({ colegioId, tipo: tipo || null, desde, hasta, todos: true }) : [],
+    verPrecios ? obtenerCambiosPrecio({ colegioId, desde, hasta, limite: 1000 }) : [],
     obtenerProductosMapa(),
     obtenerUsuariosMapa(),
   ]);
   const nombreColegio = new Map(colegios.map((c) => [c.id, c.nombre]));
+  const grupos = agrupar(armarFilas(movs, precios, (id) => productos.get(id)?.nombre ?? "—"));
 
-  const registros: (Registro & { orden: string })[] = [
-    ...movs.map((m) => {
-      const recibidoPersonal = m.tipo === "INGRESO" && m.observacion?.startsWith("Recibido en el cafetín");
-      const deCocina = m.tipo === "INGRESO" && m.observacion?.startsWith("Envío de cocina");
-      const deLogistica = m.tipo === "INGRESO" && m.observacion?.startsWith("Entrega de logística");
-      const etiqueta = deCocina
-        ? "Envío de cocina"
-        : deLogistica
-        ? "Entrega recibida"
-        : recibidoPersonal
-        ? "Recibido (personal)"
-        : m.tipo === "VENTA" && m.cantidad < 0
-          ? "Corrección"
-          : TIPOS[m.tipo].texto;
-      return {
-        clave: `m${m.id}`,
-        orden: m.created_at,
-        fecha: m.fecha,
-        hora: m.created_at,
-        tipo: recibidoPersonal ? ("AJUSTE" as Tipo) : m.tipo,
-        etiqueta,
-        productoId: m.producto_id,
-        colegioId: m.colegio_id,
-        cantidad: (
-          <span className={m.efecto_stock > 0 ? "text-verde-600" : m.efecto_stock < 0 ? "text-rojo" : "text-suave"}>
-            {m.efecto_stock > 0 ? "+" : m.efecto_stock < 0 ? "−" : ""}
-            {numero(Math.abs(m.efecto_stock || m.cantidad))}
-          </span>
-        ),
-        monto: Number(m.monto) !== 0 ? soles(m.monto) : "—",
-        stock: m.stock_resultante ?? "—",
-        usuarioId: m.usuario_id,
-        // Entregas: detalle de cajas, por ejemplo "4 cajas × 24 + 5 sueltas"
-        detalle:
-          m.tipo === "INGRESO" && m.cajas > 0
-            ? [`${m.cajas} × ${m.unidades_por_caja ?? "?"}${m.cantidad - m.cajas * (m.unidades_por_caja ?? 0) > 0 ? ` + ${m.cantidad - m.cajas * (m.unidades_por_caja ?? 0)} sueltas` : ""}`, m.observacion]
-                .filter(Boolean)
-                .join(" · ")
-            : m.observacion,
-      };
-    }),
-    ...precios.map((c) => ({
-      clave: `p${c.id}`,
-      orden: c.created_at,
-      fecha: new Intl.DateTimeFormat("en-CA", { timeZone: "America/Lima" }).format(new Date(c.created_at)),
-      hora: c.created_at,
-      tipo: "PRECIO" as Tipo,
-      etiqueta: TIPOS.PRECIO.texto,
-      productoId: c.producto_id,
-      colegioId: c.colegio_id,
-      cantidad: <span className="text-suave">—</span>,
-      monto: (
-        <span className="whitespace-nowrap">
-          <span className="text-suave line-through">{soles(c.precio_anterior)}</span>{" "}
-          <span className={Number(c.precio_nuevo) >= Number(c.precio_anterior) ? "text-verde-700" : "text-rojo"}>
-            → {soles(c.precio_nuevo)}
-          </span>
-        </span>
-      ),
-      stock: "—",
-      usuarioId: c.usuario_id,
-      detalle: "Precio de venta por unidad",
-    })),
-  ].sort((a, b) => (a.orden < b.orden ? 1 : -1));
-
-  const alLimite = movs.length === LIMITE || precios.length === LIMITE;
+  // Para volver del detalle al Historial con los mismos filtros
+  const filtros = new URLSearchParams({ desde, hasta, ...(tipo ? { tipo } : {}), ...(colegioId ? { colegio: String(colegioId) } : {}) });
+  const volver = encodeURIComponent(filtros.toString());
 
   return (
     <div className="mx-auto max-w-[1400px]">
       <Encabezado
         titulo="Historial"
-        descripcion="Todo lo que pasó: ventas, entregas, cajas abiertas, ajustes, mermas y cambios de precio. Quién y cuándo."
+        descripcion="Todo lo que pasó, quién y cuándo. Lo que se registró junto (un envío, un conteo, una entrega) va en una sola fila: tócala para ver sus productos."
       />
 
       <form className="card mb-5 grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5 lg:items-end">
@@ -176,7 +89,7 @@ export default async function PaginaMovimientos({ searchParams }: PageProps<"/mo
       </form>
 
       <div className="card overflow-hidden">
-        {registros.length === 0 ? (
+        {grupos.length === 0 ? (
           <Vacio icono={<History className="h-6 w-6" />} titulo="No hay registros con esos filtros" />
         ) : (
           <TablaPaginada
@@ -193,35 +106,51 @@ export default async function PaginaMovimientos({ searchParams }: PageProps<"/mo
                   <th className="text-right">Stock después</th>
                   <th>Usuario</th>
                   <th>Detalle</th>
+                  <th />
                 </tr>
               </thead>
             }
-            filas={registros.map((r) => (
-              <tr key={r.clave}>
-                <td className="whitespace-nowrap">
-                  {fechaCorta(r.fecha)}
-                  <span className="block text-xs text-suave">{horaLima(r.hora)}</span>
-                </td>
-                <td>
-                  <span className={`chip ${TIPOS[r.tipo].clase}`}>{r.etiqueta}</span>
-                </td>
-                <td className="font-medium">{productos.get(r.productoId)?.nombre ?? "—"}</td>
-                <td className="whitespace-nowrap text-suave">{nombreColegio.get(r.colegioId)}</td>
-                <td className="text-right font-medium">{r.cantidad}</td>
-                <td className="text-right">{r.monto}</td>
-                <td className="text-right text-suave">{r.stock}</td>
-                <td className="whitespace-nowrap text-suave">{r.usuarioId ? usuarios.get(r.usuarioId)?.nombre : "—"}</td>
-                <td className="max-w-64 truncate text-xs text-suave" title={r.detalle ?? undefined}>
-                  {r.detalle}
-                </td>
-              </tr>
-            ))}
+            filas={grupos.map((g) => {
+              const varios = g.items.length > 1;
+              const uno = g.items[0];
+              const t = totales(g);
+              const href = varios ? `/movimientos/${g.clave}?volver=${volver}` : null;
+              const detalle = varios ? t.detalle : uno.detalle;
+              return (
+                <FilaEnlace key={g.clave} href={href}>
+                  <td className="whitespace-nowrap">
+                    {fechaCorta(g.fecha)}
+                    <span className="block text-xs text-suave">{horaLima(g.hora)}</span>
+                  </td>
+                  <td>
+                    <span className={`chip whitespace-nowrap ${TIPOS[g.tipo].clase}`}>{g.etiqueta}</span>
+                  </td>
+                  <td className="font-medium">
+                    {href ? (
+                      <Link href={href} className="whitespace-nowrap text-verde-700 hover:underline">
+                        {g.items.length} productos
+                      </Link>
+                    ) : (
+                      uno.producto
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap text-suave">{nombreColegio.get(g.colegioId)}</td>
+                  <td className="text-right font-medium">
+                    <Cantidad n={t.cantidad} />
+                  </td>
+                  <td className="text-right">
+                    {!varios && uno.precio ? <Precio p={uno.precio} /> : t.monto ? soles(t.monto) : "—"}
+                  </td>
+                  <td className="text-right text-suave">{!varios && uno.stock !== null ? uno.stock : "—"}</td>
+                  <td className="whitespace-nowrap text-suave">{g.usuarioId ? (usuarios.get(g.usuarioId)?.nombre ?? "—") : "—"}</td>
+                  <td className="max-w-64 truncate text-xs text-suave" title={detalle ?? undefined}>
+                    {detalle}
+                  </td>
+                  <td className="w-8 text-suave">{href && <ChevronRight className="h-4 w-4" />}</td>
+                </FilaEnlace>
+              );
+            })}
           />
-        )}
-        {alLimite && (
-          <p className="border-t border-borde px-4 py-3 text-xs text-suave">
-            Se muestran los últimos {LIMITE} de cada tipo. Usa los filtros de fecha para ver más.
-          </p>
         )}
       </div>
     </div>
