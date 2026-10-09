@@ -3,6 +3,7 @@
 import { refresh } from "next/cache";
 import { sesionAccion } from "@/lib/auth";
 import { check, db, mensajeError } from "@/lib/supabase";
+import { enParalelo } from "@/lib/paralelo";
 import { hoyISO, UNIDADES_REPOSICION } from "@/lib/format";
 import type { Resultado } from "@/lib/types";
 
@@ -138,14 +139,17 @@ export async function registrarCostos(reposicionId: number, costos: { id: number
     const hoy = hoyISO();
     // Solo lo que cambió (re-guardar no mueve el gasto al mes de hoy)
     const antes = new Map(r.items.map((i) => [i.id, i.costo == null ? null : Number(i.costo)]));
-    for (const c of costos.filter((x) => antes.get(x.id) !== x.costo)) {
-      check(
-        await db()
-          .from("reposicion_items")
-          .update(c.costo === null ? { costo: null, costo_fecha: null, costo_por: null } : { costo: c.costo, costo_fecha: hoy, costo_por: sesion.uid })
-          .eq("id", c.id),
-      );
-    }
+    await enParalelo(
+      costos.filter((x) => antes.get(x.id) !== x.costo),
+      6,
+      async (c) =>
+        check(
+          await db()
+            .from("reposicion_items")
+            .update(c.costo === null ? { costo: null, costo_fecha: null, costo_por: null } : { costo: c.costo, costo_fecha: hoy, costo_por: sesion.uid })
+            .eq("id", c.id),
+        ),
+    );
     refresh();
     const total = costos.reduce((a, c) => a + (c.costo ?? 0), 0);
     return { ok: true, mensaje: `Costos guardados: S/ ${total.toFixed(2)}.` };

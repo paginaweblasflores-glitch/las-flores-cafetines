@@ -5,9 +5,13 @@ import { BarraLateral } from "./barra-lateral";
 import { BarraSuperior } from "./barra-superior";
 
 export default async function LayoutPanel({ children }: { children: React.ReactNode }) {
+  // Los colegios se piden a la vez que se revisa la sesión (no uno después del otro).
+  // La consulta queda guardada para esta visita: las páginas la reutilizan sin volver a pedirla.
+  const precarga = obtenerColegios();
+  precarga.catch(() => {}); // si la sesión no es válida se redirige y esto se descarta
   const sesion = await requerirSesion(ROLES_PANEL);
   const [colegios, colegioId, reposiciones] = await Promise.all([
-    obtenerColegios(),
+    precarga,
     colegioSeleccionado(),
     contarReposicionesPendientes(sesion.rol),
   ]);

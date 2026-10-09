@@ -22,6 +22,8 @@ export default async function PaginaIngresos({ searchParams }: PageProps<"/ingre
   const sp = await searchParams;
   const mes = typeof sp.mes === "string" && /^\d{4}-\d{2}$/.test(sp.mes) ? sp.mes : mesActual();
   const { desde, hasta } = rangoMes(mes);
+  // ?obs=1: solo lo que llegó con observación (incompleto o dañado)
+  const soloObs = sp.obs === "1";
 
   const [colegios, stock, usuarios, envios] = await Promise.all([
     obtenerColegios(),
@@ -38,11 +40,16 @@ export default async function PaginaIngresos({ searchParams }: PageProps<"/ingre
     return (e.cantidad_enviada * costo) / porCaja;
   };
   const lotes = agruparLotes(envios);
-  const entregas = lotes.filter((l) => l.origen === "LOGISTICA");
-  const deCocina = lotes.filter((l) => l.origen === "COCINA");
+  const todasEntregas = lotes.filter((l) => l.origen === "LOGISTICA");
+  const todoCocina = lotes.filter((l) => l.origen === "COCINA");
+  const observadas = (ls: Lote[]) => ls.filter((l) => l.observados > 0);
+  const entregas = soloObs ? observadas(todasEntregas) : todasEntregas;
+  const deCocina = soloObs ? observadas(todoCocina) : todoCocina;
+  const totalObs = observadas(todasEntregas).length + observadas(todoCocina).length;
+  const enlaceObs = (activo: boolean) => `/ingresos?mes=${mes}${activo ? "&obs=1" : ""}`;
   const nombreColegio = new Map(colegios.map((c) => [c.id, c.nombre]));
-  const totalMes = entregas.reduce((a, l) => a + l.items.reduce((b, e) => b + costoEnvio(e), 0), 0);
-  const porRecibir = entregas.filter((l) => l.porRecibir > 0).length;
+  const totalMes = todasEntregas.reduce((a, l) => a + l.items.reduce((b, e) => b + costoEnvio(e), 0), 0);
+  const porRecibir = todasEntregas.filter((l) => l.porRecibir > 0).length;
 
   /** Una fila = una entrega (o un envío de cocina); clic = sus productos */
   const fila = (l: Lote) => {
@@ -113,6 +120,17 @@ export default async function PaginaIngresos({ searchParams }: PageProps<"/ingre
           />
         </div>
 
+        {/* Ver todo o solo lo que llegó con observación */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href={enlaceObs(false)} className={`chip px-3 py-1.5 ${!soloObs ? "bg-panel text-white" : "bg-white text-suave ring-1 ring-borde"}`}>
+            Todo
+          </Link>
+          <Link href={enlaceObs(true)} className={`chip px-3 py-1.5 ${soloObs ? "bg-[#8a5a00] text-white" : "bg-ambar-50 text-[#8a5a00]"}`}>
+            Con observación ({totalObs})
+          </Link>
+          {soloObs && <span className="text-xs text-suave">Solo lo que llegó incompleto o dañado. Toca una fila para ver el motivo.</span>}
+        </div>
+
         <div className="card overflow-hidden">
           <div className="flex items-center justify-between border-b border-borde px-5 py-4">
             <div>
@@ -120,17 +138,19 @@ export default async function PaginaIngresos({ searchParams }: PageProps<"/ingre
                 <Truck className="h-4 w-4 text-suave" /> Entregas del mes
               </h2>
               <p className="text-xs text-suave">
-                {entregas.length} entrega{entregas.length === 1 ? "" : "s"} · costo {soles(totalMes)}
+                {todasEntregas.length} entrega{todasEntregas.length === 1 ? "" : "s"} · costo {soles(totalMes)}
                 {porRecibir > 0 ? ` · ${porRecibir} por recibir` : ""}
+                {observadas(todasEntregas).length > 0 ? ` · ${observadas(todasEntregas).length} con observación` : ""}
               </p>
             </div>
             <form className="flex items-center gap-2">
               <input type="month" name="mes" defaultValue={mes} className="input w-auto py-1.5" />
+              {soloObs && <input type="hidden" name="obs" value="1" />}
               <button className="btn-secundario py-1.5">Ver</button>
             </form>
           </div>
           {entregas.length === 0 ? (
-            <Vacio icono={<Truck className="h-6 w-6" />} titulo="Sin entregas este mes" />
+            <Vacio icono={<Truck className="h-6 w-6" />} titulo={soloObs ? "Ninguna entrega con observación este mes" : "Sin entregas este mes"} />
           ) : (
             <TablaPaginada
               etiqueta="entregas"
@@ -159,14 +179,12 @@ export default async function PaginaIngresos({ searchParams }: PageProps<"/ingre
             <ChefHat className="h-4 w-4 text-suave" /> Envíos de cocina del mes
           </h2>
           <p className="text-xs text-suave">
-            {deCocina.length} envío{deCocina.length === 1 ? "" : "s"}
-            {deCocina.some((l) => l.observados > 0)
-              ? ` · ${deCocina.filter((l) => l.observados > 0).length} con observación`
-              : " · sin diferencias"}
+            {todoCocina.length} envío{todoCocina.length === 1 ? "" : "s"}
+            {observadas(todoCocina).length > 0 ? ` · ${observadas(todoCocina).length} con observación` : " · sin diferencias"}
           </p>
         </div>
         {deCocina.length === 0 ? (
-          <Vacio icono={<ChefHat className="h-6 w-6" />} titulo="Sin envíos de cocina este mes" />
+          <Vacio icono={<ChefHat className="h-6 w-6" />} titulo={soloObs ? "Ningún envío de cocina con observación este mes" : "Sin envíos de cocina este mes"} />
         ) : (
           <TablaPaginada
             etiqueta="envíos"

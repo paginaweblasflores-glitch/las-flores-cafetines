@@ -16,9 +16,12 @@ import { RegistroPersonal } from "./registro";
 export const metadata: Metadata = { title: "Registro del cafetín" };
 
 export default async function PaginaPersonal({ searchParams }: PageProps<"/personal">) {
+  // Lo que no depende del usuario se pide a la vez que se revisa la sesión
+  const precarga = [obtenerColegios(), obtenerProductosMapa(), obtenerUsuariosMapa()] as const;
+  for (const p of precarga) p.catch(() => {}); // si la sesión no es válida se redirige
   const sesion = await requerirSesion(["PERSONAL", "ADMIN"]);
   const sp = await searchParams;
-  const colegios = await obtenerColegios();
+  const colegios = await precarga[0];
 
   // El personal ve solo su colegio; administración/logística pueden elegir
   let colegioId: number | null = sesion.colegioId;

@@ -118,7 +118,12 @@ export default async function PaginaEntrega({ params }: PageProps<"/ingresos/[lo
                     {esLogistica && <td className="text-right tabular-nums">{soles(costo(e))}</td>}
                     <td>
                       <span className={`chip ${ESTADO_ENVIO[e.estado].clase}`}>{ESTADO_ENVIO[e.estado].texto}</span>
-                      {e.motivo && <span className="block text-xs text-[#8a5a00]">{e.motivo}</span>}
+                      {e.motivo && (
+                        <span className="block text-xs text-[#8a5a00]">
+                          {e.cantidad_recibida != null ? `${numero(e.cantidad_enviada - e.cantidad_recibida)} ` : ""}
+                          {e.motivo}
+                        </span>
+                      )}
                       {e.estado === "PENDIENTE" && (
                         <span className="mt-1 block print:hidden">
                           <AnularEntrega id={e.id} producto={nombre} />

@@ -60,3 +60,12 @@ export const ESTADO_ENVIO = {
   OBSERVADO: { texto: "Con observación", clase: "bg-ambar-50 text-[#8a5a00]" },
   ANULADO: { texto: "Anulado", clase: "bg-fondo text-suave" },
 } as const;
+
+/**
+ * "Envío de cocina: enviaron 50, llegaron 45 (Llegó aplastado o dañado)"
+ *   → "Envío de cocina: enviaron 50, llegaron 45 (5 Llegó aplastado o dañado)"
+ * Agrega cuántas unidades faltaron al motivo (vale también para los registros ya guardados).
+ */
+export function textoObservacion(obs: string) {
+  return obs.replace(/enviaron (\d+), llegaron (\d+) \((?!\d)/, (t, env: string, lleg: string) => `${t}${Number(env) - Number(lleg)} `);
+}

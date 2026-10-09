@@ -3,6 +3,7 @@
 import { refresh } from "next/cache";
 import { sesionAccion } from "@/lib/auth";
 import { check, db, mensajeError } from "@/lib/supabase";
+import { enParalelo } from "@/lib/paralelo";
 import type { Resultado } from "@/lib/types";
 
 const QUIEN_ENVIA = ["COCINA", "ADMIN", "LOGISTICA"] as const;
@@ -106,8 +107,9 @@ export async function recibirConforme(envioIds: number[]): Promise<Resultado> {
     if (sesion.rol === "PERSONAL" && envios.some((e) => e.colegio_id !== sesion.colegioId)) {
       return { ok: false, error: "Solo puedes recibir envíos de tu colegio." };
     }
-    let n = 0;
-    for (const e of envios.filter((x) => x.estado === "PENDIENTE")) {
+    // Varios productos a la vez (antes era uno por uno)
+    const pendientes = envios.filter((x) => x.estado === "PENDIENTE");
+    await enParalelo(pendientes, 6, async (e) =>
       check(
         await db().rpc("fn_recibir_envio", {
           p_envio_id: e.id,
@@ -115,9 +117,9 @@ export async function recibirConforme(envioIds: number[]): Promise<Resultado> {
           p_motivo: "",
           p_usuario_id: sesion.uid,
         }),
-      );
-      n++;
-    }
+      ),
+    );
+    const n = pendientes.length;
     refresh();
     return { ok: true, mensaje: `${n} producto${n === 1 ? "" : "s"} recibido${n === 1 ? "" : "s"} conforme.` };
   } catch (e) {

@@ -327,6 +327,9 @@ function ReportePDF({ d, generado, preliminar }: { d: DatosReporte; generado: st
                 }`
               : "No hubo envíos de cocina registrados."}
           </Text>
+          {(d.cocina.porMotivo?.length ?? 0) > 0 && (
+            <Lista items={d.cocina.porMotivo!.map((m) => `${m.motivo}: ${numero(m.unidades)} unid. (${plural(m.productos, "producto", "productos")}).`)} />
+          )}
         </Pregunta>
 
         <Pregunta n={++n} titulo="¿Qué entregó logística y cuánto costó?">
@@ -337,6 +340,9 @@ function ReportePDF({ d, generado, preliminar }: { d: DatosReporte; generado: st
                 }${d.logistica.sinRecibir ? ` ${plural(d.logistica.sinRecibir, "producto quedó", "productos quedaron")} sin recibir al cierre.` : ""}`
               : "No hubo entregas de logística registradas."}
           </Text>
+          {(d.logistica.porMotivo?.length ?? 0) > 0 && (
+            <Lista items={d.logistica.porMotivo!.map((m) => `${m.motivo}: ${numero(m.unidades)} unid. (${plural(m.productos, "producto", "productos")}).`)} />
+          )}
         </Pregunta>
 
         <Pregunta n={++n} titulo="¿El personal hizo sus conteos?">
@@ -597,7 +603,7 @@ function ReporteComprasPDF({ c, mes, generado, preliminar }: { c: DatosCompras; 
               <Lista
                 items={c.observaciones.map(
                   (o) =>
-                    `${fechaCorta(o.fecha)} · ${o.colegio} · ${o.producto}: se enviaron ${numero(o.enviadas)}, llegaron ${numero(o.llegaron)} (${o.motivo}).`,
+                    `${fechaCorta(o.fecha)} · ${o.colegio} · ${o.producto}: se enviaron ${numero(o.enviadas)}, llegaron ${numero(o.llegaron)} (${numero(o.enviadas - o.llegaron)} ${o.motivo}).`,
                 )}
               />
             </>

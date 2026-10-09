@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { requerirSesion } from "@/lib/auth";
-import { obtenerColegios, obtenerStock } from "@/lib/data";
-import { check, db } from "@/lib/supabase";
+import { obtenerColegios, obtenerStock, obtenerUsuarios } from "@/lib/data";
 import { Encabezado } from "@/components/encabezado";
 import { ListaColegios } from "./lista";
 
@@ -12,9 +11,9 @@ export default async function PaginaColegios() {
   const [colegios, stock, usuarios] = await Promise.all([
     obtenerColegios(false),
     obtenerStock(),
-    db().from("usuarios").select("id, nombre, usuario, colegio_id, activo").eq("rol", "PERSONAL").then(check),
+    obtenerUsuarios().then((us) => us.filter((u) => u.rol === "PERSONAL")),
   ]);
-  const personal = usuarios as { id: number; nombre: string; usuario: string; colegio_id: number; activo: boolean }[];
+  const personal = usuarios;
 
   return (
     <div className="mx-auto max-w-[1200px]">

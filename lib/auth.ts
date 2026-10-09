@@ -2,7 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { inicioPorRol } from "./session";
-import { db } from "./supabase";
+import { obtenerUsuarios } from "./data";
 import { supabaseSesion } from "./supabase-sesion";
 import type { Rol, Sesion } from "./types";
 
@@ -12,11 +12,8 @@ export const obtenerSesion = cache(async (): Promise<Sesion | null> => {
   const authId = data?.claims?.sub;
   if (!authId) return null;
   // Se revisa contra la base: si la administradora desactiva o cambia a un usuario, aplica al instante
-  const { data: u } = await db()
-    .from("usuarios")
-    .select("id, usuario, nombre, rol, colegio_id, activo")
-    .eq("auth_id", authId)
-    .maybeSingle();
+  // (la misma consulta sirve después para los nombres de "quién registró")
+  const u = (await obtenerUsuarios()).find((x) => x.auth_id === authId);
   if (!u || !u.activo) return null;
   return { uid: u.id, usuario: u.usuario, nombre: u.nombre, rol: u.rol, colegioId: u.colegio_id };
 });

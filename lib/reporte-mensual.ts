@@ -46,8 +46,17 @@ export type DatosReporte = {
   masVendidos: { producto: string; unidades: number; ventas: number; ganancia: number }[];
   menosVendidos: { producto: string; unidades: number; ventas: number }[];
   sinVenta: string[];
-  cocina: { envios: number; enviadas: number; llegaron: number; conObservacion: number; sinRecibir: number };
-  logistica: { entregas: number; enviadas: number; llegaron: number; conObservacion: number; sinRecibir: number; costo: number };
+  /** porMotivo: unidades que faltaron o llegaron mal, por motivo (los reportes antiguos no lo tienen) */
+  cocina: { envios: number; enviadas: number; llegaron: number; conObservacion: number; sinRecibir: number; porMotivo?: MotivoEnvio[] };
+  logistica: {
+    entregas: number;
+    enviadas: number;
+    llegaron: number;
+    conObservacion: number;
+    sinRecibir: number;
+    costo: number;
+    porMotivo?: MotivoEnvio[];
+  };
   conteos: { colegio: string; diasVenta: number; diasConteo: number; completos: number; semanas: number }[];
   reposiciones: { total: number; porEstado: Record<string, number>; productos: number; fueraCatalogo: number };
   ajustes: { movimientos: number; unidades: number; valor: number };
@@ -60,6 +69,9 @@ export type DatosReporte = {
   /** Reporte de compras y entregas (logística). Los reportes antiguos pueden no tenerlo. */
   compras?: DatosCompras;
 };
+
+/** Unidades que no llegaron bien, agrupadas por el motivo que anotó el personal */
+export type MotivoEnvio = { motivo: string; unidades: number; productos: number };
 
 /** Lo que logística compró y entregó en el mes, para rendir cuentas */
 export type DatosCompras = {
@@ -95,6 +107,19 @@ const diaSiguiente = (iso: string) => {
 };
 
 type Mov = { tipo: string; fecha: string; colegio_id: number; producto_id: number; cantidad: number; efecto_stock: number; costo_unitario: number; observacion: string | null };
+/** Faltantes de envíos observados, por motivo (de más a menos unidades) */
+function porMotivoEnvio(observados: { cantidad_enviada: number; cantidad_recibida: number | null; motivo: string | null }[]): MotivoEnvio[] {
+  const m = new Map<string, MotivoEnvio>();
+  for (const e of observados) {
+    const motivo = (e.motivo ?? "").trim() || "Sin motivo";
+    const a = m.get(motivo) ?? { motivo, unidades: 0, productos: 0 };
+    a.unidades += e.cantidad_enviada - (e.cantidad_recibida ?? 0);
+    a.productos++;
+    m.set(motivo, a);
+  }
+  return [...m.values()].sort((a, b) => b.unidades - a.unidades);
+}
+
 type Env = {
   id: number;
   lote: string | null;
@@ -106,6 +131,7 @@ type Env = {
   cantidad_recibida: number | null;
   unidades_por_caja: number | null;
   costo_presentacion: number | null;
+  motivo: string | null;
 };
 
 /** Calcula el reporte de un mes con lo que hay hoy en la base */
@@ -145,7 +171,7 @@ export async function calcularReporte(mes: string): Promise<DatosReporte> {
         () =>
           db()
             .from("envios")
-            .select("id, lote, origen, estado, colegio_id, producto_colegio_id, cantidad_enviada, cantidad_recibida, unidades_por_caja, costo_presentacion")
+            .select("id, lote, origen, estado, colegio_id, producto_colegio_id, cantidad_enviada, cantidad_recibida, unidades_por_caja, costo_presentacion, motivo")
             .gte("fecha", desde)
             .lte("fecha", hasta)
             .order("id") as unknown as Consulta<Env>,
@@ -258,6 +284,7 @@ export async function calcularReporte(mes: string): Promise<DatosReporte> {
       llegaron: suma(e, (x) => x.cantidad_recibida ?? 0),
       conObservacion: e.filter((x) => x.estado === "OBSERVADO").length,
       sinRecibir: e.filter((x) => x.estado === "PENDIENTE").length,
+      porMotivo: porMotivoEnvio(e.filter((x) => x.estado === "OBSERVADO")),
       filas: e,
     };
   };
@@ -363,7 +390,14 @@ export async function calcularReporte(mes: string): Promise<DatosReporte> {
       .filter((p) => !vendidos.slice(0, 5).includes(p))
       .map((p) => ({ producto: p.producto, unidades: p.unidades, ventas: r2(p.ventas) })),
     sinVenta,
-    cocina: { envios: cocina.envios, enviadas: cocina.enviadas, llegaron: cocina.llegaron, conObservacion: cocina.conObservacion, sinRecibir: cocina.sinRecibir },
+    cocina: {
+      envios: cocina.envios,
+      enviadas: cocina.enviadas,
+      llegaron: cocina.llegaron,
+      conObservacion: cocina.conObservacion,
+      sinRecibir: cocina.sinRecibir,
+      porMotivo: cocina.porMotivo,
+    },
     logistica: {
       entregas: logis.envios,
       enviadas: logis.enviadas,
@@ -371,6 +405,7 @@ export async function calcularReporte(mes: string): Promise<DatosReporte> {
       conObservacion: logis.conObservacion,
       sinRecibir: logis.sinRecibir,
       costo: r2(costoLogistica),
+      porMotivo: logis.porMotivo,
     },
     conteos: conteosPorColegio,
     reposiciones: {
@@ -643,9 +678,12 @@ export async function primerMesConDatos() {
 
 export async function asegurarReportesCerrados() {
   const actual = mesActual();
-  const primerMes = await primerMesConDatos();
+  // Las dos consultas a la vez (no una después de otra)
+  const [primerMes, { data: hechos, error }] = await Promise.all([
+    primerMesConDatos(),
+    db().from("reportes_mensuales").select("mes"),
+  ]);
   if (!primerMes || primerMes >= actual) return;
-  const { data: hechos, error } = await db().from("reportes_mensuales").select("mes");
   if (error) return; // si aún no se ejecutó la migración 13, no hace nada
   const ya = new Set((hechos ?? []).map((h) => h.mes as string));
   for (let m = primerMes; m < actual; m = mesSiguiente(m)) {

@@ -3,6 +3,7 @@
 import { refresh } from "next/cache";
 import { sesionAccion } from "@/lib/auth";
 import { check, db, mensajeError } from "@/lib/supabase";
+import { enParalelo } from "@/lib/paralelo";
 import type { Sesion } from "@/lib/types";
 
 /** El personal solo puede tocar productos de su propio colegio */
@@ -69,7 +70,8 @@ export async function guardarRegistro(cambios: CambioRegistro[]): Promise<Respue
         ) as { id: number; stock_unidades: number; precio_venta: number }[]
       ).map((f) => [f.id, f]),
     );
-    for (const c of validos) {
+    // Cada producto es independiente: se guardan varios a la vez (antes era uno por uno)
+    await enParalelo(validos, 6, async (c) => {
       try {
         let conteo = { vendido: 0, ajuste: 0 };
         // Primero el precio, para que la venta se registre con el precio nuevo
@@ -97,9 +99,13 @@ export async function guardarRegistro(cambios: CambioRegistro[]): Promise<Respue
         }
         // Productos del día: lo que sobra se retira como merma (no cuenta como venta)
         if (c.merma) {
-          const fila = check(
-            await db().from("producto_colegio").select("stock_unidades").eq("id", c.id).single(),
-          ) as { stock_unidades: number };
+          // Si se acaba de contar, lo que queda es lo contado (no hace falta volver a leerlo)
+          const fila =
+            c.unidades !== undefined
+              ? { stock_unidades: c.unidades }
+              : (check(await db().from("producto_colegio").select("stock_unidades").eq("id", c.id).single()) as {
+                  stock_unidades: number;
+                });
           if (c.merma.cantidad > fila.stock_unidades) {
             throw new Error(`La merma (${c.merma.cantidad}) no puede ser mayor a lo que queda (${fila.stock_unidades}).`);
           }
@@ -135,7 +141,7 @@ export async function guardarRegistro(cambios: CambioRegistro[]): Promise<Respue
       } catch (e) {
         errores.push({ id: c.id, error: mensajeError(e) });
       }
-    }
+    });
     refresh();
     return { ok: true, vendido, ajustes, merma, guardados, errores };
   } catch (e) {

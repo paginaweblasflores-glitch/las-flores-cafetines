@@ -13,9 +13,10 @@ import { fechaCorta, horaLima, mesActual, rangoMes, soles } from "@/lib/format";
 import { Encabezado } from "@/components/encabezado";
 import { Vacio } from "@/components/ui";
 import { TablaPaginada } from "@/components/paginacion";
-import { agrupar, armarFilas, TIPOS, totales, type Tipo } from "./registros";
+import { agrupar, armarFilas, FILTROS, TIPOS, totales } from "./registros";
 import { Cantidad, Precio } from "./celdas";
 import { FilaEnlace } from "./grupo";
+import { FormularioFiltros } from "./filtros";
 
 export const metadata: Metadata = { title: "Historial" };
 
@@ -26,22 +27,24 @@ export default async function PaginaMovimientos({ searchParams }: PageProps<"/mo
   const { desde: d0, hasta: h0 } = rangoMes(mesActual());
   const desde = /^\d{4}-\d{2}-\d{2}$/.test(str("desde")) ? str("desde") : d0;
   const hasta = /^\d{4}-\d{2}-\d{2}$/.test(str("hasta")) ? str("hasta") : h0;
-  const tipo = (str("tipo") in TIPOS ? str("tipo") : "") as Tipo | "";
+  const tipo = str("tipo") in FILTROS ? str("tipo") : "";
+  const filtro = tipo ? FILTROS[tipo] : null;
   const colegios = await obtenerColegios(false);
   const pedido = Number(str("colegio"));
   const colegioId = colegios.some((c) => c.id === pedido) ? pedido : null;
 
-  const verMovimientos = tipo !== "PRECIO";
-  const verPrecios = tipo === "" || tipo === "PRECIO";
+  const verMovimientos = !filtro?.precios;
+  const verPrecios = !filtro || filtro.precios;
 
   const [movs, precios, productos, usuarios] = await Promise.all([
-    verMovimientos ? obtenerMovimientos({ colegioId, tipo: tipo || null, desde, hasta, todos: true }) : [],
+    verMovimientos ? obtenerMovimientos({ colegioId, tipo: filtro?.db ?? null, desde, hasta, todos: true }) : [],
     verPrecios ? obtenerCambiosPrecio({ colegioId, desde, hasta, limite: 1000 }) : [],
     obtenerProductosMapa(),
     obtenerUsuariosMapa(),
   ]);
   const nombreColegio = new Map(colegios.map((c) => [c.id, c.nombre]));
-  const grupos = agrupar(armarFilas(movs, precios, (id) => productos.get(id)?.nombre ?? "—"));
+  const filas = armarFilas(movs, precios, (id) => productos.get(id)?.nombre ?? "—");
+  const grupos = agrupar(filtro ? filas.filter(filtro.incluye) : filas);
 
   // Para volver del detalle al Historial con los mismos filtros
   const filtros = new URLSearchParams({ desde, hasta, ...(tipo ? { tipo } : {}), ...(colegioId ? { colegio: String(colegioId) } : {}) });
@@ -54,7 +57,8 @@ export default async function PaginaMovimientos({ searchParams }: PageProps<"/mo
         descripcion="Todo lo que pasó, quién y cuándo. Lo que se registró junto (un envío, un conteo, una entrega) va en una sola fila: tócala para ver sus productos."
       />
 
-      <form className="card mb-5 grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5 lg:items-end">
+      {/* Se aplica solo al elegir una opción o una fecha */}
+      <FormularioFiltros className="card mb-5 grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4 lg:items-end">
         <label>
           <span className="label">Colegio</span>
           <select name="colegio" defaultValue={colegioId ?? "todos"} className="input">
@@ -70,7 +74,7 @@ export default async function PaginaMovimientos({ searchParams }: PageProps<"/mo
           <span className="label">Tipo</span>
           <select name="tipo" defaultValue={tipo} className="input">
             <option value="">Todos</option>
-            {Object.entries(TIPOS).map(([k, v]) => (
+            {Object.entries(FILTROS).map(([k, v]) => (
               <option key={k} value={k}>
                 {v.texto}
               </option>
@@ -85,8 +89,7 @@ export default async function PaginaMovimientos({ searchParams }: PageProps<"/mo
           <span className="label">Hasta</span>
           <input type="date" name="hasta" defaultValue={hasta} className="input" />
         </label>
-        <button className="btn-primario">Filtrar</button>
-      </form>
+      </FormularioFiltros>
 
       <div className="card overflow-hidden">
         {grupos.length === 0 ? (

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { after } from "next/server";
 import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight, CheckCircle2, Clock, AlertTriangle, ArrowRight, BellRing, Minus } from "lucide-react";
 import { requerirSesion, ROLES_PANEL } from "@/lib/auth";
@@ -33,8 +34,9 @@ const ACENTO = COLORES_COLEGIO[0];
 
 export default async function Dashboard() {
   const sesion = await requerirSesion(ROLES_PANEL);
-  // El día 1, la primera visita genera y guarda el reporte del mes que cerró
-  await asegurarReportesCerrados().catch((e) => console.error("Reporte mensual:", e));
+  // El día 1, la primera visita genera y guarda el reporte del mes que cerró.
+  // Se hace después de mostrar la página, para no hacer esperar el Inicio.
+  after(() => asegurarReportesCerrados().catch((e) => console.error("Reporte mensual:", e)));
   const colegioId = await colegioSeleccionado();
   // Logística tiene su propio Inicio: comprar, entregar y revisar (sin ventas ni ganancias)
   if (sesion.rol === "LOGISTICA") return <InicioLogistica sesion={sesion} colegioId={colegioId} />;

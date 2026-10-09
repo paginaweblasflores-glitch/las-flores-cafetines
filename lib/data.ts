@@ -2,7 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { cookies } from "next/headers";
 import { check, db } from "./supabase";
-import type { Categoria, Colegio, Movimiento, StockRow, VentaDiaria } from "./types";
+import type { Categoria, Colegio, Movimiento, Rol, StockRow, VentaDiaria } from "./types";
 
 export const COOKIE_COLEGIO = "lf_colegio";
 
@@ -23,11 +23,15 @@ export async function todas<T>(crear: () => Consulta<T>): Promise<T[]> {
   }
 }
 
-export const obtenerColegios = cache(async (soloActivos = true): Promise<Colegio[]> => {
-  let q = db().from("colegios").select("*").order("id");
-  if (soloActivos) q = q.eq("activo", true);
-  return check(await q) as Colegio[];
+// Una sola consulta por página: activos e inactivos salen de la misma lista
+const todosLosColegios = cache(async (): Promise<Colegio[]> => {
+  return check(await db().from("colegios").select("*").order("id")) as Colegio[];
 });
+
+export async function obtenerColegios(soloActivos = true): Promise<Colegio[]> {
+  const todos = await todosLosColegios();
+  return soloActivos ? todos.filter((c) => c.activo) : todos;
+}
 
 export const obtenerCategorias = cache(async (): Promise<Categoria[]> => {
   return check(await db().from("categorias").select("*").order("orden").order("nombre")) as Categoria[];
@@ -112,15 +116,28 @@ export const obtenerProductosMapa = cache(async () => {
   return new Map(filas.map((p) => [p.id, p]));
 });
 
-export const obtenerUsuariosMapa = cache(async () => {
-  const filas = check(await db().from("usuarios").select("id, nombre, usuario, rol")) as {
-    id: number;
-    nombre: string;
-    usuario: string;
-    rol: string;
-  }[];
-  return new Map(filas.map((u) => [u.id, u]));
+export type FilaUsuario = {
+  id: number;
+  usuario: string;
+  nombre: string;
+  rol: Rol;
+  colegio_id: number | null;
+  activo: boolean;
+  auth_id: string | null;
+  ultimo_acceso: string | null;
+};
+
+/**
+ * Todos los usuarios en una sola consulta por página (son pocos): la usan la sesión,
+ * los nombres de "quién registró" y el módulo Usuarios.
+ */
+export const obtenerUsuarios = cache(async (): Promise<FilaUsuario[]> => {
+  return check(
+    await db().from("usuarios").select("id, usuario, nombre, rol, colegio_id, activo, auth_id, ultimo_acceso").order("id"),
+  ) as FilaUsuario[];
 });
+
+export const obtenerUsuariosMapa = cache(async () => new Map((await obtenerUsuarios()).map((u) => [u.id, u])));
 
 /** Último registro (venta o conteo) de cada colegio en una fecha */
 export async function obtenerActividadDia(fecha: string) {

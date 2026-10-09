@@ -1,4 +1,5 @@
 import { fechaISOLima } from "@/lib/format";
+import { textoObservacion } from "@/lib/entregas";
 import type { CambioPrecio } from "@/lib/data";
 import type { Movimiento, TipoMovimiento } from "@/lib/types";
 
@@ -12,6 +13,24 @@ export const TIPOS: Record<Tipo, { texto: string; clase: string }> = {
   AJUSTE: { texto: "Ajuste", clase: "bg-ambar-50 text-[#8a5a00]" },
   MERMA: { texto: "Merma", clase: "bg-rojo-50 text-rojo" },
   PRECIO: { texto: "Cambio de precio", clase: "bg-[#f1ebfa] text-[#6a3fb0]" },
+};
+
+/**
+ * Filtro "Tipo" del Historial, con los mismos nombres que se ven en la tabla.
+ * db: tipo que se pide a la base (null = todos); incluye: qué filas quedan.
+ */
+export const FILTROS: Record<string, { texto: string; db: TipoMovimiento | null; precios: boolean; incluye: (f: Fila) => boolean }> = {
+  venta: { texto: "Venta", db: "VENTA", precios: false, incluye: (f) => f.tipo === "VENTA" },
+  cocina: { texto: "Envío de cocina", db: "INGRESO", precios: false, incluye: (f) => f.etiqueta === "Envío de cocina" },
+  entrega: {
+    texto: "Entrega de logística",
+    db: "INGRESO",
+    precios: false,
+    incluye: (f) => f.etiqueta === "Entrega recibida" || f.etiqueta === TIPOS.INGRESO.texto,
+  },
+  ajuste: { texto: "Ajuste", db: null, precios: false, incluye: (f) => f.tipo === "AJUSTE" },
+  merma: { texto: "Merma", db: "MERMA", precios: false, incluye: (f) => f.tipo === "MERMA" },
+  precio: { texto: "Cambio de precio", db: null, precios: true, incluye: (f) => f.tipo === "PRECIO" },
 };
 
 // Lo que se registra junto (un envío, un conteo, una entrega) queda a pocos minutos de distancia
@@ -78,10 +97,10 @@ export function armarFilas(movs: Movimiento[], precios: CambioPrecio[], producto
         // Entregas: detalle de cajas, por ejemplo "4 × 24 + 5 sueltas"
         detalle:
           m.tipo === "INGRESO" && m.cajas > 0
-            ? [`${m.cajas} × ${m.unidades_por_caja ?? "?"}${m.cantidad - m.cajas * (m.unidades_por_caja ?? 0) > 0 ? ` + ${m.cantidad - m.cajas * (m.unidades_por_caja ?? 0)} sueltas` : ""}`, m.observacion]
+            ? [`${m.cajas} × ${m.unidades_por_caja ?? "?"}${m.cantidad - m.cajas * (m.unidades_por_caja ?? 0) > 0 ? ` + ${m.cantidad - m.cajas * (m.unidades_por_caja ?? 0)} sueltas` : ""}`, m.observacion && textoObservacion(m.observacion)]
                 .filter(Boolean)
                 .join(" · ")
-            : m.observacion,
+            : m.observacion && textoObservacion(m.observacion),
       };
     }),
     ...precios.map(
