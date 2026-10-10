@@ -8,18 +8,31 @@ import type { Presentacion, Resultado } from "@/lib/types";
 const PRESENTACIONES: Presentacion[] = ["UNIDAD", "CAJA", "PAQUETE", "BOLSA", "OTRO"];
 
 /**
- * Edita nombre/categoría/activo y define en qué colegios se vende.
- * - Colegio nuevo: se agrega con stock 0 copiando costo y precio de otro colegio.
+ * Edita nombre/categoría/activo, en qué colegios se vende y el precio en cada uno.
+ * - Colegio nuevo: se agrega con stock 0, el costo de otro colegio y su propio precio.
+ * - Precio distinto en un colegio que ya lo vendía: se cambia y queda en el historial de precios.
  * - Colegio desmarcado: se desactiva ahí (no se borra su historial).
  */
 export async function editarProducto(
   id: number,
-  d: { nombre: string; categoriaId: number | null; activo: boolean; perecible: boolean; colegioIds: number[] },
+  d: {
+    nombre: string;
+    categoriaId: number | null;
+    activo: boolean;
+    perecible: boolean;
+    colegioIds: number[];
+    /** Precio de venta por unidad en cada colegio marcado */
+    precios?: Record<number, number>;
+  },
 ): Promise<Resultado> {
   try {
     const sesion = await sesionAccion(ROLES_PANEL);
     const nombre = d.nombre.trim().replace(/\s+/g, " ");
     if (nombre.length < 2) return { ok: false, error: "Escribe el nombre del producto." };
+    const precios = d.precios ?? {};
+    if (Object.values(precios).some((p) => !Number.isFinite(p) || p < 0)) {
+      return { ok: false, error: "Los precios no pueden ser negativos." };
+    }
     check(
       await db()
         .from("productos")
@@ -47,8 +60,13 @@ export async function editarProducto(
 
     for (const colegioId of d.colegioIds) {
       const fila = filas.find((f) => f.colegio_id === colegioId);
+      const precio = precios[colegioId];
       if (fila) {
         if (!fila.activo) check(await db().from("producto_colegio").update({ activo: true, updated_by: sesion.uid }).eq("id", fila.id));
+        // El precio va por la función para que quede en el historial de precios
+        if (precio !== undefined && precio !== Number(fila.precio_venta)) {
+          check(await db().rpc("fn_cambiar_precio", { p_producto_colegio_id: fila.id, p_precio: precio, p_usuario_id: sesion.uid }));
+        }
       } else {
         check(
           await db().from("producto_colegio").insert({
@@ -57,7 +75,7 @@ export async function editarProducto(
             presentacion: modelo?.presentacion ?? "UNIDAD",
             unidades_por_presentacion: modelo?.unidades_por_presentacion ?? 1,
             costo_presentacion: modelo?.costo_presentacion ?? 0,
-            precio_venta: modelo?.precio_venta ?? 0,
+            precio_venta: precio ?? modelo?.precio_venta ?? 0,
             stock_minimo: modelo?.stock_minimo ?? 5,
             stock_unidades: 0,
             activo: true,
@@ -102,7 +120,8 @@ export type NuevoProducto = {
   presentacion: Presentacion;
   unidadesPorPresentacion: number;
   costoPresentacion: number;
-  precioVenta: number;
+  /** Precio de venta por unidad en cada colegio (cada colegio puede vender a su precio) */
+  precios: Record<number, number>;
   stockMinimo: number;
   /** Stock inicial en unidades por colegio (vacío = 0) */
   stockInicial: Record<number, number>;
@@ -119,7 +138,9 @@ export async function crearProducto(d: NuevoProducto): Promise<Resultado> {
     const unidades = d.presentacion === "UNIDAD" ? 1 : d.unidadesPorPresentacion;
     if (!Number.isInteger(unidades) || unidades < 1) return { ok: false, error: "Las unidades por caja/paquete deben ser 1 o más." };
     const decimal = (n: number) => Number.isFinite(n) && n >= 0;
-    if (!decimal(d.costoPresentacion) || !decimal(d.precioVenta)) return { ok: false, error: "Los precios no pueden ser negativos." };
+    if (!decimal(d.costoPresentacion) || d.colegioIds.some((id) => !decimal(d.precios[id]))) {
+      return { ok: false, error: "Escribe el precio de venta de cada colegio (no puede ser negativo)." };
+    }
     if (!Number.isInteger(d.stockMinimo) || d.stockMinimo < 0) return { ok: false, error: "El stock mínimo debe ser un número entero." };
     for (const id of d.colegioIds) {
       const st = d.stockInicial[id] ?? 0;
@@ -136,7 +157,7 @@ export async function crearProducto(d: NuevoProducto): Promise<Resultado> {
       presentacion: d.presentacion,
       unidades_por_presentacion: unidades,
       costo_presentacion: d.costoPresentacion,
-      precio_venta: d.precioVenta,
+      precio_venta: d.precios[colegioId],
       stock_minimo: d.stockMinimo,
       stock_unidades: 0,
       activo: true,

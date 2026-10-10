@@ -26,7 +26,7 @@ export default async function PaginaCatalogo() {
         colegios={colegios.map((c) => ({ id: c.id, nombre: c.nombre }))}
         categorias={categorias}
         productos={productos as { id: number; nombre: string; categoria_id: number | null; activo: boolean; perecible: boolean }[]}
-        presencias={stock.map((s) => ({ colegioId: s.colegio_id, productoId: s.producto_id, activo: s.activo }))}
+        presencias={stock.map((s) => ({ colegioId: s.colegio_id, productoId: s.producto_id, activo: s.activo, precio: Number(s.precio_venta) }))}
         verGanancia={sesion.rol === "ADMIN"}
       />
     </div>

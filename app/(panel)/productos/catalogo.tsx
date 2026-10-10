@@ -9,8 +9,8 @@ import { NOMBRE_PRESENTACION, normalizar, pct, soles } from "@/lib/format";
 import type { Categoria, Presentacion } from "@/lib/types";
 
 type Producto = { id: number; nombre: string; categoria_id: number | null; activo: boolean; perecible: boolean };
-/** En qué colegio se vende cada producto (y si está activo allí) */
-type Presencia = { colegioId: number; productoId: number; activo: boolean };
+/** En qué colegio se vende cada producto, si está activo allí y a qué precio (cada colegio tiene el suyo) */
+type Presencia = { colegioId: number; productoId: number; activo: boolean; precio: number };
 
 export function Catalogo({
   colegios,
@@ -113,7 +113,7 @@ export function Catalogo({
                               className={`chip ${pr!.activo ? "bg-fondo text-tinta" : "bg-fondo text-suave line-through"}`}
                               title={pr!.activo ? "Activo en este colegio" : "Desactivado en este colegio"}
                             >
-                              {corto(c.nombre)}
+                              {corto(c.nombre)} · {soles(pr!.precio)}
                             </span>
                           ))}
                         </div>
@@ -144,6 +144,7 @@ export function Catalogo({
           categorias={categorias}
           colegios={colegios}
           activosEn={presencias.filter((x) => x.productoId === editando.id && x.activo).map((x) => x.colegioId)}
+          preciosActuales={Object.fromEntries(presencias.filter((x) => x.productoId === editando.id).map((x) => [x.colegioId, x.precio]))}
           onCerrar={() => setEditando(null)}
         />
       )}
@@ -158,15 +159,24 @@ function ModalProducto({
   categorias,
   colegios,
   activosEn,
+  preciosActuales,
   onCerrar,
 }: {
   producto: Producto;
   categorias: Categoria[];
   colegios: { id: number; nombre: string }[];
   activosEn: number[];
+  /** Precio de venta actual en cada colegio donde existe el producto */
+  preciosActuales: Record<number, number>;
   onCerrar: () => void;
 }) {
   const [elegidos, setElegidos] = useState<number[]>(activosEn);
+  // Un colegio nuevo empieza con el precio de otro colegio (se puede cambiar)
+  const precioBase = Object.values(preciosActuales)[0];
+  const [precios, setPrecios] = useState<Record<number, string>>(() =>
+    Object.fromEntries(colegios.map((c) => [c.id, String(preciosActuales[c.id] ?? precioBase ?? "")])),
+  );
+  const preciosValidos = elegidos.every((id) => (precios[id] ?? "").trim() !== "" && Number(precios[id]) >= 0);
   const alternar = (id: number) => setElegidos((xs) => (xs.includes(id) ? xs.filter((x) => x !== id) : [...xs, id]));
   const nuevos = elegidos.filter((id) => !activosEn.includes(id));
   const quitados = activosEn.filter((id) => !elegidos.includes(id));
@@ -176,7 +186,7 @@ function ModalProducto({
   const [perecible, setPerecible] = useState(producto.perecible);
   const [pendiente, iniciar] = useTransition();
   return (
-    <Modal abierto onCerrar={onCerrar} titulo="Editar producto" subtitulo="Nombre, categoría y en qué colegios se vende">
+    <Modal abierto onCerrar={onCerrar} titulo="Editar producto" subtitulo="Nombre, categoría, en qué colegios se vende y a qué precio">
       <div className="space-y-3">
         <label className="block">
           <span className="label">Nombre</span>
@@ -199,23 +209,40 @@ function ModalProducto({
             {colegios.map((c) => {
               const marcado = elegidos.includes(c.id);
               return (
-                <label
+                <div
                   key={c.id}
                   className={
-                    "flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm " +
+                    "flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2 text-sm " +
                     (marcado ? "border-verde bg-verde-50" : "border-borde")
                   }
                 >
-                  <input type="checkbox" checked={marcado} onChange={() => alternar(c.id)} className="accent-verde" />
-                  {c.nombre}
-                </label>
+                  <label className="flex flex-1 cursor-pointer items-center gap-2">
+                    <input type="checkbox" checked={marcado} onChange={() => alternar(c.id)} className="accent-verde" />
+                    {c.nombre}
+                  </label>
+                  {marcado && (
+                    <label className="flex items-center gap-2 text-xs text-suave">
+                      Precio S/
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.05"
+                        inputMode="decimal"
+                        value={precios[c.id] ?? ""}
+                        onChange={(e) => setPrecios((p) => ({ ...p, [c.id]: e.target.value }))}
+                        className="input h-9 w-24 py-1 text-center"
+                        aria-label={`Precio de venta en ${c.nombre}`}
+                      />
+                    </label>
+                  )}
+                </div>
               );
             })}
           </div>
           {nuevos.length > 0 && (
             <p className="mt-2 text-xs text-verde-700">
-              Se agregará a {nuevos.map((id) => colegios.find((c) => c.id === id)?.nombre).join(", ")} con stock 0 y el mismo
-              precio. Luego registra su mercadería en Entregas.
+              Se agregará a {nuevos.map((id) => colegios.find((c) => c.id === id)?.nombre).join(", ")} con stock 0 y el precio
+              que pongas. Luego registra su mercadería en Entregas.
             </p>
           )}
           {quitados.length > 0 && (
@@ -242,7 +269,7 @@ function ModalProducto({
       <div className="mt-5 flex justify-end gap-2">
         <button onClick={onCerrar} className="btn-secundario">Cancelar</button>
         <button
-          disabled={pendiente}
+          disabled={pendiente || !preciosValidos}
           className="btn-primario"
           onClick={() =>
             iniciar(async () => {
@@ -252,6 +279,7 @@ function ModalProducto({
                 activo,
                 perecible,
                 colegioIds: elegidos,
+                precios: Object.fromEntries(elegidos.map((id) => [id, Number(precios[id])])),
               });
               if (r.ok) {
                 avisar(r.mensaje ?? "Guardado");
@@ -315,7 +343,9 @@ function ModalNuevoProducto({
   const [presentacion, setPresentacion] = useState<Presentacion>("UNIDAD");
   const [porCaja, setPorCaja] = useState("1");
   const [costo, setCosto] = useState("");
-  const [precio, setPrecio] = useState("");
+  // Precio por colegio. Lo que se escribe en uno se copia a los que aún no se tocaron.
+  const [precios, setPrecios] = useState<Record<number, string>>({});
+  const [tocados, setTocados] = useState<number[]>([]);
   const [minimo, setMinimo] = useState("5");
   const [perecible, setPerecible] = useState(false);
   const [stockInicial, setStockInicial] = useState<Record<number, string>>({});
@@ -325,8 +355,23 @@ function ModalNuevoProducto({
   const esUnidad = presentacion === "UNIDAD";
   const unidades = esUnidad ? 1 : n(porCaja);
   const costoUnit = unidades > 0 ? n(costo) / unidades : 0;
-  const ganancia = n(precio) - costoUnit;
-  const margen = n(precio) > 0 && costoUnit > 0 ? (ganancia / n(precio)) * 100 : null;
+  const precioDe = (id: number) => precios[id] ?? "";
+  const preciosListos = elegidos.length > 0 && elegidos.every((id) => precioDe(id).trim() !== "" && n(precioDe(id)) >= 0);
+  const cambiarPrecio = (id: number, v: string) => {
+    setTocados((t) => (t.includes(id) ? t : [...t, id]));
+    setPrecios((p) => {
+      const nuevo = { ...p, [id]: v };
+      for (const c of colegios) if (c.id !== id && !tocados.includes(c.id)) nuevo[c.id] = v;
+      return nuevo;
+    });
+  };
+  /** Ganancia por unidad con el precio de ese colegio */
+  const gananciaEn = (id: number) => {
+    const precio = n(precioDe(id));
+    const g = precio - costoUnit;
+    const margen = precio > 0 && costoUnit > 0 ? Math.round((g / precio) * 1000) / 10 : null;
+    return { g, margen };
+  };
   const alternar = (id: number) =>
     setElegidos((xs) => (xs.includes(id) ? xs.filter((x) => x !== id) : [...xs, id]));
   const nombreCaja = esUnidad ? "unidad" : NOMBRE_PRESENTACION[presentacion].toLowerCase();
@@ -341,7 +386,7 @@ function ModalNuevoProducto({
         presentacion,
         unidadesPorPresentacion: unidades,
         costoPresentacion: n(costo),
-        precioVenta: n(precio),
+        precios: Object.fromEntries(elegidos.map((id) => [id, n(precioDe(id))])),
         stockMinimo: n(minimo),
         stockInicial: Object.fromEntries(elegidos.map((id) => [id, n(stockInicial[id] ?? "")])),
       });
@@ -407,20 +452,40 @@ function ModalNuevoProducto({
                 {c.nombre}
               </label>
               {marcado && (
-                <label className="flex items-center gap-2 text-xs text-suave">
-                  Stock inicial
-                  <input
-                    type="number"
-                    min="0"
-                    inputMode="numeric"
-                    value={stockInicial[c.id] ?? ""}
-                    onChange={(e) => setStockInicial((s) => ({ ...s, [c.id]: e.target.value }))}
-                    placeholder="0"
-                    className="input h-9 w-24 py-1 text-center"
-                    aria-label={`Stock inicial en ${c.nombre}`}
-                  />
-                  unid.
-                </label>
+                <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs text-suave">
+                  <label className="flex items-center gap-2">
+                    Precio S/
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.05"
+                      inputMode="decimal"
+                      value={precioDe(c.id)}
+                      onChange={(e) => cambiarPrecio(c.id, e.target.value)}
+                      placeholder="0.00"
+                      className="input h-9 w-20 py-1 text-center"
+                      aria-label={`Precio de venta en ${c.nombre}`}
+                    />
+                  </label>
+                  <label className="flex items-center gap-2">
+                    Stock inicial
+                    <input
+                      type="number"
+                      min="0"
+                      inputMode="numeric"
+                      value={stockInicial[c.id] ?? ""}
+                      onChange={(e) => setStockInicial((s) => ({ ...s, [c.id]: e.target.value }))}
+                      placeholder="0"
+                      className="input h-9 w-20 py-1 text-center"
+                      aria-label={`Stock inicial en ${c.nombre}`}
+                    />
+                  </label>
+                  {verGanancia && precioDe(c.id).trim() !== "" && costoUnit > 0 && (
+                    <span className={`w-full text-right ${gananciaEn(c.id).g < 0 ? "text-rojo" : ""}`}>
+                      Ganancia por unidad {soles(gananciaEn(c.id).g)} ({pct(gananciaEn(c.id).margen)})
+                    </span>
+                  )}
+                </div>
               )}
             </div>
           );
@@ -460,28 +525,19 @@ function ModalNuevoProducto({
           <input type="number" min="0" step="0.01" value={costo} onChange={(e) => setCosto(e.target.value)} className="input" />
         </label>
         <label>
-          <span className="label">Precio de venta por unidad (S/)</span>
-          <input type="number" min="0" step="0.05" value={precio} onChange={(e) => setPrecio(e.target.value)} className="input" />
-        </label>
-        <label>
           <span className="label">Stock mínimo (avisar al llegar a)</span>
           <input type="number" min="0" value={minimo} onChange={(e) => setMinimo(e.target.value)} className="input" />
         </label>
         <div className="rounded-xl bg-fondo px-3 py-2 text-xs text-suave">
           Costo por unidad: <b className="text-tinta">{soles(costoUnit)}</b>
-          {verGanancia && (
-            <>
-              <br />
-              Ganancia por unidad: <b className={ganancia < 0 ? "text-rojo" : "text-tinta"}>{soles(ganancia)}</b> (
-              {pct(margen == null ? null : Math.round(margen * 10) / 10)})
-            </>
-          )}
+          <br />
+          El precio de venta va en cada colegio (arriba).
         </div>
       </div>
 
       <p className="mt-4 rounded-xl bg-verde-50 px-3 py-2 text-xs text-verde-700">
-        Si no pones stock inicial, empieza en 0 y la mercadería se registra después en <b>Entregas</b>. Si un colegio vende
-        a otro precio, ajústalo en <b>Stock por cafetín</b>.
+        Cada colegio tiene su propio precio: lo que escribes en uno se copia a los demás hasta que lo cambies. Si no pones
+        stock inicial, empieza en 0 y la mercadería se registra después en <b>Entregas</b>.
       </p>
 
       <div className="mt-5 flex justify-end gap-2">
@@ -489,7 +545,7 @@ function ModalNuevoProducto({
           Cancelar
         </button>
         <button
-          disabled={pendiente || nombre.trim().length < 2 || elegidos.length === 0 || !(Number.isInteger(unidades) && unidades >= 1)}
+          disabled={pendiente || nombre.trim().length < 2 || !preciosListos || !(Number.isInteger(unidades) && unidades >= 1)}
           className="btn-primario"
           onClick={crear}
         >
