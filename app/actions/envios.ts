@@ -5,6 +5,7 @@ import { sesionAccion } from "@/lib/auth";
 import { check, db, mensajeError } from "@/lib/supabase";
 import { enParalelo } from "@/lib/paralelo";
 import type { Resultado } from "@/lib/types";
+import { hoyISO } from "@/lib/format";
 
 const QUIEN_ENVIA = ["COCINA", "ADMIN", "LOGISTICA"] as const;
 const QUIEN_RECIBE = ["PERSONAL", "ADMIN", "LOGISTICA"] as const;
@@ -16,6 +17,23 @@ export async function crearEnvio(
 ): Promise<Resultado> {
   try {
     const sesion = await sesionAccion([...QUIEN_ENVIA]);
+    if (lineas.some((l) => !Number.isFinite(l.cantidad) || l.cantidad < 0)) {
+      return { ok: false, error: "Las cantidades no pueden ser negativas." };
+    }
+    // El envío de cocina es uno por día y por colegio
+    const yaEnviado = check(
+      await db()
+        .from("envios")
+        .select("id")
+        .eq("origen", "COCINA")
+        .eq("colegio_id", colegioId)
+        .eq("fecha", hoyISO())
+        .neq("estado", "ANULADO")
+        .limit(1),
+    ) as { id: number }[];
+    if (yaEnviado.length > 0) {
+      return { ok: false, error: "Ya enviaste los productos de hoy a este colegio." };
+    }
     const validas = lineas.filter((l) => l.cantidad > 0);
     if (validas.length === 0) return { ok: false, error: "Escribe la cantidad de al menos un producto." };
     if (validas.some((l) => !Number.isInteger(l.cantidad) || l.cantidad > 10000)) {
@@ -27,7 +45,22 @@ export async function crearEnvio(
         .select("id, colegio_id, producto_id, perecible, activo, producto_activo")
         .in("id", validas.map((l) => l.productoColegioId)),
     ) as { id: number; colegio_id: number; producto_id: number; perecible: boolean; activo: boolean; producto_activo: boolean }[];
-    if (filas.length !== validas.length || filas.some((f) => f.colegio_id !== colegioId || !f.perecible || !f.activo || !f.producto_activo)) {
+    // Los del día que no manda la cocina no se pueden enviar desde su panel
+    const noDeCocina = new Set(
+      (
+        check(
+          await db()
+            .from("productos")
+            .select("id")
+            .in("id", filas.map((f) => f.producto_id))
+            .eq("de_cocina", false),
+        ) as { id: number }[]
+      ).map((x) => x.id),
+    );
+    if (
+      filas.length !== validas.length ||
+      filas.some((f) => f.colegio_id !== colegioId || !f.perecible || noDeCocina.has(f.producto_id) || !f.activo || !f.producto_activo)
+    ) {
       return { ok: false, error: "Solo se pueden enviar productos del día activos de ese colegio." };
     }
     const lote = crypto.randomUUID();
@@ -60,10 +93,9 @@ export async function crearEnvio(
 /** Anula un envío que todavía no fue recibido (por ejemplo, si se registró por error) */
 export async function anularEnvio(envioId: number): Promise<Resultado> {
   try {
-    const sesion = await sesionAccion([...QUIEN_ENVIA]);
-    let q = db().from("envios").update({ estado: "ANULADO" }).eq("id", envioId).eq("estado", "PENDIENTE");
-    // La cocina solo anula sus envíos; las entregas de logística las anula logística o administración
-    if (sesion.rol === "COCINA") q = q.eq("origen", "COCINA");
+    // La cocina no anula: una vez enviado, queda registrado (administración o logística sí pueden, desde el panel)
+    await sesionAccion(["ADMIN", "LOGISTICA"]);
+    const q = db().from("envios").update({ estado: "ANULADO" }).eq("id", envioId).eq("estado", "PENDIENTE");
     const res = check(await q.select("id")) as { id: number }[];
     if (res.length === 0) return { ok: false, error: "Ese envío ya fue recibido y no se puede anular." };
     refresh();

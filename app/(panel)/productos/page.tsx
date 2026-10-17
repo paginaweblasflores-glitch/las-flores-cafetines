@@ -13,7 +13,7 @@ export default async function PaginaCatalogo() {
     obtenerColegios(),
     obtenerCategorias(),
     obtenerStock({ incluirInactivos: true }),
-    db().from("productos").select("id, nombre, categoria_id, activo, perecible").order("nombre").then(check),
+    db().from("productos").select("id, nombre, categoria_id, activo, perecible, de_cocina").order("nombre").then(check),
   ]);
 
   return (
@@ -25,7 +25,9 @@ export default async function PaginaCatalogo() {
       <Catalogo
         colegios={colegios.map((c) => ({ id: c.id, nombre: c.nombre }))}
         categorias={categorias}
-        productos={productos as { id: number; nombre: string; categoria_id: number | null; activo: boolean; perecible: boolean }[]}
+        productos={
+          productos as { id: number; nombre: string; categoria_id: number | null; activo: boolean; perecible: boolean; de_cocina: boolean }[]
+        }
         presencias={stock.map((s) => ({ colegioId: s.colegio_id, productoId: s.producto_id, activo: s.activo, precio: Number(s.precio_venta) }))}
         verGanancia={sesion.rol === "ADMIN"}
       />

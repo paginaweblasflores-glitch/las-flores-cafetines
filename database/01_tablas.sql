@@ -116,6 +116,8 @@ create table productos (
   categoria_id  bigint references categorias(id) on delete set null,
   -- perecible = se prepara y se vende en el día (empanadas, jugos...). Lo que sobra se registra como merma.
   perecible     boolean not null default false,
+  -- Solo para los del día: false = se cuenta a diario pero no lo manda la cocina (no sale en su panel)
+  de_cocina     boolean not null default true,
   activo        boolean not null default true,
   created_at    timestamptz not null default now()
 );

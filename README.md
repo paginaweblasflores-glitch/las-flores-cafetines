@@ -33,6 +33,7 @@ Reemplaza los Excel `INVENTARIO.xlsx` (Administración), `CONTROL BOSCO.xlsx` y 
 > Y luego `database/15_reposicion_comprada.sql` (logística aprueba, compra y cierra las reposiciones con "Comprado").
 > Y luego `database/16_usuarios_supabase_auth.sql` y **`node scripts/usuarios-a-supabase-auth.mjs`** (ver "Inicio de sesión").
 > Y luego `database/17_keepalive_ping.sql` (ping diario para que Supabase no pause el proyecto; ver "Supabase no se pausa").
+> Y luego `database/18_producto_de_cocina.sql` (productos del día que no manda la cocina: no salen en su panel).
 >
 > **Empezar en limpio:** (después del 11) `database/10_vaciar_datos_prueba.sql` borra para siempre productos, stock, ventas, historial,
 > envíos y reposiciones. Conserva colegios, usuarios y categorías. Después los productos se crean desde el Catálogo.

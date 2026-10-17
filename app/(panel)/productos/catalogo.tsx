@@ -8,7 +8,7 @@ import { BarraPaginacion, usePaginacion } from "@/components/paginacion";
 import { NOMBRE_PRESENTACION, normalizar, pct, soles } from "@/lib/format";
 import type { Categoria, Presentacion } from "@/lib/types";
 
-type Producto = { id: number; nombre: string; categoria_id: number | null; activo: boolean; perecible: boolean };
+type Producto = { id: number; nombre: string; categoria_id: number | null; activo: boolean; perecible: boolean; de_cocina: boolean };
 /** En qué colegio se vende cada producto, si está activo allí y a qué precio (cada colegio tiene el suyo) */
 type Presencia = { colegioId: number; productoId: number; activo: boolean; precio: number };
 
@@ -97,7 +97,9 @@ export function Catalogo({
                         <Inicial nombre={p.nombre} />
                         <p className="flex items-center gap-2 font-medium">
                           {p.nombre}
-                          {p.perecible && <span className="chip bg-ambar-50 text-[#8a5a00]">Del día</span>}
+                          {p.perecible && (
+                            <span className="chip bg-ambar-50 text-[#8a5a00]">{p.de_cocina ? "Del día" : "Del día · no lo manda cocina"}</span>
+                          )}
                         </p>
                       </div>
                     </td>
@@ -184,6 +186,7 @@ function ModalProducto({
   const [categoriaId, setCategoriaId] = useState(String(producto.categoria_id ?? ""));
   const [activo, setActivo] = useState(producto.activo);
   const [perecible, setPerecible] = useState(producto.perecible);
+  const [deCocina, setDeCocina] = useState(producto.de_cocina);
   const [pendiente, iniciar] = useTransition();
   return (
     <Modal abierto onCerrar={onCerrar} titulo="Editar producto" subtitulo="Nombre, categoría, en qué colegios se vende y a qué precio">
@@ -261,6 +264,7 @@ function ModalProducto({
             </span>
           </span>
         </label>
+        {perecible && <OpcionDeCocina valor={deCocina} cambiar={setDeCocina} />}
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} className="accent-verde" />
           Producto activo (si lo desactivas, desaparece de todos los colegios)
@@ -278,6 +282,7 @@ function ModalProducto({
                 categoriaId: categoriaId ? Number(categoriaId) : null,
                 activo,
                 perecible,
+                deCocina,
                 colegioIds: elegidos,
                 precios: Object.fromEntries(elegidos.map((id) => [id, Number(precios[id])])),
               });
@@ -292,6 +297,23 @@ function ModalProducto({
         </button>
       </div>
     </Modal>
+  );
+}
+
+/** Solo en productos del día: si lo manda la cocina (sale en su panel) o solo se cuenta en el cafetín */
+function OpcionDeCocina({ valor, cambiar }: { valor: boolean; cambiar: (v: boolean) => void }) {
+  return (
+    <label className="ml-6 flex items-start gap-2 rounded-xl border border-borde p-3 text-sm">
+      <input type="checkbox" checked={valor} onChange={(e) => cambiar(e.target.checked)} className="mt-0.5 accent-verde" />
+      <span>
+        <span className="block font-medium">Lo envía cocina</span>
+        <span className="block text-xs text-suave">
+          {valor
+            ? "Aparece en el panel de cocina para enviarlo cada día."
+            : "No lo manda cocina: no aparece en su panel, pero el personal lo sigue contando cada día."}
+        </span>
+      </span>
+    </label>
   );
 }
 
@@ -348,6 +370,7 @@ function ModalNuevoProducto({
   const [tocados, setTocados] = useState<number[]>([]);
   const [minimo, setMinimo] = useState("5");
   const [perecible, setPerecible] = useState(false);
+  const [deCocina, setDeCocina] = useState(true);
   const [stockInicial, setStockInicial] = useState<Record<number, string>>({});
   const [pendiente, iniciar] = useTransition();
 
@@ -382,6 +405,7 @@ function ModalNuevoProducto({
         nombre,
         categoriaId: categoriaId ? Number(categoriaId) : null,
         perecible,
+        deCocina,
         colegioIds: elegidos,
         presentacion,
         unidadesPorPresentacion: unidades,
@@ -423,7 +447,7 @@ function ModalNuevoProducto({
         </label>
       </div>
 
-      <div className="mt-3">
+      <div className="mt-3 space-y-2">
         <label className="flex items-start gap-2 rounded-xl border border-borde p-3 text-sm">
           <input type="checkbox" checked={perecible} onChange={(e) => setPerecible(e.target.checked)} className="mt-0.5 accent-verde" />
           <span>
@@ -433,6 +457,7 @@ function ModalNuevoProducto({
             </span>
           </span>
         </label>
+        {perecible && <OpcionDeCocina valor={deCocina} cambiar={setDeCocina} />}
       </div>
 
       <p className="mt-4 mb-2 text-sm font-medium">¿En qué colegios se venderá?</p>

@@ -20,6 +20,8 @@ export async function editarProducto(
     categoriaId: number | null;
     activo: boolean;
     perecible: boolean;
+    /** Solo para los del día: false = no lo manda la cocina */
+    deCocina?: boolean;
     colegioIds: number[];
     /** Precio de venta por unidad en cada colegio marcado */
     precios?: Record<number, number>;
@@ -36,7 +38,7 @@ export async function editarProducto(
     check(
       await db()
         .from("productos")
-        .update({ nombre, categoria_id: d.categoriaId, activo: d.activo, perecible: d.perecible })
+        .update({ nombre, categoria_id: d.categoriaId, activo: d.activo, perecible: d.perecible, de_cocina: d.deCocina ?? true })
         .eq("id", id),
     );
 
@@ -116,6 +118,8 @@ export type NuevoProducto = {
   nombre: string;
   categoriaId: number | null;
   perecible: boolean;
+  /** Solo para los del día: false = se cuenta a diario pero no lo manda la cocina */
+  deCocina?: boolean;
   colegioIds: number[];
   presentacion: Presentacion;
   unidadesPorPresentacion: number;
@@ -148,7 +152,11 @@ export async function crearProducto(d: NuevoProducto): Promise<Resultado> {
     }
 
     const creado = check(
-      await db().from("productos").insert({ nombre, categoria_id: d.categoriaId, perecible: d.perecible }).select("id").single(),
+      await db()
+        .from("productos")
+        .insert({ nombre, categoria_id: d.categoriaId, perecible: d.perecible, de_cocina: d.deCocina ?? true })
+        .select("id")
+        .single(),
     ) as { id: number };
 
     const filas = d.colegioIds.map((colegioId) => ({

@@ -26,7 +26,8 @@ export default async function PaginaCocina() {
         esCocina={sesion.rol === "COCINA"}
         colegios={colegios.map((c) => ({ id: c.id, nombre: c.nombre }))}
         productos={stock
-          .filter((s) => s.perecible)
+          // Del día y que los envía la cocina (los que solo se cuentan en el cafetín no salen aquí)
+          .filter((s) => s.perecible && productos.get(s.producto_id)?.de_cocina !== false)
           .map((s) => ({ id: s.id, colegioId: s.colegio_id, nombre: s.producto, categoria: s.categoria ?? "Otros" }))}
         envios={envios
           .filter((e) => e.estado !== "ANULADO")

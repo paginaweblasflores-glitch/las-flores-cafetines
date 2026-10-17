@@ -1,14 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { CheckCircle2, ClipboardList, Clock, Search, Send, TriangleAlert, UserRound, X } from "lucide-react";
-import { anularEnvio, crearEnvio } from "@/app/actions/envios";
+import { CheckCircle2, ClipboardList, Clock, Search, Send, TriangleAlert, UserRound } from "lucide-react";
+import { crearEnvio } from "@/app/actions/envios";
 import { avisar, Inicial } from "@/components/ui";
 import { bajoDeBarra, NavegacionInferior, useTecladoAbierto, type ItemNavegacion } from "@/components/navegacion-inferior";
 import { BarraSuperiorMovil, PerfilMovil } from "@/components/movil";
 import { fechaLarga, horaLima, normalizar } from "@/lib/format";
 
-type Producto = { id: number; colegioId: number; nombre: string; categoria: string };
+type Producto = {
+  id: number;
+  colegioId: number;
+  nombre: string;
+  categoria: string;
+};
 type EnvioHoy = {
   id: number;
   colegioId: number;
@@ -40,7 +45,6 @@ export function PanelCocina({
   const [cantidades, setCantidades] = useState<Record<number, string>>({});
   const [busqueda, setBusqueda] = useState("");
   const [enviando, iniciar] = useTransition();
-  const [anulando, setAnulando] = useState<number | null>(null);
   const [seccion, setSeccion] = useState<Seccion>("enviar");
   const teclado = useTecladoAbierto();
   const lista = useRef<HTMLUListElement>(null);
@@ -79,11 +83,19 @@ export function PanelCocina({
   const n = (v: string | undefined) => (v === undefined || v.trim() === "" ? 0 : Number(v));
   const lineas = productos
     .filter((p) => p.colegioId === colegioId && n(cantidades[p.id]) > 0)
-    .map((p) => ({ productoColegioId: p.id, cantidad: n(cantidades[p.id]), nombre: p.nombre }));
+    .map((p) => ({
+      productoColegioId: p.id,
+      cantidad: n(cantidades[p.id]),
+      nombre: p.nombre,
+    }));
   const total = lineas.reduce((a, l) => a + l.cantidad, 0);
   const invalido = lineas.some((l) => !Number.isInteger(l.cantidad));
 
-  const cambiar = (id: number, valor: string) => setCantidades((c) => ({ ...c, [id]: valor }));
+  const cambiar = (id: number, valor: string) => setCantidades((c) => ({ ...c, [id]: valor.replace(/\D/g, "") }));
+  // El envío es uno por día: si ya se envió a un colegio hoy, no se puede enviar otra vez
+  const enviadoA = (cId: number) => envios.some((e) => e.colegioId === cId);
+  const yaEnviado = enviadoA(colegioId);
+  const enviadoHoy = envios.filter((e) => e.colegioId === colegioId);
   const escritosEn = (cId: number) => productos.filter((p) => p.colegioId === cId && n(cantidades[p.id]) > 0).length;
 
   // "Siguiente" del teclado del celular pasa al próximo producto
@@ -101,7 +113,10 @@ export function PanelCocina({
     iniciar(async () => {
       const r = await crearEnvio(
         colegioId,
-        lineas.map(({ productoColegioId, cantidad }) => ({ productoColegioId, cantidad })),
+        lineas.map(({ productoColegioId, cantidad }) => ({
+          productoColegioId,
+          cantidad,
+        })),
       );
       if (r.ok) {
         avisar(r.mensaje ?? "Envío registrado");
@@ -112,14 +127,6 @@ export function PanelCocina({
         });
       } else avisar(r.error, "error");
     });
-  }
-
-  async function anular(id: number) {
-    setAnulando(id);
-    const r = await anularEnvio(id);
-    setAnulando(null);
-    if (r.ok) avisar(r.mensaje ?? "Anulado");
-    else avisar(r.error, "error");
   }
 
   const porRecibir = envios.filter((e) => e.estado === "PENDIENTE").length;
@@ -135,14 +142,19 @@ export function PanelCocina({
     },
     { id: "perfil", texto: "Perfil", icono: UserRound },
   ];
-  const titulos: Record<Seccion, string> = { enviar: "Enviar a colegio", enviados: "Enviados hoy", perfil: "Perfil" };
+  const titulos: Record<Seccion, string> = {
+    enviar: "Enviar a colegio",
+    enviados: "Enviados hoy",
+    perfil: "Perfil",
+  };
 
   return (
     <div
       className="min-h-screen bg-fondo"
-      style={{ paddingBottom: `calc(${seccion === "enviar" ? "10rem" : "5.5rem"} + env(safe-area-inset-bottom))` }}
+      style={{
+        paddingBottom: `calc(${seccion === "enviar" ? "10rem" : "5.5rem"} + env(safe-area-inset-bottom))`,
+      }}
     >
-
       <main className="mx-auto max-w-3xl px-4">
         <div className="sticky top-0 z-20 -mx-4 bg-fondo/95 px-4 backdrop-blur">
           <BarraSuperiorMovil titulo={titulos[seccion]} volverAlPanel={!esCocina} />
@@ -162,61 +174,91 @@ export function PanelCocina({
                   }`}
                 >
                   {c.nombre}
-                  {c.id !== colegioId && escritosEn(c.id) > 0 && (
-                    <span className="ml-1.5 inline-grid h-5 min-w-5 place-items-center rounded-full bg-verde px-1.5 align-middle text-xs text-white" title="Productos escritos sin enviar">{escritosEn(c.id)}</span>
+                  {enviadoA(c.id) && (
+                    <CheckCircle2 className="ml-1.5 inline h-4 w-4 align-[-3px] text-verde" aria-label="Ya enviado hoy" />
+                  )}
+                  {c.id !== colegioId && !enviadoA(c.id) && escritosEn(c.id) > 0 && (
+                    <span
+                      className="ml-1.5 inline-grid h-5 min-w-5 place-items-center rounded-full bg-verde px-1.5 align-middle text-xs text-white"
+                      title="Productos escritos sin enviar"
+                    >
+                      {escritosEn(c.id)}
+                    </span>
                   )}
                 </button>
               ))}
             </div>
 
-            <div className="relative mt-4">
-              <Search className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-suave" />
-              <input
-                value={busqueda}
-                onChange={(e) => setBusqueda(e.target.value)}
-                placeholder="Buscar producto..."
-                className="input py-3 pl-10 text-base"
-              />
-            </div>
+            {yaEnviado ? (
+              <div className="card mt-4 flex flex-col items-center px-6 py-10 text-center">
+                <span className="grid h-14 w-14 place-items-center rounded-full bg-verde-50 text-verde-700">
+                  <CheckCircle2 className="h-8 w-8" />
+                </span>
+                <p className="mt-3 text-lg font-semibold">Ya enviaste los productos de hoy</p>
+                <p className="mt-1 text-sm text-suave">
+                  A <b className="text-tinta">{colegio?.nombre}</b>: {enviadoHoy.length} producto
+                  {enviadoHoy.length === 1 ? "" : "s"}, {enviadoHoy.reduce((a, e) => a + e.enviada, 0)} unidades.
+                </p>
+                <button onClick={() => setSeccion("enviados")} className="btn-secundario mt-5 h-11">
+                  <ClipboardList className="h-4 w-4" /> Ver enviados hoy
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="relative mt-4">
+                  <Search className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-suave" />
+                  <input
+                    value={busqueda}
+                    onChange={(e) => setBusqueda(e.target.value)}
+                    placeholder="Buscar producto..."
+                    className="input py-3 pl-10 text-base"
+                  />
+                </div>
 
-            {/* Productos del día con su cantidad */}
-            <ul ref={lista} className="card mt-3 divide-y divide-borde overflow-hidden empty:hidden">
-              {delColegio.map((p, i) => {
-                const v = cantidades[p.id] ?? "";
-                const marcado = n(v) > 0;
-                return (
-                  <li
-                    key={p.id}
-                    className={`flex items-center justify-between gap-3 px-4 py-2.5 ${marcado ? "bg-verde-50/60" : ""}`}
-                  >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <Inicial nombre={p.nombre} />
-                      <div className="min-w-0">
-                        <p className="truncate font-medium">{p.nombre}</p>
-                        <p className="text-xs text-suave">{p.categoria}</p>
-                      </div>
-                    </div>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      min="0"
-                      value={v}
-                      placeholder="0"
-                      onChange={(e) => cambiar(p.id, e.target.value)}
-                      onFocus={(e) => e.target.select()}
-                      onKeyDown={siguiente}
-                      enterKeyHint={i === delColegio.length - 1 ? "done" : "next"}
-                      className="input h-11 w-24 shrink-0 text-center text-lg font-semibold"
-                      aria-label={`Cantidad de ${p.nombre}`}
-                    />
-                  </li>
-                );
-              })}
-            </ul>
-            {delColegio.length === 0 && (
-              <p className="py-10 text-center text-sm text-suave">
-                {busqueda ? `No hay productos con "${busqueda}".` : "Este colegio no tiene productos del día."}
-              </p>
+                {/* Productos del día con su cantidad */}
+                <ul ref={lista} className="card mt-3 divide-y divide-borde overflow-hidden empty:hidden">
+                  {delColegio.map((p, i) => {
+                    const v = cantidades[p.id] ?? "";
+                    const marcado = n(v) > 0;
+                    return (
+                      <li
+                        key={p.id}
+                        className={`flex items-center justify-between gap-3 px-4 py-2.5 ${marcado ? "bg-verde-50/60" : ""}`}
+                      >
+                        <div className="flex min-w-0 items-center gap-3">
+                          <Inicial nombre={p.nombre} />
+                          <div className="min-w-0">
+                            <p className="truncate font-medium">{p.nombre}</p>
+                            <p className="text-xs text-suave">{p.categoria}</p>
+                          </div>
+                        </div>
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          min="0"
+                          step="1"
+                          value={v}
+                          placeholder="0"
+                          onChange={(e) => cambiar(p.id, e.target.value)}
+                          onKeyDown={(e) => {
+                            if (["-", "+", "e", "E", ".", ","].includes(e.key)) e.preventDefault();
+                            else siguiente(e);
+                          }}
+                          onFocus={(e) => e.target.select()}
+                          enterKeyHint={i === delColegio.length - 1 ? "done" : "next"}
+                          className="input h-11 w-24 shrink-0 text-center text-lg font-semibold"
+                          aria-label={`Cantidad de ${p.nombre}`}
+                        />
+                      </li>
+                    );
+                  })}
+                </ul>
+                {delColegio.length === 0 && (
+                  <p className="py-10 text-center text-sm text-suave">
+                    {busqueda ? `No hay productos con "${busqueda}".` : "Este colegio no tiene productos del día."}
+                  </p>
+                )}
+              </>
             )}
           </>
         )}
@@ -251,18 +293,9 @@ export function PanelCocina({
                               </div>
                               <div className="flex shrink-0 flex-col items-end gap-1.5">
                                 {e.estado === "PENDIENTE" && (
-                                  <>
-                                    <span className="chip bg-fondo text-suave">
-                                      <Clock className="h-3 w-3" /> Por recibir
-                                    </span>
-                                    <button
-                                      onClick={() => anular(e.id)}
-                                      disabled={anulando === e.id}
-                                      className="flex items-center gap-1 text-xs text-rojo hover:underline"
-                                    >
-                                      <X className="h-3 w-3" /> {anulando === e.id ? "Anulando..." : "Anular"}
-                                    </button>
-                                  </>
+                                  <span className="chip bg-fondo text-suave">
+                                    <Clock className="h-3 w-3" /> Por recibir
+                                  </span>
                                 )}
                                 {e.estado === "CONFORME" && (
                                   <span className="chip bg-verde-50 text-verde-700">
@@ -286,17 +319,15 @@ export function PanelCocina({
         )}
 
         {/* Cuenta y cerrar sesión */}
-        {seccion === "perfil" && (
-          <PerfilMovil
-            fecha={fechaLarga(hoy)}
-            volverAlPanel={!esCocina}
-          />
-        )}
+        {seccion === "perfil" && <PerfilMovil fecha={fechaLarga(hoy)} volverAlPanel={!esCocina} />}
       </main>
 
       {/* Botón de envío fijo abajo, siempre a mano */}
-      {seccion === "enviar" && (
-        <div className="fixed inset-x-0 z-20 border-t border-borde bg-white/95 backdrop-blur" style={{ bottom: bajoDeBarra(teclado) }}>
+      {seccion === "enviar" && !yaEnviado && (
+        <div
+          className="fixed inset-x-0 z-20 border-t border-borde bg-white/95 backdrop-blur"
+          style={{ bottom: bajoDeBarra(teclado) }}
+        >
           <div className="mx-auto max-w-3xl px-4 py-3">
             {lineas.length > 0 && (
               <p className="mb-2 truncate text-center text-xs text-suave">
