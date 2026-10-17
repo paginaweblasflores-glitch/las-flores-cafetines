@@ -85,8 +85,10 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={titulo}
-        className={`relative max-h-[92vh] w-full ${ancho} overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl sm:rounded-2xl sm:p-6`}
+        className={`relative max-h-[92dvh] w-full ${ancho} overflow-y-auto rounded-t-3xl bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-2xl sm:rounded-2xl sm:p-6`}
       >
+        {/* Asa de la hoja (en el celular la ventana sale desde abajo) */}
+        <div className="mx-auto -mt-2 mb-3 h-1.5 w-10 rounded-full bg-borde sm:hidden" aria-hidden />
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold">{titulo}</h2>

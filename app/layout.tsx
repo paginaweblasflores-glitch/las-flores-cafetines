@@ -44,6 +44,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#0f1a14",
+  // Al abrir el teclado del celular la pantalla se achica: las hojas de abajo quedan visibles sobre el teclado
+  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

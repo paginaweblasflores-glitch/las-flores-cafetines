@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Check, CheckCheck, ChefHat, MessageSquareWarning, Truck } from "lucide-react";
 import { recibirConforme, recibirEnvio } from "@/app/actions/envios";
-import { avisar } from "@/components/ui";
+import { avisar, Modal } from "@/components/ui";
 import { fechaCorta, fechaISOLima, horaLima, numero } from "@/lib/format";
 
 export type EnvioPorRecibir = {
@@ -108,9 +108,30 @@ function Lote({ items }: { items: EnvioPorRecibir[] }) {
   );
 }
 
-/** Un producto del envío: si algo falló se registra cuántos llegaron y por qué */
+/** Un producto del envío: si algo falló, "Observación" abre una hoja para decir cuántos llegaron y por qué */
 function FilaEnvio({ envio: e, bloqueado }: { envio: EnvioPorRecibir; bloqueado: boolean }) {
   const [observando, setObservando] = useState(false);
+  return (
+    <li className="flex items-center justify-between gap-3 px-4 py-3">
+      <div className="min-w-0">
+        <p className="truncate font-medium">{e.producto}</p>
+        <p className="truncate text-xs text-suave">
+          {numero(e.cantidad)} unid.{e.detalle ? ` · ${e.detalle}` : ""}
+        </p>
+      </div>
+      <button
+        onClick={() => setObservando(true)}
+        disabled={bloqueado}
+        className="flex shrink-0 items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-[#8a5a00] hover:bg-ambar-50"
+      >
+        <MessageSquareWarning className="h-4 w-4" /> Observación
+      </button>
+      {observando && <HojaObservacion envio={e} cerrar={() => setObservando(false)} />}
+    </li>
+  );
+}
+
+function HojaObservacion({ envio: e, cerrar }: { envio: EnvioPorRecibir; cerrar: () => void }) {
   const [llegaron, setLlegaron] = useState("");
   const [motivo, setMotivo] = useState(MOTIVOS[0]);
   const [otro, setOtro] = useState("");
@@ -126,90 +147,67 @@ function FilaEnvio({ envio: e, bloqueado }: { envio: EnvioPorRecibir; bloqueado:
     setGuardando(false);
     if (!r.ok) return avisar(r.error, "error");
     avisar(`${e.producto}: recibidas ${r.recibido} de ${e.cantidad} (queda registrado)`);
+    cerrar();
   }
 
   return (
-    <li className="px-4 py-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="font-medium">{e.producto}</p>
-          <p className="text-xs text-suave">
-            {numero(e.cantidad)} unid.{e.detalle ? ` · ${e.detalle}` : ""}
-          </p>
-        </div>
-        {!observando && (
-          <button
-            onClick={() => setObservando(true)}
-            disabled={bloqueado}
-            className="flex shrink-0 items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-[#8a5a00] hover:bg-ambar-50"
-          >
-            <MessageSquareWarning className="h-4 w-4" /> Observación
-          </button>
-        )}
-      </div>
+    <Modal abierto onCerrar={cerrar} titulo={e.producto} subtitulo={`Enviaron ${numero(e.cantidad)} unid.${e.detalle ? ` · ${e.detalle}` : ""}`}>
+      <label className="block">
+        <span className="label">¿Cuántas llegaron bien?</span>
+        <input
+          type="number"
+          inputMode="numeric"
+          min="0"
+          max={e.cantidad - 1}
+          value={llegaron}
+          onChange={(ev) => setLlegaron(ev.target.value)}
+          placeholder={`de ${e.cantidad}`}
+          className="input h-16 text-center text-3xl font-semibold placeholder:text-base placeholder:font-normal"
+          autoFocus
+        />
+      </label>
 
-      {observando && (
-        <div className="mt-3 rounded-xl border border-dashed border-ambar/60 p-3">
-          <div className="grid grid-cols-[1fr_1.5fr] gap-3">
-            <label className="block">
-              <span className="label">¿Cuántas llegaron?</span>
-              <input
-                type="number"
-                inputMode="numeric"
-                min="0"
-                max={e.cantidad - 1}
-                value={llegaron}
-                onChange={(ev) => setLlegaron(ev.target.value)}
-                placeholder={`de ${e.cantidad}`}
-                className="input h-11 text-center text-lg font-semibold placeholder:text-sm placeholder:font-normal"
-                autoFocus
-              />
-            </label>
-            <label className="block">
-              <span className="label">Motivo</span>
-              <select value={motivo} onChange={(ev) => setMotivo(ev.target.value)} className="input h-11">
-                {MOTIVOS.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          {motivo === "Otro" && (
-            <input
-              value={otro}
-              onChange={(ev) => setOtro(ev.target.value)}
-              className="input mt-2"
-              placeholder="Escribe el motivo"
-              aria-label="Otro motivo"
-            />
-          )}
-          {llegaron !== "" && !cantidadValida && (
-            <p className="mt-2 text-xs text-rojo">
-              Escribe un número de 0 a {e.cantidad - 1}. Si llegó todo, usa &quot;Llegó conforme&quot;.
-            </p>
-          )}
-          {cantidadValida && (
-            <p className="mt-2 text-xs text-[#8a5a00]">
-              Entran {cantidad} al cafetín. Faltan {e.cantidad - cantidad} ({textoMotivo || "sin motivo"}).
-            </p>
-          )}
-          <div className="mt-3 flex gap-2">
-            <button onClick={() => setObservando(false)} disabled={guardando} className="btn-secundario h-11 flex-1">
-              Cancelar
-            </button>
-            <button
-              onClick={guardar}
-              disabled={guardando || !cantidadValida || !textoMotivo}
-              className="btn-primario h-11 flex-1 disabled:bg-borde disabled:text-suave disabled:opacity-100"
-            >
-              <Check className="h-4 w-4" />
-              {guardando ? "Guardando..." : "Guardar"}
-            </button>
-          </div>
-        </div>
+      <p className="label mt-4">¿Qué pasó?</p>
+      <div className="flex flex-wrap gap-2">
+        {MOTIVOS.map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => setMotivo(m)}
+            className={`rounded-full px-3 py-2 text-sm font-medium ${motivo === m ? "bg-panel text-white" : "border border-borde bg-white text-tinta"}`}
+          >
+            {m}
+          </button>
+        ))}
+      </div>
+      {motivo === "Otro" && (
+        <input value={otro} onChange={(ev) => setOtro(ev.target.value)} className="input mt-2" placeholder="Escribe el motivo" aria-label="Otro motivo" />
       )}
-    </li>
+
+      {llegaron !== "" && !cantidadValida && (
+        <p className="mt-3 rounded-xl bg-rojo-50 px-3 py-2 text-sm text-rojo">
+          Escribe un número de 0 a {e.cantidad - 1}. Si llegó todo, usa &quot;Llegó conforme&quot;.
+        </p>
+      )}
+      {cantidadValida && (
+        <p className="mt-3 rounded-xl bg-ambar-50 px-3 py-2 text-sm text-[#8a5a00]">
+          Entran {cantidad} al cafetín. Faltan {e.cantidad - cantidad} ({textoMotivo || "sin motivo"}).
+        </p>
+      )}
+
+      <div className="mt-5 grid grid-cols-2 gap-2">
+        <button onClick={cerrar} disabled={guardando} className="btn-secundario h-12">
+          Cancelar
+        </button>
+        <button
+          onClick={guardar}
+          disabled={guardando || !cantidadValida || !textoMotivo}
+          className="btn-primario h-12 disabled:bg-borde disabled:text-suave disabled:opacity-100"
+        >
+          <Check className="h-4 w-4" />
+          {guardando ? "Guardando..." : "Guardar"}
+        </button>
+      </div>
+    </Modal>
   );
 }

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { CheckCircle2, ClipboardList, Clock, Search, Send, TriangleAlert, UserRound, X } from "lucide-react";
 import { anularEnvio, crearEnvio } from "@/app/actions/envios";
 import { avisar, Inicial } from "@/components/ui";
-import { ALTO_NAVEGACION, NavegacionInferior, type ItemNavegacion } from "@/components/navegacion-inferior";
+import { bajoDeBarra, NavegacionInferior, useTecladoAbierto, type ItemNavegacion } from "@/components/navegacion-inferior";
 import { BarraSuperiorMovil, PerfilMovil } from "@/components/movil";
 import { fechaLarga, horaLima, normalizar } from "@/lib/format";
 
@@ -42,6 +42,7 @@ export function PanelCocina({
   const [enviando, iniciar] = useTransition();
   const [anulando, setAnulando] = useState<number | null>(null);
   const [seccion, setSeccion] = useState<Seccion>("enviar");
+  const teclado = useTecladoAbierto();
   const lista = useRef<HTMLUListElement>(null);
 
   // Borrador: lo escrito se guarda en el celular hasta que se envía
@@ -179,14 +180,14 @@ export function PanelCocina({
             </div>
 
             {/* Productos del día con su cantidad */}
-            <ul ref={lista} className="mt-3 space-y-2">
+            <ul ref={lista} className="card mt-3 divide-y divide-borde overflow-hidden empty:hidden">
               {delColegio.map((p, i) => {
                 const v = cantidades[p.id] ?? "";
                 const marcado = n(v) > 0;
                 return (
                   <li
                     key={p.id}
-                    className={`card flex items-center justify-between gap-3 p-3 ${marcado ? "border-verde shadow-[0_0_0_3px] shadow-verde/15" : ""}`}
+                    className={`flex items-center justify-between gap-3 px-4 py-2.5 ${marcado ? "bg-verde-50/60" : ""}`}
                   >
                     <div className="flex min-w-0 items-center gap-3">
                       <Inicial nombre={p.nombre} />
@@ -295,7 +296,7 @@ export function PanelCocina({
 
       {/* Botón de envío fijo abajo, siempre a mano */}
       {seccion === "enviar" && (
-        <div className="fixed inset-x-0 z-20 border-t border-borde bg-white/95 backdrop-blur" style={{ bottom: ALTO_NAVEGACION }}>
+        <div className="fixed inset-x-0 z-20 border-t border-borde bg-white/95 backdrop-blur" style={{ bottom: bajoDeBarra(teclado) }}>
           <div className="mx-auto max-w-3xl px-4 py-3">
             {lineas.length > 0 && (
               <p className="mb-2 truncate text-center text-xs text-suave">

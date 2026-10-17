@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 
 export type ItemNavegacion<T extends string> = {
@@ -15,6 +16,33 @@ export type ItemNavegacion<T extends string> = {
 /** Alto del menú inferior; lo usan las barras fijas que van encima */
 export const ALTO_NAVEGACION = "calc(4rem + env(safe-area-inset-bottom))";
 
+/**
+ * true mientras se escribe en un campo (el teclado del celular está abierto).
+ * Con el teclado abierto el menú de abajo se oculta para no tapar la lista.
+ */
+export function useTecladoAbierto() {
+  const [abierto, setAbierto] = useState(false);
+  useEffect(() => {
+    const esCampo = (el: EventTarget | null) =>
+      el instanceof HTMLTextAreaElement ||
+      (el instanceof HTMLInputElement && !["checkbox", "radio", "button", "submit"].includes(el.type));
+    const entrar = (e: FocusEvent) => esCampo(e.target) && setAbierto(true);
+    const salir = (e: FocusEvent) => esCampo(e.target) && !esCampo(e.relatedTarget) && setAbierto(false);
+    document.addEventListener("focusin", entrar);
+    document.addEventListener("focusout", salir);
+    return () => {
+      document.removeEventListener("focusin", entrar);
+      document.removeEventListener("focusout", salir);
+    };
+  }, []);
+  return abierto;
+}
+
+/** Dónde va una barra fija (como "Guardar conteo"): encima del menú, o pegada abajo si el teclado está abierto */
+export function bajoDeBarra(teclado: boolean) {
+  return teclado ? "0px" : ALTO_NAVEGACION;
+}
+
 /** Menú de iconos fijo abajo, como en las aplicaciones del celular */
 export function NavegacionInferior<T extends string>({
   items,
@@ -25,6 +53,8 @@ export function NavegacionInferior<T extends string>({
   activo: T;
   cambiar: (id: T) => void;
 }) {
+  const teclado = useTecladoAbierto();
+  if (teclado) return null;
   return (
     <nav
       className="fixed inset-x-0 bottom-0 z-30 border-t border-borde bg-white pb-[env(safe-area-inset-bottom)]"

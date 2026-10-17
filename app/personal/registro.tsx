@@ -10,71 +10,35 @@ import {
   ChevronRight,
   House,
   Menu,
-  Package,
   Save,
   Search,
   Sun,
   TriangleAlert,
   Truck,
-  Undo2,
 } from "lucide-react";
-import { guardarRegistro, type CambioRegistro } from "@/app/actions/personal";
+import { guardarRegistro } from "@/app/actions/personal";
 import { avisar, Modal } from "@/components/ui";
-import { ALTO_NAVEGACION, NavegacionInferior, type ItemNavegacion } from "@/components/navegacion-inferior";
+import { bajoDeBarra, NavegacionInferior, useTecladoAbierto, type ItemNavegacion } from "@/components/navegacion-inferior";
 import { BarraSuperiorMovil, PerfilMovil } from "@/components/movil";
 import {
-  descPresentacion,
   ESTADO_REPOSICION,
-  fechaCorta,
   fechaISOLima,
   fechaLarga,
   lunesDeSemana,
-  NOMBRE_PRESENTACION,
   normalizar,
   soles,
 } from "@/lib/format";
 import { RecepcionEnvios, type EnvioPorRecibir } from "./recepcion";
 import { Reposicion, type ReposicionEnviada } from "./reposicion";
 import { MisProductos } from "./productos";
+import { evaluar, FilaConteo, HojaConteo, type Edicion, type ProductoConteo } from "./conteo";
 import type { ItemNuevo } from "@/app/actions/reposiciones";
 
-type Producto = {
-  id: number;
-  productoId: number;
-  nombre: string;
-  presentacion: string;
-  unidadesPorPresentacion: number;
-  /** Unidades en total en el cafetín */
-  stock: number;
-  precio: number;
-  /** Producto del día: se cuenta a diario y lo que sobra es merma */
-  perecible: boolean;
-  /** Última vez que se contó (timestamp) */
-  ultimoConteo: string | null;
-  /** Avisar cuando quede esto o menos */
-  stockMinimo: number;
-  categoria: string;
-};
+type Producto = ProductoConteo;
 
-type Edicion = { unidades?: string; merma?: string; motivo?: string; motivoOtro?: string };
 type Seccion = "inicio" | "recibir" | "dia" | "semanal" | "reposicion" | "productos" | "menu";
 /** Secciones que se abren desde el menú (☰) */
 const DEL_MENU: Seccion[] = ["semanal", "reposicion", "productos", "menu"];
-
-const MOTIVOS_MERMA = ["No se vendió", "Se cayó", "Se rompió o malogró", "Se venció", "Otro"];
-const MOTIVO_POR_DEFECTO = MOTIVOS_MERMA[0];
-
-/** Sobrante: si no lo cambian, es todo lo que queda (los productos del día no pasan al día siguiente) */
-function valorSobrante(e: Edicion, perecible: boolean) {
-  return e.merma ?? (perecible ? (e.unidades ?? "") : "");
-}
-
-function leerMerma(e: Edicion, perecible: boolean) {
-  const v = valorSobrante(e, perecible);
-  const cantidad = v !== "" ? Number(v) : 0;
-  const motivo = (e.motivo ?? MOTIVO_POR_DEFECTO) === "Otro" ? (e.motivoOtro ?? "").trim() : (e.motivo ?? MOTIVO_POR_DEFECTO);
-  return { cantidad, motivo };
-}
 
 export function RegistroPersonal({
   hoy,
@@ -98,12 +62,15 @@ export function RegistroPersonal({
   reposiciones: ReposicionEnviada[];
 }) {
   const router = useRouter();
+  const teclado = useTecladoAbierto();
   const [seccion, setSeccion] = useState<Seccion>("inicio");
   const [ediciones, setEdiciones] = useState<Record<number, Edicion>>({});
   const [busqueda, setBusqueda] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [errores, setErrores] = useState<Record<number, string>>({});
   const [precioDe, setPrecioDe] = useState<Producto | null>(null);
+  // Producto abierto en la hoja de conteo
+  const [abiertoId, setAbiertoId] = useState<number | null>(null);
   const [precarga, setPrecarga] = useState<ItemNuevo[]>([]);
   const [verTodosAcaban, setVerTodosAcaban] = useState(false);
   const [recienGuardados, setRecienGuardados] = useState<Set<number>>(() => new Set());
@@ -153,6 +120,14 @@ export function RegistroPersonal({
     .filter((p) => !q || normalizar(p.nombre).includes(q))
     .sort((a, b) => Number(contadoEnSeccion(a)) - Number(contadoEnSeccion(b)));
   const todoContado = deSeccion.length > 0 && deSeccion.every(contadoEnSeccion);
+  const abierto = abiertoId === null ? null : (lista.find((p) => p.id === abiertoId) ?? null);
+  // "Siguiente": el próximo de la lista que falta contar y no tiene nada escrito
+  const pendiente = (p: Producto) => !contadoEnSeccion(p) && !evaluar(p, ediciones[p.id] ?? {}).hayCambio;
+  const siguienteId = (() => {
+    if (!abierto) return null;
+    const i = lista.findIndex((p) => p.id === abierto.id);
+    return [...lista.slice(i + 1), ...lista.slice(0, i)].find(pendiente)?.id ?? null;
+  })();
 
   // Lo escrito en la sección: se guarda todo con un solo botón
   const escritos = deSeccion.map((p) => ({ p, r: evaluar(p, ediciones[p.id] ?? {}) })).filter((x) => x.r.hayCambio);
@@ -201,6 +176,7 @@ export function RegistroPersonal({
 
   const irA = (id: Seccion) => {
     setSeccion(id);
+    setAbiertoId(null);
     setBusqueda("");
   };
 
@@ -527,20 +503,22 @@ export function RegistroPersonal({
                 </span>
               </li>
             )}
-            {lista.map((p) => (
-              <TarjetaProducto
-                key={`${p.id}-${p.ultimoConteo ?? ""}`}
-                p={p}
-                e={ediciones[p.id] ?? {}}
-                vendidoHoy={vendidoPorProducto.get(p.productoId)?.unidades ?? 0}
-                contado={contadoEnSeccion(p)}
-                errorServidor={errores[p.id] ?? null}
-                bloqueado={guardando}
-                editar={(campo, valor) => editar(p.id, campo, valor)}
-                cambiarPrecio={() => setPrecioDe(p)}
-                descartar={() => descartar(p.id)}
-              />
-            ))}
+            {lista.length > 0 && (
+              <li className="card overflow-hidden">
+                <ul className="divide-y divide-borde">
+                  {lista.map((p) => (
+                    <FilaConteo
+                      key={`${p.id}-${p.ultimoConteo ?? ""}`}
+                      p={p}
+                      e={ediciones[p.id] ?? {}}
+                      contado={contadoEnSeccion(p)}
+                      errorServidor={errores[p.id] ?? null}
+                      abrir={() => setAbiertoId(p.id)}
+                    />
+                  ))}
+                </ul>
+              </li>
+            )}
             {lista.length === 0 && (
               <p className="py-10 text-center text-sm text-suave">
                 {busqueda
@@ -555,7 +533,7 @@ export function RegistroPersonal({
       </main>
 
       {conBuscador && escritos.length > 0 && (
-        <div className="fixed inset-x-0 z-20 border-t border-borde bg-white/95 backdrop-blur" style={{ bottom: ALTO_NAVEGACION }}>
+        <div className="fixed inset-x-0 z-20 border-t border-borde bg-white/95 backdrop-blur" style={{ bottom: bajoDeBarra(teclado) }}>
           <div className="mx-auto max-w-3xl px-4 py-3">
             <p className="mb-2 truncate text-center text-xs text-suave">
               {listos.length} producto{listos.length === 1 ? "" : "s"} · vendiste <b className="text-tinta">{soles(ventaEscrita)}</b>
@@ -577,248 +555,26 @@ export function RegistroPersonal({
         </div>
       )}
 
+      {abierto && (
+        <HojaConteo
+          p={abierto}
+          e={ediciones[abierto.id] ?? {}}
+          contado={contadoEnSeccion(abierto)}
+          vendidoHoy={vendidoPorProducto.get(abierto.productoId)?.unidades ?? 0}
+          errorServidor={errores[abierto.id] ?? null}
+          posicion={`${lista.findIndex((x) => x.id === abierto.id) + 1} de ${lista.length}`}
+          hayOtro={siguienteId !== null}
+          editar={(campo, valor) => editar(abierto.id, campo, valor)}
+          descartar={() => descartar(abierto.id)}
+          cambiarPrecio={() => setPrecioDe(abierto)}
+          siguiente={() => setAbiertoId(siguienteId)}
+          cerrar={() => setAbiertoId(null)}
+        />
+      )}
       {precioDe && <ModalPrecio key={precioDe.id} p={precioDe} cerrar={() => setPrecioDe(null)} />}
 
       <NavegacionInferior items={menu} activo={activoEnMenu} cambiar={irA} />
     </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-
-/** Lo que resulta de lo escrito en un producto: venta, sobrante, errores y el cambio a guardar */
-function evaluar(p: Producto, e: Edicion) {
-  const valorUnidades = e.unidades ?? "";
-  const nuevo = valorUnidades === "" ? null : Number(valorUnidades);
-  const invalido = nuevo !== null && (!Number.isInteger(nuevo) || nuevo < 0);
-  const vendio = nuevo !== null && !invalido ? p.stock - nuevo : 0;
-  const merma = leerMerma(e, p.perecible);
-  const quedan = nuevo ?? p.stock;
-  const hayMerma = p.perecible && merma.cantidad > 0;
-  const mermaInvalida =
-    p.perecible && merma.cantidad !== 0 && (!Number.isInteger(merma.cantidad) || merma.cantidad < 0 || merma.cantidad > quedan);
-  const faltaMotivo = hayMerma && merma.motivo.length === 0;
-  const hayCambio = nuevo !== null || hayMerma;
-  const error = invalido
-    ? "Escribe un número entero (0 o más)."
-    : mermaInvalida
-      ? `El sobrante no puede ser mayor a lo que queda (${quedan}).`
-      : faltaMotivo
-        ? "Escribe el motivo del sobrante."
-        : null;
-  const cambio: CambioRegistro | null =
-    hayCambio && !error ? { id: p.id, ...(nuevo !== null ? { unidades: nuevo } : {}), ...(hayMerma ? { merma } : {}) } : null;
-  return { nuevo, invalido, vendio, merma, quedan, hayMerma, hayCambio, error, cambio };
-}
-
-function TarjetaProducto({
-  p,
-  e,
-  vendidoHoy,
-  contado,
-  errorServidor,
-  bloqueado,
-  editar,
-  cambiarPrecio,
-  descartar,
-}: {
-  p: Producto;
-  e: Edicion;
-  vendidoHoy: number;
-  contado: boolean;
-  /** Error al guardar este producto (los demás sí se guardaron) */
-  errorServidor: string | null;
-  bloqueado: boolean;
-  editar: (campo: keyof Edicion, valor: string) => void;
-  cambiarPrecio: () => void;
-  descartar: () => void;
-}) {
-  const r = evaluar(p, e);
-  const error = r.error ?? errorServidor;
-  const [corrigiendo, setCorrigiendo] = useState(false);
-
-  // Ya contado: no se vuelve a pedir; solo se abre si quieren corregir
-  if (contado && !corrigiendo && !r.hayCambio && !error) {
-    return (
-      <li className="card flex items-center justify-between gap-3 px-4 py-3">
-        <div className="min-w-0">
-          <p className="font-medium">{p.nombre}</p>
-          <p className="text-xs text-suave">
-            <CheckCircle2 className="mr-1 inline h-3.5 w-3.5 align-[-3px] text-verde-700" />
-            <span className="text-verde-700">{p.perecible ? "Contado hoy" : "Contado"}</span>
-            {` · quedan ${p.stock}`}
-            {vendidoHoy > 0 ? ` · vendido ${vendidoHoy}` : ""}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setCorrigiendo(true)}
-          disabled={bloqueado}
-          className="shrink-0 rounded-lg px-2 py-1.5 text-sm font-medium text-verde-700 underline"
-        >
-          Corregir
-        </button>
-      </li>
-    );
-  }
-
-  // "Siguiente" del teclado pasa al próximo producto
-  function siguiente(ev: React.KeyboardEvent<HTMLInputElement>) {
-    if (ev.key !== "Enter") return;
-    ev.preventDefault();
-    const campos = [...document.querySelectorAll<HTMLInputElement>("input[data-quedan]")];
-    const prox = campos[campos.indexOf(ev.currentTarget) + 1];
-    if (prox) {
-      prox.focus();
-      prox.scrollIntoView({ block: "center", behavior: "smooth" });
-    } else ev.currentTarget.blur();
-  }
-
-  return (
-    <li
-      className={`card p-4 transition-shadow ${
-        error ? "border-rojo shadow-[0_0_0_3px] shadow-rojo/15" : r.hayCambio ? "border-verde shadow-[0_0_0_3px] shadow-verde/15" : ""
-      }`}
-    >
-      {/* Nombre y estado */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="font-semibold">{p.nombre}</p>
-          <p className="mt-0.5 text-sm text-suave">
-            Hay <b className="text-tinta">{p.stock}</b> · {soles(p.precio)}
-            <button type="button" onClick={cambiarPrecio} className="ml-1.5 text-xs text-verde-700 underline">
-              cambiar precio
-            </button>
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          {(r.hayCambio || corrigiendo) && (
-            <button
-              type="button"
-              onClick={() => {
-                descartar();
-                setCorrigiendo(false);
-              }}
-              disabled={bloqueado}
-              className="rounded-lg p-1.5 text-suave hover:bg-fondo"
-              title="Deshacer"
-              aria-label="Deshacer cambios"
-            >
-              <Undo2 className="h-4 w-4" />
-            </button>
-          )}
-          {contado ? (
-            <span className="chip bg-verde-50 text-verde-700">
-              <CheckCircle2 className="h-3 w-3" /> {p.perecible ? "Contado hoy" : "Contado"}
-            </span>
-          ) : (
-            <span className="chip bg-ambar-50 text-[#8a5a00]">Por contar</span>
-          )}
-        </div>
-      </div>
-      {!p.perecible && p.ultimoConteo && !contado && (
-        <p className="mt-1 text-xs text-suave">Último conteo: {fechaCorta(fechaISOLima(p.ultimoConteo))}</p>
-      )}
-      {vendidoHoy !== 0 && <p className="mt-1 text-xs text-verde-700">Vendido hoy: {vendidoHoy}</p>}
-
-      {/* Campos */}
-      <div className={`mt-3 grid gap-3 ${p.perecible ? "grid-cols-2" : "grid-cols-1"}`}>
-        <label className="block">
-          <span className="label">{p.perecible ? "¿Cuántas quedan?" : "¿Cuántas quedan? (todo, también en cajas)"}</span>
-          <input
-            type="number"
-            inputMode="numeric"
-            min="0"
-            value={e.unidades ?? ""}
-            placeholder="Contar"
-            onChange={(ev) => editar("unidades", ev.target.value)}
-            onKeyDown={siguiente}
-            enterKeyHint="next"
-            data-quedan=""
-            disabled={bloqueado}
-            className="input h-12 text-center text-xl font-semibold placeholder:text-sm placeholder:font-normal"
-            aria-label={`Quedan de ${p.nombre}`}
-          />
-        </label>
-        {p.perecible && (
-          <label className="block">
-            <span className="label">Sobrante (no se vende)</span>
-            <input
-              type="number"
-              inputMode="numeric"
-              min="0"
-              value={valorSobrante(e, p.perecible)}
-              placeholder="0"
-              onFocus={(ev) => ev.target.select()}
-              onChange={(ev) => editar("merma", ev.target.value)}
-              disabled={bloqueado}
-              className={`input h-12 text-center text-xl font-semibold placeholder:font-normal ${r.hayMerma ? "border-ambar" : ""}`}
-              aria-label={`Sobrante de ${p.nombre}`}
-            />
-          </label>
-        )}
-      </div>
-
-      {r.hayMerma && (
-        <div className="mt-2 grid gap-2">
-          <select
-            value={e.motivo ?? MOTIVO_POR_DEFECTO}
-            onChange={(ev) => editar("motivo", ev.target.value)}
-            disabled={bloqueado}
-            className="input h-11"
-          >
-            {MOTIVOS_MERMA.map((m) => (
-              <option key={m} value={m}>
-                Motivo: {m}
-              </option>
-            ))}
-          </select>
-          {(e.motivo ?? MOTIVO_POR_DEFECTO) === "Otro" && (
-            <input
-              value={e.motivoOtro ?? ""}
-              onChange={(ev) => editar("motivoOtro", ev.target.value)}
-              className="input"
-              placeholder="Escribe el motivo"
-              aria-label="Otro motivo"
-            />
-          )}
-        </div>
-      )}
-
-      {!p.perecible && p.unidadesPorPresentacion > 1 && (
-        <p className="mt-1.5 flex items-center gap-1.5 text-xs text-suave">
-          <Package className="h-3.5 w-3.5 shrink-0" />
-          Viene en {descPresentacion(p.presentacion, p.unidadesPorPresentacion)}: suma también las que están en{" "}
-          {NOMBRE_PRESENTACION[p.presentacion]?.toLowerCase()}s cerrad{p.presentacion === "PAQUETE" ? "os" : "as"}.
-        </p>
-      )}
-
-      {/* Resultado antes de guardar */}
-      {error ? (
-        <p className="mt-3 rounded-xl bg-rojo-50 px-3 py-2 text-sm text-rojo">{error}</p>
-      ) : r.nuevo !== null && r.vendio < 0 ? (
-        <p className="mt-3 rounded-xl bg-ambar-50 px-3 py-2 text-sm text-[#8a5a00]">
-          Es más de lo que había ({p.stock}). Si te equivocaste antes, se corrige; si no, queda como ajuste para que logística lo
-          revise.
-        </p>
-      ) : r.hayCambio ? (
-        <p className="mt-3 rounded-xl bg-verde-50 px-3 py-2 text-sm text-verde-700">
-          {r.vendio > 0 ? (
-            <>
-              Vendiste <b>{r.vendio}</b> = <b>{soles(r.vendio * p.precio)}</b>
-            </>
-          ) : (
-            "Sin ventas desde el último conteo"
-          )}
-          {r.hayMerma && (
-            <>
-              {" "}
-              · <b>{r.merma.cantidad}</b> de sobrante ({r.merma.motivo})
-            </>
-          )}
-        </p>
-      ) : null}
-    </li>
   );
 }
 

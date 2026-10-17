@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Package, Pencil, Search, Sun } from "lucide-react";
+import { useState } from "react";
+import { ChevronRight, Package, Search, Sun, TriangleAlert } from "lucide-react";
 import { cambiarMinimo } from "@/app/actions/personal";
-import { avisar, Modal } from "@/components/ui";
+import { avisar, Inicial, Modal } from "@/components/ui";
 import { descPresentacion, fechaCorta, fechaISOLima, normalizar, numero, soles } from "@/lib/format";
 
 export type MiProducto = {
@@ -69,83 +69,51 @@ export function MisProductos({ productos }: { productos: MiProducto[] }) {
         ))}
       </div>
 
-      <ul className="mt-3 space-y-2">
-        {lista.map((p) => {
-          const acaba = seAcaba(p);
-          return (
-            <li key={p.id} className="card p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="font-semibold">{p.nombre}</p>
-                  <p className="mt-0.5 flex items-center gap-1 text-xs text-suave">
-                    {p.perecible ? <Sun className="h-3.5 w-3.5" /> : <Package className="h-3.5 w-3.5" />}
-                    {p.categoria} ·{" "}
-                    {p.perecible ? "del día (lo manda cocina)" : p.unidadesPorPresentacion > 1 ? `viene en ${descPresentacion(p.presentacion, p.unidadesPorPresentacion)}` : "por unidad"}
-                  </p>
-                </div>
-                <span
-                  className={`chip shrink-0 ${
-                    p.stock === 0 && !p.perecible ? "bg-rojo-50 text-rojo" : acaba ? "bg-ambar-50 text-[#8a5a00]" : "bg-fondo text-tinta"
-                  }`}
-                >
-                  Hay {numero(p.stock)}
-                </span>
-              </div>
-
-              <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
-                <div className="rounded-xl bg-fondo px-3 py-2">
-                  <p className="text-[11px] text-suave">Precio</p>
-                  <p className="font-medium">{soles(p.precio)}</p>
-                </div>
-                <div className="rounded-xl bg-fondo px-3 py-2">
-                  <p className="text-[11px] text-suave">Último conteo</p>
-                  <p className="font-medium">{p.ultimoConteo ? fechaCorta(fechaISOLima(p.ultimoConteo)).slice(0, 5) : "—"}</p>
-                </div>
-                {p.perecible ? (
-                  <div className="rounded-xl bg-fondo px-3 py-2">
-                    <p className="text-[11px] text-suave">Mínimo</p>
-                    <p className="text-xs text-suave">No aplica</p>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setEditando(p)}
-                    className={`rounded-xl px-3 py-2 text-left ${acaba ? "bg-ambar-50" : "bg-fondo"}`}
-                    aria-label={`Cambiar mínimo de ${p.nombre}`}
+      {/* Una fila por producto: nombre, precio y cuánto hay. Al tocarla, su detalle */}
+      {lista.length === 0 ? (
+        <p className="py-10 text-center text-sm text-suave">No hay productos con ese filtro.</p>
+      ) : (
+        <ul className="card mt-3 divide-y divide-borde overflow-hidden">
+          {lista.map((p) => {
+            const acaba = seAcaba(p);
+            return (
+              <li key={p.id}>
+                <button type="button" onClick={() => setEditando(p)} className="flex w-full items-center gap-3 px-4 py-3 text-left active:bg-fondo">
+                  <Inicial nombre={p.nombre} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{p.nombre}</span>
+                    <span className="flex items-center gap-1 truncate text-xs text-suave">
+                      {p.perecible ? <Sun className="h-3 w-3 shrink-0" /> : <Package className="h-3 w-3 shrink-0" />}
+                      {soles(p.precio)} · {p.perecible ? "del día" : `mínimo ${numero(p.stockMinimo)}`}
+                    </span>
+                  </span>
+                  <span
+                    className={`chip shrink-0 ${
+                      p.stock === 0 && !p.perecible ? "bg-rojo-50 text-rojo" : acaba ? "bg-ambar-50 text-[#8a5a00]" : "bg-fondo text-tinta"
+                    }`}
                   >
-                    <p className="flex items-center justify-between text-[11px] text-suave">
-                      Mínimo <Pencil className="h-3 w-3" />
-                    </p>
-                    <p className="font-medium">{numero(p.stockMinimo)}</p>
-                  </button>
-                )}
-              </div>
-              {acaba && (
-                <p className="mt-2 text-xs text-[#8a5a00]">
-                  {p.stock === 0 ? "Agotado." : "Está en su mínimo o menos."} Pídelo en Reposición.
-                </p>
-              )}
-            </li>
-          );
-        })}
-        {lista.length === 0 && <p className="py-10 text-center text-sm text-suave">No hay productos con ese filtro.</p>}
-      </ul>
+                    Hay {numero(p.stock)}
+                  </span>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-suave" />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
 
       {editando && <ModalMinimo p={editando} cerrar={() => setEditando(null)} />}
     </div>
   );
 }
 
-/** Cambiar el mínimo: cuándo avisar que el producto se está acabando */
+/** Detalle del producto; en los semanales se ajusta el mínimo (cuándo avisar que se está acabando) */
 function ModalMinimo({ p, cerrar }: { p: MiProducto; cerrar: () => void }) {
   const [valor, setValor] = useState(String(p.stockMinimo));
   const [guardando, setGuardando] = useState(false);
-  const campo = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    const t = setTimeout(() => campo.current?.select(), 50);
-    return () => clearTimeout(t);
-  }, []);
   const n = valor.trim() === "" ? NaN : Number(valor);
   const valido = Number.isInteger(n) && n >= 0;
+  const acaba = !p.perecible && p.stock <= p.stockMinimo;
 
   async function guardar() {
     if (!valido || guardando) return;
@@ -158,35 +126,67 @@ function ModalMinimo({ p, cerrar }: { p: MiProducto; cerrar: () => void }) {
     cerrar();
   }
 
+  const datos = [
+    { t: "Hay", v: `${numero(p.stock)} unid.` },
+    { t: "Precio", v: soles(p.precio) },
+    { t: "Último conteo", v: p.ultimoConteo ? fechaCorta(fechaISOLima(p.ultimoConteo)) : "—" },
+    {
+      t: "Cómo viene",
+      v: p.perecible ? "Del día (cocina)" : p.unidadesPorPresentacion > 1 ? descPresentacion(p.presentacion, p.unidadesPorPresentacion) : "Por unidad",
+    },
+  ];
+
   return (
-    <Modal abierto onCerrar={cerrar} titulo="Stock mínimo" subtitulo={`${p.nombre} · hay ${numero(p.stock)}`}>
-      <label className="block">
-        <span className="label">Avisar cuando queden (unidades)</span>
-        <input
-          ref={campo}
-          type="number"
-          inputMode="numeric"
-          min="0"
-          value={valor}
-          onChange={(e) => setValor(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && guardar()}
-          enterKeyHint="done"
-          className="input h-14 text-center text-2xl font-semibold"
-          autoFocus
-        />
-      </label>
-      <p className="mt-2 text-xs text-suave">
-        Cuando queden {valido ? numero(n) : "…"} o menos, aparecerá en &quot;Se está acabando&quot; para pedirlo.
-        {p.unidadesPorPresentacion > 1 && ` Viene en ${descPresentacion(p.presentacion, p.unidadesPorPresentacion)}.`}
-      </p>
-      {!valido && <p className="mt-2 text-sm text-rojo">Escribe un número entero (0 o más).</p>}
-      <div className="mt-5 grid grid-cols-2 gap-2">
+    <Modal abierto onCerrar={cerrar} titulo={p.nombre} subtitulo={p.categoria}>
+      <div className="grid grid-cols-2 gap-2">
+        {datos.map((d) => (
+          <div key={d.t} className="rounded-xl bg-fondo px-3 py-2.5">
+            <p className="text-[11px] text-suave">{d.t}</p>
+            <p className="font-semibold">{d.v}</p>
+          </div>
+        ))}
+      </div>
+
+      {acaba && (
+        <p className="mt-3 flex items-center gap-2 rounded-xl bg-ambar-50 px-3 py-2 text-sm text-[#8a5a00]">
+          <TriangleAlert className="h-4 w-4 shrink-0" />
+          {p.stock === 0 ? "Agotado." : "Está en su mínimo o menos."} Pídelo en Reposición.
+        </p>
+      )}
+
+      {p.perecible ? (
+        <p className="mt-4 text-xs text-suave">Los productos del día no tienen mínimo: los manda cocina cada día.</p>
+      ) : (
+        <>
+          <label className="mt-4 block">
+            <span className="label">Avisar cuando queden (mínimo)</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              min="0"
+              value={valor}
+              onChange={(e) => setValor(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && guardar()}
+              enterKeyHint="done"
+              className="input h-14 text-center text-2xl font-semibold"
+            />
+          </label>
+          <p className="mt-1.5 text-xs text-suave">
+            Cuando queden {valido ? numero(n) : "…"} o menos, aparece en &quot;Se está acabando&quot; para pedirlo.
+          </p>
+          {!valido && <p className="mt-2 text-sm text-rojo">Escribe un número entero (0 o más).</p>}
+        </>
+      )}
+
+      <div className={`mt-5 grid gap-2 ${p.perecible ? "" : "grid-cols-2"}`}>
         <button onClick={cerrar} disabled={guardando} className="btn-secundario h-12">
-          Cancelar
+          {p.perecible ? "Cerrar" : "Cancelar"}
         </button>
-        <button onClick={guardar} disabled={guardando || !valido} className="btn-primario h-12">
-          {guardando ? "Guardando..." : "Guardar"}
-        </button>
+        {!p.perecible && (
+          <button onClick={guardar} disabled={guardando || !valido} className="btn-primario h-12">
+            {guardando ? "Guardando..." : "Guardar mínimo"}
+          </button>
+        )}
       </div>
     </Modal>
   );
