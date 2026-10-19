@@ -9,10 +9,18 @@
   --color-panel-3: #24362b;
   --color-panel-text: #8d9c93;
 
-  --color-fondo: #f3f5f3;
-  --color-borde: #e7ebe8;
+  /* Fondo de página un poco más oscuro que las tarjetas blancas: así las tarjetas se separan */
+  --color-fondo: #f1f4f2;
+  /* Bordes decorativos (tarjetas, separadores de tabla) */
+  --color-borde: #e3e8e5;
   --color-tinta: #17201b;
-  --color-suave: #6b7770;
+  /* Texto secundario: 6:1 sobre blanco (antes 4.7:1) */
+  --color-suave: #5b6660;
+  /* Borde de los campos donde se escribe: 3.6:1 sobre blanco (mínimo WCAG 1.4.11 = 3:1; antes 1.2:1) */
+  --color-campo: #7e8983;
+  --color-campo-hover: #4f5a54;
+  /* Texto de ejemplo dentro de un campo vacío (más claro que lo escrito) */
+  --color-ejemplo: #8a948e;
 
   --color-verde-50: #effaf0;
   --color-verde-100: #d9f3dc;
@@ -50,21 +58,30 @@ input[type="number"] {
   appearance: textfield;
 }
 
+/* Casillas un poco más grandes y en verde */
+input[type="checkbox"],
+input[type="radio"] {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: var(--color-verde-600);
+  cursor: pointer;
+}
+
 @layer components {
   .card {
-    @apply rounded-2xl border border-borde bg-white;
+    @apply rounded-2xl border border-borde bg-white shadow-[0_1px_2px_rgba(15,26,20,0.04),0_2px_8px_rgba(15,26,20,0.04)];
   }
   .btn-primario,
   .btn-secundario,
   .btn-peligro,
   .btn-fantasma {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-4 focus-visible:ring-verde/30 disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-primario {
     @apply bg-verde text-white hover:bg-verde-600;
   }
   .btn-secundario {
-    @apply border border-borde bg-white text-tinta hover:bg-fondo;
+    @apply border border-[#c5ccc8] bg-white text-tinta hover:border-campo hover:bg-fondo;
   }
   .btn-peligro {
     @apply bg-rojo text-white hover:bg-rojo/90;
@@ -72,23 +89,28 @@ input[type="number"] {
   .btn-fantasma {
     @apply px-2.5 py-1.5 text-verde-600 hover:bg-verde-50;
   }
+  /* Campo donde se escribe: borde visible, cambia al pasar el mouse y al escribir (verde con halo) */
   .input {
-    @apply w-full rounded-xl border border-borde bg-white px-3.5 py-2.5 text-sm text-tinta outline-none transition placeholder:text-suave/60 focus:border-verde focus:ring-4 focus:ring-verde/15;
+    @apply w-full rounded-xl border border-campo bg-white px-3.5 py-2.5 text-sm text-tinta outline-none transition placeholder:text-ejemplo hover:border-campo-hover focus:border-verde-600 focus:ring-4 focus:ring-verde/20 disabled:cursor-not-allowed disabled:border-borde disabled:bg-fondo disabled:text-suave;
   }
+  select.input {
+    @apply cursor-pointer;
+  }
+  /* Nombre del campo: oscuro y en negrita para leerlo de un vistazo */
   .label {
-    @apply mb-1.5 block text-xs font-medium text-suave;
+    @apply mb-1.5 block text-[13px] font-semibold text-tinta;
   }
   .tabla {
     @apply w-full text-sm;
   }
   .tabla th {
-    @apply whitespace-nowrap border-b border-borde bg-[#fafbfa] px-3 py-3 text-left text-xs font-medium text-suave;
+    @apply whitespace-nowrap border-b border-borde bg-[#f5f7f6] px-3 py-3 text-left text-xs font-semibold text-[#4a554f];
   }
   .tabla td {
     @apply border-b border-borde px-3 py-3 align-middle;
   }
   .tabla tbody tr:hover td {
-    @apply bg-[#fafbfa];
+    @apply bg-[#f7faf8];
   }
   .chip {
     @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium;

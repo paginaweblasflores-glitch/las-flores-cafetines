@@ -4,7 +4,8 @@ import { useState, useTransition } from "react";
 import { Plus, Trash2, Truck } from "lucide-react";
 import { registrarIngresos } from "@/app/actions/inventario";
 import { avisar } from "@/components/ui";
-import { hoyISO, NOMBRE_PRESENTACION, numero, soles } from "@/lib/format";
+import { BuscadorProducto } from "@/components/buscador-producto";
+import { descPresentacion, hoyISO, NOMBRE_PRESENTACION, numero, soles } from "@/lib/format";
 
 type ItemStock = {
   id: number;
@@ -14,6 +15,8 @@ type ItemStock = {
   unidadesPorPresentacion: number;
   costo: number;
   total: number;
+  /** Stock mínimo (para marcar en ámbar lo que se está acabando) */
+  minimo: number;
 };
 
 type Linea = { key: number; productoColegioId: string; cajas: string; porCaja: string; sueltas: string; costo: string };
@@ -123,27 +126,29 @@ export function FormularioEntrega({
             <div key={l.key} className="rounded-xl border border-borde p-3">
               <div className="flex items-center gap-2">
                 <span className="text-xs text-suave">{i + 1}.</span>
-                <select
-                  value={l.productoColegioId}
-                  onChange={(e) => {
-                    const nuevo = disponibles.find((s) => String(s.id) === e.target.value);
-                    actualizar(l.key, {
-                      productoColegioId: e.target.value,
-                      costo: nuevo ? String(nuevo.costo) : "",
-                      porCaja: nuevo ? String(nuevo.unidadesPorPresentacion) : "",
-                    });
-                  }}
-                  className="input flex-1"
-                >
-                  <option value="">Elige producto...</option>
-                  {disponibles
-                    .filter((s) => !usados.has(String(s.id)))
-                    .map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.producto} (hay {s.total} unid.)
-                      </option>
-                    ))}
-                </select>
+                {/* Buscador: clic para ver la lista con su stock; escribir para filtrar */}
+                <div className="min-w-0 flex-1">
+                  <BuscadorProducto
+                    opciones={disponibles
+                      .filter((s) => !usados.has(String(s.id)))
+                      .map((s) => ({
+                        id: s.id,
+                        nombre: s.producto,
+                        stock: s.total,
+                        minimo: s.minimo,
+                        detalle: descPresentacion(s.presentacion, s.unidadesPorPresentacion),
+                      }))}
+                    valor={l.productoColegioId ? Number(l.productoColegioId) : null}
+                    onElegir={(id) => {
+                      const nuevo = disponibles.find((s) => s.id === id);
+                      actualizar(l.key, {
+                        productoColegioId: id === null ? "" : String(id),
+                        costo: nuevo ? String(nuevo.costo) : "",
+                        porCaja: nuevo ? String(nuevo.unidadesPorPresentacion) : "",
+                      });
+                    }}
+                  />
+                </div>
                 {lineas.length > 1 && (
                   <button
                     onClick={() => setLineas((ls) => ls.filter((x) => x.key !== l.key))}

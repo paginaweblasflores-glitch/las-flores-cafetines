@@ -116,6 +116,7 @@ export default async function PaginaIngresos({ searchParams }: PageProps<"/ingre
               unidadesPorPresentacion: s.unidades_por_presentacion,
               costo: Number(s.costo_presentacion),
               total: s.total_unidades,
+              minimo: s.stock_minimo,
             }))}
           />
         </div>
