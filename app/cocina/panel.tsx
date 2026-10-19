@@ -306,7 +306,7 @@ export function PanelCocina({
                           min="0"
                           step="1"
                           value={v}
-                          placeholder={p.vasosPorBalde ? ENVASES[p.envase ?? "BALDE"].envases : "0"}
+                          placeholder="0"
                           onChange={(e) => cambiar(p, e.target.value)}
                           onKeyDown={(e) => {
                             if (!p.vasosPorBalde) bloquearSignos(e);
