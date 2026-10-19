@@ -4,7 +4,16 @@ import { useEffect, useRef } from "react";
 import { ArrowRight, Check, CheckCircle2, ChevronRight, Package, Pencil, Undo2 } from "lucide-react";
 import type { CambioRegistro } from "@/app/actions/personal";
 import { Inicial, Modal } from "@/components/ui";
-import { descPresentacion, enBaldes, esBalde, fechaCorta, fechaISOLima, NOMBRE_PRESENTACION, soles } from "@/lib/format";
+import {
+  descPresentacion,
+  enEnvases,
+  ENVASES,
+  esEnvase,
+  fechaCorta,
+  fechaISOLima,
+  NOMBRE_PRESENTACION,
+  soles,
+} from "@/lib/format";
 
 export type ProductoConteo = {
   id: number;
@@ -69,12 +78,12 @@ export function evaluar(p: ProductoConteo, e: Edicion) {
     : preparado > 0 && nuevo === null
       ? "Escribe también cuántos quedan."
       : invalido
-    ? "Escribe un número entero (0 o más)."
-    : mermaInvalida
-      ? `El sobrante no puede ser mayor a lo que queda (${quedan}).`
-      : faltaMotivo
-        ? "Escribe el motivo del sobrante."
-        : null;
+        ? "Escribe un número entero (0 o más)."
+        : mermaInvalida
+          ? `El sobrante no puede ser mayor a lo que queda (${quedan}).`
+          : faltaMotivo
+            ? "Escribe el motivo del sobrante."
+            : null;
   const cambio: CambioRegistro | null =
     hayCambio && !error
       ? {
@@ -128,7 +137,10 @@ export function FilaConteo({
   else
     detalle = (
       <span>
-        {preparaElPersonal(p) ? "Lo preparas tú" : `Hay ${p.stock}${esBalde(p.presentacion) ? " vasos" : ""}`} · {soles(p.precio)}
+        {preparaElPersonal(p)
+          ? "Lo preparas tú"
+          : `Hay ${p.stock}${esEnvase(p.presentacion) ? ` ${ENVASES[p.presentacion].partes}` : ""}`}{" "}
+        · {soles(p.precio)}
       </span>
     );
 
@@ -151,7 +163,11 @@ export function FilaConteo({
             <Check className="h-4 w-4" />
           </span>
         ) : !contado && !error ? (
-          <span className="chip shrink-0 bg-ambar-50 text-[#8a5a00]">Contar</span>
+          p.stock > 0 ? (
+            <span className="chip shrink-0 bg-ambar-50 text-[#8a5a00]">Contar</span>
+          ) : (
+            <ChevronRight className="h-4 w-4 shrink-0 text-suave" />
+          )
         ) : (
           <ChevronRight className="h-4 w-4 shrink-0 text-suave" />
         )}
@@ -212,8 +228,12 @@ export function HojaConteo({
       subtitulo={
         <span>
           Había <b className="text-tinta">{p.stock}</b>
-          {esBalde(p.presentacion) ? " vasos" : ""} · {soles(p.precio)}
-          <button type="button" onClick={cambiarPrecio} className="ml-2 inline-flex items-center gap-1 text-xs font-medium text-verde-700 underline">
+          {esEnvase(p.presentacion) ? ` ${ENVASES[p.presentacion].partes}` : ""} · {soles(p.precio)}
+          <button
+            type="button"
+            onClick={cambiarPrecio}
+            className="ml-2 inline-flex items-center gap-1 text-xs font-medium text-verde-700 underline"
+          >
             <Pencil className="h-3 w-3" /> precio
           </button>
           <span className="ml-2 text-xs">· {posicion}</span>
@@ -251,10 +271,13 @@ export function HojaConteo({
         </label>
       )}
 
-      {/* Balde: se toca cuánto queda en el balde (el sistema lo pasa a vasos) */}
-      {esBalde(p.presentacion) && p.unidadesPorPresentacion > 0 && (
+      {/* Balde o taper: se toca cuánto queda en el envase (el sistema lo pasa a vasos o porciones) */}
+      {esEnvase(p.presentacion) && p.unidadesPorPresentacion > 0 && (
         <div className="mb-3">
-          <p className="label">¿Cuánto queda en el balde? ({p.unidadesPorPresentacion} vasos el balde lleno)</p>
+          <p className="label">
+            ¿Cuánto queda en el {ENVASES[p.presentacion].envase}? ({p.unidadesPorPresentacion} {ENVASES[p.presentacion].partes}{" "}
+            lleno)
+          </p>
           <div className="grid grid-cols-5 gap-1.5">
             {[
               ["Vacío", 0],
@@ -277,13 +300,15 @@ export function HojaConteo({
               );
             })}
           </div>
-          <p className="mt-1 text-xs text-suave">O escribe abajo cuántos vasos quedan.</p>
+          <p className="mt-1 text-xs text-suave">O escribe abajo cuántos {ENVASES[p.presentacion].partes} quedan.</p>
         </div>
       )}
 
       <div className={`grid gap-3 ${p.perecible ? "grid-cols-2" : "grid-cols-1"}`}>
         <label className="block">
-          <span className="label">{esBalde(p.presentacion) ? "¿Cuántos vasos quedan?" : "¿Cuántas quedan?"}</span>
+          <span className="label">
+            {esEnvase(p.presentacion) ? `¿${ENVASES[p.presentacion].cuantas} quedan?` : "¿Cuántas quedan?"}
+          </span>
           <input
             ref={campo}
             type="number"
@@ -375,8 +400,10 @@ export function HojaConteo({
           {r.vendio > 0 ? (
             <>
               Vendiste <b>{r.vendio}</b>
-              {esBalde(p.presentacion) ? ` vasos (${enBaldes(r.vendio, p.unidadesPorPresentacion)})` : ""} ={" "}
-              <b>{soles(r.vendio * p.precio)}</b>
+              {esEnvase(p.presentacion)
+                ? ` ${ENVASES[p.presentacion].partes} (${enEnvases(r.vendio, p.unidadesPorPresentacion, p.presentacion)})`
+                : ""}{" "}
+              = <b>{soles(r.vendio * p.precio)}</b>
             </>
           ) : (
             "Sin ventas desde el último conteo"
@@ -392,7 +419,13 @@ export function HojaConteo({
 
       <div className="mt-5 flex gap-2">
         {r.hayCambio && (
-          <button type="button" onClick={descartar} className="btn-secundario h-12 px-3" aria-label="Borrar lo escrito" title="Borrar lo escrito">
+          <button
+            type="button"
+            onClick={descartar}
+            className="btn-secundario h-12 px-3"
+            aria-label="Borrar lo escrito"
+            title="Borrar lo escrito"
+          >
             <Undo2 className="h-4 w-4" />
           </button>
         )}

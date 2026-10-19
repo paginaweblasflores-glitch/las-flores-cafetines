@@ -48,7 +48,7 @@ drop type if exists tipo_movimiento cascade;
 -- Tipos
 -- ---------------------------------------------------------------------
 
-create type tipo_presentacion as enum ('UNIDAD', 'CAJA', 'PAQUETE', 'BOLSA', 'OTRO', 'BALDE');
+create type tipo_presentacion as enum ('UNIDAD', 'CAJA', 'PAQUETE', 'BOLSA', 'OTRO', 'BALDE', 'TAPER');
 
 -- INGRESO   : logística entrega mercadería al colegio (suma stock)
 -- VENTA     : unidades vendidas (se calcula sola cuando el personal cuenta su stock)
@@ -116,7 +116,7 @@ create table productos (
   categoria_id  bigint references categorias(id) on delete set null,
   -- perecible = se prepara y se vende en el día (empanadas, jugos...). Lo que sobra se registra como merma.
   perecible     boolean not null default false,
-  -- Solo para los del día: false = se cuenta a diario pero no lo manda la cocina (no sale en su panel)
+  -- true = lo envía la cocina (sale en su panel), sea del día o no (diario, interdiario o semanal)
   de_cocina     boolean not null default true,
   activo        boolean not null default true,
   created_at    timestamptz not null default now()

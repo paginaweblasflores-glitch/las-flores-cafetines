@@ -27,7 +27,7 @@ const MOTIVOS = ["No llegó completo", "Llegó aplastado o dañado", "Otro"];
 /** Lo que llegó al cafetín: envíos de cocina (del día) y entregas de logística (semanal) */
 export function RecepcionEnvios({ envios }: { envios: EnvioPorRecibir[] }) {
   const secciones = [
-    { origen: "COCINA" as const, titulo: "Del día", sub: "de cocina", icono: ChefHat, vacio: "Nada por recibir de cocina." },
+    { origen: "COCINA" as const, titulo: "Cocina", sub: "lo que envía la cocina", icono: ChefHat, vacio: "Nada por recibir de cocina." },
     { origen: "LOGISTICA" as const, titulo: "Semanal", sub: "de logística", icono: Truck, vacio: "Nada por recibir de logística." },
   ];
   return (

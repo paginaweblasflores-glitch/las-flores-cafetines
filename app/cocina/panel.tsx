@@ -6,15 +6,17 @@ import { crearEnvio, editarEnvio } from "@/app/actions/envios";
 import { avisar, Inicial, Modal } from "@/components/ui";
 import { bajoDeBarra, NavegacionInferior, useTecladoAbierto, type ItemNavegacion } from "@/components/navegacion-inferior";
 import { BarraSuperiorMovil, PerfilMovil } from "@/components/movil";
-import { buscarPorNombre, enBaldes, fechaLarga, horaLima } from "@/lib/format";
+import { buscarPorNombre, enEnvases, ENVASES, fechaLarga, horaLima, normalizar } from "@/lib/format";
 
 type Producto = {
   id: number;
   colegioId: number;
   nombre: string;
   categoria: string;
-  /** Si viene en balde: cuántos vasos rinde cada uno (la cocina escribe baldes) */
+  /** Si viene en balde o taper: cuántos vasos o porciones rinde cada uno (la cocina escribe envases) */
   vasosPorBalde: number | null;
+  /** "BALDE" o "TAPER" (null si va por unidad) */
+  envase: string | null;
 };
 type EnvioHoy = {
   id: number;
@@ -31,6 +33,24 @@ type EnvioHoy = {
 };
 
 type Seccion = "enviar" | "enviados" | "perfil";
+
+/**
+ * Orden de la lista como lo pidió la cocina (casi por categoría, no estricto):
+ * 1 lonchera · 2 chaufa y salchipapa, luego salsas · 3 panes y pizza · 4 frutas · 5 bebidas · 6 el resto.
+ */
+function ordenCocina(p: Producto) {
+  const n = normalizar(p.nombre);
+  const c = normalizar(p.categoria);
+  if (n.startsWith("lonchera")) return 1;
+  if (n.includes("chaufa") || n.includes("salchipa")) return 2;
+  if (c.startsWith("salsa")) return 2.5;
+  // "PAN …" (palabra completa: PANQUEQUE no es pan) y las pizzas
+  if (/^pan(es)?( |$)/.test(n) || n.includes("pizza")) return 3;
+  if (c.startsWith("fruta")) return 4;
+  if (c.startsWith("bebida")) return 5;
+  return 6;
+}
+const enOrdenCocina = (a: Producto, b: Producto) => ordenCocina(a) - ordenCocina(b) || a.nombre.localeCompare(b.nombre, "es");
 
 /** Solo números enteros: se quita el "-" y cualquier otro signo */
 const soloDigitos = (v: string) => v.replace(/\D/g, "");
@@ -93,7 +113,7 @@ export function PanelCocina({
 
   // Cada producto se envía una vez al día: lo ya enviado sale de la lista; lo que falta se sigue viendo
   const enviados = useMemo(() => new Set(envios.map((e) => e.productoColegioId)), [envios]);
-  const porEnviar = (cId: number) => productos.filter((p) => p.colegioId === cId && !enviados.has(p.id));
+  const porEnviar = (cId: number) => productos.filter((p) => p.colegioId === cId && !enviados.has(p.id)).sort(enOrdenCocina);
   const enviadosA = (cId: number) => envios.filter((e) => e.colegioId === cId);
   const todoEnviadoA = (cId: number) => porEnviar(cId).length === 0 && enviadosA(cId).length > 0;
 
@@ -105,8 +125,7 @@ export function PanelCocina({
 
   const n = (v: string | undefined) => (v === undefined || v.trim() === "" ? 0 : Number(v));
   /** Lo que se guarda: unidades (o vasos, si el producto viene en balde) */
-  const unidadesDe = (p: Producto) =>
-    p.vasosPorBalde ? Math.round(n(cantidades[p.id]) * p.vasosPorBalde) : n(cantidades[p.id]);
+  const unidadesDe = (p: Producto) => (p.vasosPorBalde ? Math.round(n(cantidades[p.id]) * p.vasosPorBalde) : n(cantidades[p.id]));
   const lineas = faltan
     .filter((p) => unidadesDe(p) > 0)
     .map((p) => ({ productoColegioId: p.id, cantidad: unidadesDe(p), nombre: p.nombre }));
@@ -251,7 +270,10 @@ export function PanelCocina({
                     const v = cantidades[p.id] ?? "";
                     const marcado = n(v) > 0;
                     return (
-                      <li key={p.id} className={`flex items-center justify-between gap-3 px-4 py-2.5 ${marcado ? "bg-verde-50/60" : ""}`}>
+                      <li
+                        key={p.id}
+                        className={`flex items-center justify-between gap-3 px-4 py-2.5 ${marcado ? "bg-verde-50/60" : ""}`}
+                      >
                         <div className="flex min-w-0 items-center gap-3">
                           <Inicial nombre={p.nombre} />
                           <div className="min-w-0">
@@ -259,8 +281,14 @@ export function PanelCocina({
                             <p className="text-xs text-suave">
                               {p.vasosPorBalde ? (
                                 <>
-                                  En baldes de {p.vasosPorBalde} vasos
-                                  {marcado && <b className="text-verde-700"> · {unidadesDe(p)} vasos</b>}
+                                  En {ENVASES[p.envase ?? "BALDE"].envases} de {p.vasosPorBalde}{" "}
+                                  {ENVASES[p.envase ?? "BALDE"].partes}
+                                  {marcado && (
+                                    <b className="text-verde-700">
+                                      {" "}
+                                      · {unidadesDe(p)} {ENVASES[p.envase ?? "BALDE"].partes}
+                                    </b>
+                                  )}
                                 </>
                               ) : (
                                 p.categoria
@@ -274,7 +302,7 @@ export function PanelCocina({
                           min="0"
                           step="1"
                           value={v}
-                          placeholder={p.vasosPorBalde ? "baldes" : "0"}
+                          placeholder={p.vasosPorBalde ? ENVASES[p.envase ?? "BALDE"].envases : "0"}
                           onChange={(e) => cambiar(p, e.target.value)}
                           onKeyDown={(e) => {
                             if (!p.vasosPorBalde) bloquearSignos(e);
@@ -308,7 +336,9 @@ export function PanelCocina({
             ) : (
               <div className="space-y-4">
                 {porRecibir > 0 && (
-                  <p className="text-xs text-suave">Mientras el colegio no lo reciba, puedes corregir la cantidad con el lápiz.</p>
+                  <p className="text-xs text-suave">
+                    Mientras el colegio no lo reciba, puedes corregir la cantidad con el lápiz.
+                  </p>
                 )}
                 {colegios
                   .filter((c) => envios.some((e) => e.colegioId === c.id))
@@ -326,7 +356,11 @@ export function PanelCocina({
                                   <span className="text-suave">
                                     × {e.enviada}
                                     {productoDe(e.productoColegioId)?.vasosPorBalde
-                                      ? ` vasos (${enBaldes(e.enviada, productoDe(e.productoColegioId)!.vasosPorBalde!)})`
+                                      ? ` ${ENVASES[productoDe(e.productoColegioId)!.envase ?? "BALDE"].partes} (${enEnvases(
+                                          e.enviada,
+                                          productoDe(e.productoColegioId)!.vasosPorBalde!,
+                                          productoDe(e.productoColegioId)!.envase ?? "BALDE",
+                                        )})`
                                       : ""}
                                   </span>
                                 </p>
@@ -378,7 +412,10 @@ export function PanelCocina({
 
       {/* Botón de envío fijo abajo, siempre a mano */}
       {seccion === "enviar" && !todoEnviado && (
-        <div className="fixed inset-x-0 z-20 border-t border-borde bg-white/95 backdrop-blur" style={{ bottom: bajoDeBarra(teclado) }}>
+        <div
+          className="fixed inset-x-0 z-20 border-t border-borde bg-white/95 backdrop-blur"
+          style={{ bottom: bajoDeBarra(teclado) }}
+        >
           <div className="mx-auto max-w-3xl px-4 py-3">
             {lineas.length > 0 && (
               <p className="mb-2 truncate text-center text-xs text-suave">

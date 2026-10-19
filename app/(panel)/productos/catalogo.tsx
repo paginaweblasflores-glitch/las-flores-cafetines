@@ -5,7 +5,7 @@ import { Pencil, Search, FolderPlus, Plus } from "lucide-react";
 import { crearCategoria, crearProducto, editarProducto } from "@/app/actions/catalogo";
 import { avisar, Inicial, Modal } from "@/components/ui";
 import { BarraPaginacion, usePaginacion } from "@/components/paginacion";
-import { buscarPorNombre, NOMBRE_PRESENTACION, normalizar, pct, soles } from "@/lib/format";
+import { buscarPorNombre, ENVASES, envaseDeCategoria, NOMBRE_PRESENTACION, pct, soles } from "@/lib/format";
 import type { Categoria, Presentacion } from "@/lib/types";
 
 type Producto = {
@@ -124,11 +124,8 @@ export function Catalogo({
                         <Inicial nombre={p.nombre} />
                         <p className="flex items-center gap-2 font-medium">
                           {p.nombre}
-                          {p.perecible && (
-                            <span className="chip bg-ambar-50 text-[#8a5a00]">
-                              {p.de_cocina ? "Del día" : "Del día · no lo manda cocina"}
-                            </span>
-                          )}
+                          {p.perecible && <span className="chip bg-ambar-50 text-[#8a5a00]">Del día</span>}
+                          {p.de_cocina && <span className="chip bg-[#e8f0fb] text-[#2b5ea7]">Cocina</span>}
                         </p>
                       </div>
                     </td>
@@ -264,8 +261,9 @@ function ModalProducto({
           </select>
         </label>
         {/* Cómo viene: bebidas de cocina por unidad o en balde; el resto de cocina no lleva nada; lo comprado, caja, paquete… */}
-        {perecible && deCocina && !esBebida(categorias, categoriaId) ? null : perecible && deCocina ? (
+        {deCocina && !envaseDe(categorias, categoriaId) ? null : deCocina ? (
           <ComoVieneCocina
+            envase={envaseDe(categorias, categoriaId)!}
             presentacion={presentacion}
             porCaja={porCaja}
             cambiar={(p, c) => {
@@ -298,8 +296,8 @@ function ModalProducto({
             {!esUnidadP && (
               <label className="block">
                 <span className="label">
-                  {presentacion === "BALDE"
-                    ? "¿Cuántos vasos rinde cada balde?"
+                  {ENVASES[presentacion]
+                    ? `¿${ENVASES[presentacion].cuantas} rinde cada ${ENVASES[presentacion].envase}?`
                     : `Unidades por ${NOMBRE_PRESENTACION[presentacion].toLowerCase()}`}
                 </span>
                 <input
@@ -315,7 +313,7 @@ function ModalProducto({
         {cambioCompra && (
           <p className="rounded-xl bg-ambar-50 px-3 py-2 text-xs text-[#8a5a00]">
             Se cambia en todos los colegios donde se vende.
-            {presentacion === "BALDE" && " El precio de venta de cada colegio es por vaso."}
+            {ENVASES[presentacion] && ` El precio de venta de cada colegio es por ${ENVASES[presentacion].parte}.`}
           </p>
         )}
 
@@ -382,7 +380,7 @@ function ModalProducto({
             </span>
           </span>
         </label>
-        {perecible && <OpcionDeCocina valor={deCocina} cambiar={setDeCocina} />}
+        <OpcionDeCocina valor={deCocina} perecible={perecible} cambiar={setDeCocina} />
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} className="accent-verde" />
           Producto activo (si lo desactivas, desaparece de todos los colegios)
@@ -421,64 +419,76 @@ function ModalProducto({
   );
 }
 
-/** La categoría elegida es de bebidas (solo ahí tiene sentido el balde que se vende por vaso) */
-const esBebida = (categorias: Categoria[], categoriaId: string) =>
-  normalizar(categorias.find((c) => String(c.id) === categoriaId)?.nombre ?? "").startsWith("bebida");
+/** Envase que corresponde a la categoría elegida: bebidas → balde, salsas → taper (en otras, ninguno) */
+const envaseDe = (categorias: Categoria[], categoriaId: string) =>
+  envaseDeCategoria(categorias.find((c) => String(c.id) === categoriaId)?.nombre);
 
-/** Bebidas que prepara la cocina: no se compran (sin costo); vienen por unidad o en balde (por vaso) */
+/** Lo que prepara la cocina en un envase: no se compra (sin costo); viene por unidad o en balde/taper (por vaso/porción) */
 function ComoVieneCocina({
+  envase,
   presentacion,
   porCaja,
   cambiar,
 }: {
+  envase: "BALDE" | "TAPER";
   presentacion: Presentacion;
   porCaja: string;
   cambiar: (p: Presentacion, porCaja: string) => void;
 }) {
-  const balde = presentacion === "BALDE";
+  const e = ENVASES[envase];
+  const enEnvase = presentacion === envase;
   const opcion = (activa: boolean) =>
     `flex-1 rounded-xl border px-3 py-2.5 text-sm font-semibold ${activa ? "border-panel bg-panel text-white" : "border-campo bg-white text-tinta"}`;
   return (
     <div>
       <p className="label">Cómo viene de la cocina</p>
       <div className="flex gap-2">
-        <button type="button" onClick={() => cambiar("UNIDAD", "1")} className={opcion(!balde)}>
+        <button type="button" onClick={() => cambiar("UNIDAD", "1")} className={opcion(!enEnvase)}>
           Por unidad
         </button>
-        <button type="button" onClick={() => cambiar("BALDE", balde ? porCaja : "")} className={opcion(balde)}>
-          En balde (se vende por vaso)
+        <button type="button" onClick={() => cambiar(envase, enEnvase ? porCaja : "")} className={opcion(enEnvase)}>
+          En {e.envase} (se vende por {e.parte})
         </button>
       </div>
-      {balde && (
+      {enEnvase && (
         <label className="mt-3 block">
-          <span className="label">¿Cuántos vasos rinde cada balde?</span>
+          <span className="label">
+            ¿{e.cuantas} rinde cada {e.envase}?
+          </span>
           <input
             inputMode="numeric"
             value={porCaja}
-            onChange={(e) => cambiar("BALDE", e.target.value.replace(/\D/g, ""))}
+            onChange={(ev) => cambiar(envase, ev.target.value.replace(/\D/g, ""))}
             className="input"
             placeholder="Ej: 30"
           />
         </label>
       )}
       <p className="mt-2 text-xs text-suave">
-        Lo prepara la cocina: no lleva costo. El precio de venta de cada colegio es por {balde ? "vaso" : "unidad"}.
+        Lo prepara la cocina: no lleva costo. El precio de venta de cada colegio es por {enEnvase ? e.parte : "unidad"}.
       </p>
     </div>
   );
 }
 
-/** Solo en productos del día: si lo manda la cocina (sale en su panel) o solo se cuenta en el cafetín */
-function OpcionDeCocina({ valor, cambiar }: { valor: boolean; cambiar: (v: boolean) => void }) {
+/**
+ * Si lo manda la cocina (sale en su panel), sea del día o no. La cocina lo envía cuando toca:
+ * diario, interdiario o semanal. Lo que no es del día se cuenta en el conteo semanal (lo que sobra pasa al día siguiente).
+ */
+function OpcionDeCocina({ valor, perecible, cambiar }: { valor: boolean; perecible: boolean; cambiar: (v: boolean) => void }) {
   return (
-    <label className="ml-6 flex items-start gap-2 rounded-xl border border-borde p-3 text-sm">
+    <label className="flex items-start gap-2 rounded-xl border border-borde p-3 text-sm">
       <input type="checkbox" checked={valor} onChange={(e) => cambiar(e.target.checked)} className="mt-0.5 accent-verde" />
       <span>
         <span className="block font-medium">Lo envía cocina</span>
         <span className="block text-xs text-suave">
-          {valor
-            ? "Aparece en el panel de cocina para enviarlo cada día."
-            : "No lo manda cocina: no aparece en su panel, pero el personal lo sigue contando cada día."}
+          {!valor
+            ? perecible
+              ? "No lo manda cocina: no aparece en su panel; el personal dice cuánto preparó y lo cuenta cada día."
+              : "No lo manda cocina (lo entrega logística)."
+            : perecible
+              ? "Aparece en el panel de cocina. Lo que sobra al cierre es merma."
+              : "Aparece en el panel de cocina; la envía cuando toca (interdiario o semanal). Lo que sobra pasa al día siguiente."}
         </span>
       </span>
     </label>
@@ -546,7 +556,7 @@ function ModalNuevoProducto({
   const [tocados, setTocados] = useState<number[]>([]);
   const [minimo, setMinimo] = useState("5");
   const [perecible, setPerecible] = useState(false);
-  const [deCocina, setDeCocina] = useState(true);
+  const [deCocina, setDeCocina] = useState(false);
   const [stockInicial, setStockInicial] = useState<Record<number, string>>({});
   const [pendiente, iniciar] = useTransition();
 
@@ -583,10 +593,10 @@ function ModalNuevoProducto({
         deCocina,
         colegioIds: elegidos,
         // Lo de cocina que no es bebida viene siempre por unidad
-        presentacion: perecible && deCocina && !esBebida(categorias, categoriaId) ? "UNIDAD" : presentacion,
-        unidadesPorPresentacion: perecible && deCocina && !esBebida(categorias, categoriaId) ? 1 : unidades,
+        presentacion: deCocina && presentacion !== envaseDe(categorias, categoriaId) ? "UNIDAD" : presentacion,
+        unidadesPorPresentacion: deCocina && presentacion !== envaseDe(categorias, categoriaId) ? 1 : unidades,
         // Lo que prepara la cocina no se compra: sin costo
-        costoPresentacion: perecible && deCocina ? 0 : n(costo),
+        costoPresentacion: deCocina ? 0 : n(costo),
         precios: Object.fromEntries(elegidos.map((id) => [id, n(precioDe(id))])),
         stockMinimo: n(minimo),
         stockInicial: Object.fromEntries(elegidos.map((id) => [id, n(stockInicial[id] ?? "")])),
@@ -635,7 +645,10 @@ function ModalNuevoProducto({
           <input
             type="checkbox"
             checked={perecible}
-            onChange={(e) => setPerecible(e.target.checked)}
+            onChange={(e) => {
+              setPerecible(e.target.checked);
+              if (e.target.checked) setDeCocina(true);
+            }}
             className="mt-0.5 accent-verde"
           />
           <span>
@@ -645,7 +658,7 @@ function ModalNuevoProducto({
             </span>
           </span>
         </label>
-        {perecible && <OpcionDeCocina valor={deCocina} cambiar={setDeCocina} />}
+        <OpcionDeCocina valor={deCocina} perecible={perecible} cambiar={setDeCocina} />
       </div>
 
       <p className="mt-4 mb-2 text-sm font-medium">¿En qué colegios se venderá?</p>
@@ -705,9 +718,10 @@ function ModalNuevoProducto({
         })}
       </div>
 
-      {perecible && deCocina && !esBebida(categorias, categoriaId) ? null : perecible && deCocina ? (
+      {deCocina && !envaseDe(categorias, categoriaId) ? null : deCocina ? (
         <div className="mt-4">
           <ComoVieneCocina
+            envase={envaseDe(categorias, categoriaId)!}
             presentacion={presentacion}
             porCaja={porCaja}
             cambiar={(p, c) => {
@@ -741,7 +755,9 @@ function ModalNuevoProducto({
             {!esUnidad ? (
               <label>
                 <span className="label">
-                  {presentacion === "BALDE" ? "¿Cuántos vasos rinde cada balde?" : `¿Cuántas unidades trae cada ${nombreCaja}?`}
+                  {ENVASES[presentacion]
+                    ? `¿${ENVASES[presentacion].cuantas} rinde cada ${ENVASES[presentacion].envase}?`
+                    : `¿Cuántas unidades trae cada ${nombreCaja}?`}
                 </span>
                 <input type="number" min="1" value={porCaja} onChange={(e) => setPorCaja(e.target.value)} className="input" />
               </label>
@@ -786,7 +802,7 @@ function ModalNuevoProducto({
             pendiente ||
             nombre.trim().length < 2 ||
             !preciosListos ||
-            !((perecible && deCocina && !esBebida(categorias, categoriaId)) || (Number.isInteger(unidades) && unidades >= 1))
+            !((deCocina && !envaseDe(categorias, categoriaId)) || (Number.isInteger(unidades) && unidades >= 1))
           }
           className="btn-primario"
           onClick={crear}

@@ -37,6 +37,8 @@ Reemplaza los Excel `INVENTARIO.xlsx` (Administración), `CONTROL BOSCO.xlsx` y 
 > Y luego `database/19_presentacion_balde.sql` (productos que vienen en balde y se venden por vaso).
 > Y luego `database/20_corregir_entrega.sql` (logística corrige una entrega aunque ya la hayan recibido; el stock se ajusta).
 > Y luego `database/21_corregir_entrega_nota_opcional.sql` (sin nota antes de recibir; detalle opcional después).
+> Y luego `database/22_presentacion_taper.sql` (salsas que vienen en taper y se venden por porción).
+> Y luego `database/23_cocina_semanal.sql` (la cocina también envía productos interdiarios o semanales).
 >
 > **Empezar en limpio:** (después del 11) `database/10_vaciar_datos_prueba.sql` borra para siempre productos, stock, ventas, historial,
 > envíos y reposiciones. Conserva colegios, usuarios y categorías. Después los productos se crean desde el Catálogo.

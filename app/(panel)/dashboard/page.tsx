@@ -17,7 +17,18 @@ import {
   obtenerStock,
   obtenerVentas,
 } from "@/lib/data";
-import { fechaISOLima, hoyISO, horaLima, lunesDeSemana, mesAnterior, nombreMes, numero, pct, rangoMes, soles } from "@/lib/format";
+import {
+  fechaISOLima,
+  hoyISO,
+  horaLima,
+  lunesDeSemana,
+  mesAnterior,
+  nombreMes,
+  numero,
+  pct,
+  rangoMes,
+  soles,
+} from "@/lib/format";
 import { Inicial } from "@/components/ui";
 import { asegurarReportesCerrados } from "@/lib/reporte-mensual";
 import { ListaPaginada, TablaPaginada } from "@/components/paginacion";
@@ -48,8 +59,20 @@ export default async function Dashboard() {
   const diaHoy = Number(hoy.slice(8, 10));
   const diaDe = (fecha: string) => Number(fecha.slice(8, 10));
 
-  const [colegiosTodos, stock, ventasMes, ventasPrev, actividad, productos, categorias, conteosHoy, mermasMes, porRecibirTodo, reposiciones, gastosMes] =
-    await Promise.all([
+  const [
+    colegiosTodos,
+    stock,
+    ventasMes,
+    ventasPrev,
+    actividad,
+    productos,
+    categorias,
+    conteosHoy,
+    mermasMes,
+    porRecibirTodo,
+    reposiciones,
+    gastosMes,
+  ] = await Promise.all([
     obtenerColegios(),
     obtenerStock({ colegioId }),
     obtenerVentas(rMes.desde, hoy, colegioId),
@@ -70,7 +93,10 @@ export default async function Dashboard() {
   const suma = <T,>(a: T[], f: (x: T) => number) => a.reduce((s, x) => s + Number(f(x) || 0), 0);
 
   // ---------------- Indicadores ----------------
-  const ventasHoy = suma(ventasMes.filter((v) => v.fecha === hoy), (v) => v.monto);
+  const ventasHoy = suma(
+    ventasMes.filter((v) => v.fecha === hoy),
+    (v) => v.monto,
+  );
   const totalMes = suma(ventasMes, (v) => v.monto);
   // Lo que sobró de los productos del día se pierde: se descuenta a costo
   const costoSobrante = suma(mermasMes, (m) => Number(m.cantidad) * Number(m.costo_unitario));
@@ -78,7 +104,10 @@ export default async function Dashboard() {
   // Y lo comprado fuera del catálogo (descartables, utensilios…) que anotó logística
   const otrosGastos = suma(gastosMes, (g) => g.costo);
   const gananciaMes = suma(ventasMes, (v) => v.ganancia) - costoSobrante - otrosGastos;
-  const prevMismoPeriodo = suma(ventasPrev.filter((v) => diaDe(v.fecha) <= diaHoy), (v) => v.monto);
+  const prevMismoPeriodo = suma(
+    ventasPrev.filter((v) => diaDe(v.fecha) <= diaHoy),
+    (v) => v.monto,
+  );
   const variacion = prevMismoPeriodo > 0 ? ((totalMes - prevMismoPeriodo) / prevMismoPeriodo) * 100 : null;
   const margen = totalMes > 0 ? (gananciaMes / totalMes) * 100 : null;
   const valorStock = suma(stock, (s) => s.valor_venta_stock);
@@ -91,13 +120,17 @@ export default async function Dashboard() {
   // Conteo del día: productos del día contados hoy (cada "Guardar" del personal cuenta)
   const conteoHoy = new Map(conteosHoy.map((x) => [x.colegio_id, x.id]));
   const avanceDelDia = (colegioIdDe: number) => {
-    const delDia = stock.filter((s) => s.colegio_id === colegioIdDe && s.perecible);
-    const contados = delDia.filter((s) => s.ultimo_conteo && fechaISOLima(s.ultimo_conteo) === hoy).length;
+    // Flexible: lo que no llegó hoy (stock 0 y sin contar) no cuenta como pendiente
+    const contadoHoy = (s: (typeof stock)[number]) => !!s.ultimo_conteo && fechaISOLima(s.ultimo_conteo) === hoy;
+    const delDia = stock.filter((s) => s.colegio_id === colegioIdDe && s.perecible && (s.total_unidades > 0 || contadoHoy(s)));
+    const contados = delDia.filter(contadoHoy).length;
     return { contados, total: delDia.length };
   };
   const lunes = lunesDeSemana(hoy);
   const semanalPorContar = (cid: number) =>
-    semanales.filter((s) => s.colegio_id === cid && !(s.ultimo_conteo && fechaISOLima(s.ultimo_conteo) >= lunes)).length;
+    semanales.filter(
+      (s) => s.colegio_id === cid && s.total_unidades > 0 && !(s.ultimo_conteo && fechaISOLima(s.ultimo_conteo) >= lunes),
+    ).length;
   const porRecibirDe = (cid: number) => {
     const p = porRecibirTodo.filter((e) => e.colegio_id === cid);
     return { cocina: p.filter((e) => e.origen === "COCINA").length, logistica: p.filter((e) => e.origen === "LOGISTICA").length };
@@ -108,11 +141,15 @@ export default async function Dashboard() {
   const pedidoEnCurso = new Map<string, string>();
   for (const r of reposiciones) {
     if (r.estado !== "POR_APROBAR" && r.estado !== "APROBADA" && r.estado !== "EN_COMPRA") continue;
-    for (const i of r.items) if (i.producto_id != null && !i.quitado) pedidoEnCurso.set(`${r.colegio_id}-${i.producto_id}`, r.codigo);
+    for (const i of r.items)
+      if (i.producto_id != null && !i.quitado) pedidoEnCurso.set(`${r.colegio_id}-${i.producto_id}`, r.codigo);
   }
   const pendientes = [
     entregasSinRecibir > 0
-      ? { texto: `${entregasSinRecibir} entrega${entregasSinRecibir === 1 ? "" : "s"} sin recibir en el colegio`, href: "/ingresos" }
+      ? {
+          texto: `${entregasSinRecibir} entrega${entregasSinRecibir === 1 ? "" : "s"} sin recibir en el colegio`,
+          href: "/ingresos",
+        }
       : null,
   ].filter((x): x is { texto: string; href: string } => x !== null);
 
@@ -169,12 +206,16 @@ export default async function Dashboard() {
   const catDe = (productoId: number) =>
     categorias.find((c) => c.id === productos.get(productoId)?.categoria_id)?.nombre ?? "Otros";
   const porCategoria = new Map<string, number>();
-  for (const v of ventasMes) porCategoria.set(catDe(v.producto_id), (porCategoria.get(catDe(v.producto_id)) ?? 0) + Number(v.monto));
+  for (const v of ventasMes)
+    porCategoria.set(catDe(v.producto_id), (porCategoria.get(catDe(v.producto_id)) ?? 0) + Number(v.monto));
   const categoriasOrden = [...porCategoria.entries()].filter(([, m]) => m > 0).sort((a, b) => b[1] - a[1]);
   const maxCategoria = categoriasOrden[0]?.[1] ?? 0;
 
   // ---------------- Más vendidos ----------------
-  const agrupado = new Map<string, { colegio_id: number; producto_id: number; unidades: number; monto: number; ganancia: number }>();
+  const agrupado = new Map<
+    string,
+    { colegio_id: number; producto_id: number; unidades: number; monto: number; ganancia: number }
+  >();
   for (const v of ventasMes) {
     const k = `${v.colegio_id}-${v.producto_id}`;
     const a = agrupado.get(k) ?? { colegio_id: v.colegio_id, producto_id: v.producto_id, unidades: 0, monto: 0, ganancia: 0 };
@@ -194,8 +235,7 @@ export default async function Dashboard() {
           Hola de nuevo, <b className="font-semibold">{sesion.nombre}</b>
         </h1>
         <p className="mt-1 text-sm text-suave">
-          {colegioId ? nombreColegio.get(colegioId) : "Todos los colegios"} · resumen de{" "}
-          {nombreMes(mes)}
+          {colegioId ? nombreColegio.get(colegioId) : "Todos los colegios"} · resumen de {nombreMes(mes)}
         </p>
       </div>
 
@@ -234,7 +274,9 @@ export default async function Dashboard() {
           {variacion === null ? (
             <p className="mt-2 flex items-center gap-1 text-xs text-suave">
               <Minus className="h-3.5 w-3.5" />
-              {ventasPrev.length ? `Sin ventas del 1 al ${diaHoy} de ${nombreMes(mesPrev)} para comparar` : "Sin datos del mes pasado"}
+              {ventasPrev.length
+                ? `Sin ventas del 1 al ${diaHoy} de ${nombreMes(mesPrev)} para comparar`
+                : "Sin datos del mes pasado"}
             </p>
           ) : (
             <p className={`mt-2 flex items-center gap-1 text-xs font-medium ${variacion >= 0 ? "text-verde-700" : "text-rojo"}`}>
@@ -254,7 +296,8 @@ export default async function Dashboard() {
             {costoSobrante > 0 && (
               <>
                 {" "}
-                · ya descuenta <b className="font-medium text-tinta">{soles(costoSobrante)}</b> de sobrante ({numero(unidadesSobrante)} unid.)
+                · ya descuenta <b className="font-medium text-tinta">{soles(costoSobrante)}</b> de sobrante (
+                {numero(unidadesSobrante)} unid.)
                 {otrosGastos > 0 && (
                   <>
                     {" "}
@@ -318,7 +361,10 @@ export default async function Dashboard() {
               const semanal = semanalPorContar(c.id);
               const completo = avance.total > 0 && avance.contados === avance.total && recibir.cocina + recibir.logistica === 0;
               const ultimo = actividad.get(c.id);
-              const monto = suma(ventasMes.filter((v) => v.fecha === hoy && v.colegio_id === c.id), (v) => v.monto);
+              const monto = suma(
+                ventasMes.filter((v) => v.fecha === hoy && v.colegio_id === c.id),
+                (v) => v.monto,
+              );
               return (
                 <li key={c.id} className="flex items-center gap-3 px-5 py-3.5">
                   {completo ? (
@@ -416,7 +462,9 @@ export default async function Dashboard() {
                   </span>
                   <span className="text-right font-medium tabular-nums">
                     {soles(monto)}
-                    <span className="ml-1.5 text-xs font-normal text-suave">{pct(Math.round((monto / totalMes) * 1000) / 10)}</span>
+                    <span className="ml-1.5 text-xs font-normal text-suave">
+                      {pct(Math.round((monto / totalMes) * 1000) / 10)}
+                    </span>
                   </span>
                 </li>
               ))}
@@ -454,38 +502,38 @@ export default async function Dashboard() {
                 </thead>
               }
               filas={top.map((t) => {
-                    const s = stockDe(t.colegio_id, t.producto_id);
-                    const nombre = productos.get(t.producto_id)?.nombre ?? "?";
-                    return (
-                      <tr key={`${t.colegio_id}-${t.producto_id}`}>
-                        <td>
-                          <div className="flex items-center gap-3">
-                            <Inicial nombre={nombre} />
-                            <div className="min-w-0">
-                              <p className="truncate font-medium">{nombre}</p>
-                              <p className="text-xs text-suave">{nombreColegio.get(t.colegio_id)}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td>
-                          <div className="flex items-center gap-2">
-                            <span className="h-2 flex-1">
-                              <span
-                                className="block h-full rounded-r-[4px]"
-                                style={{ width: `${Math.max(2, (t.monto / maxTop) * 100)}%`, background: ACENTO }}
-                              />
-                            </span>
-                            <span className="w-20 text-right font-medium tabular-nums">{soles(t.monto)}</span>
-                          </div>
-                        </td>
-                        <td className="text-right tabular-nums">{numero(t.unidades)}</td>
-                        <td className="text-right tabular-nums">{soles(t.ganancia)}</td>
-                        <td className="text-right tabular-nums">
-                          {s?.perecible ? <span className="text-xs text-suave">del día</span> : s ? numero(s.total_unidades) : "—"}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                const s = stockDe(t.colegio_id, t.producto_id);
+                const nombre = productos.get(t.producto_id)?.nombre ?? "?";
+                return (
+                  <tr key={`${t.colegio_id}-${t.producto_id}`}>
+                    <td>
+                      <div className="flex items-center gap-3">
+                        <Inicial nombre={nombre} />
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">{nombre}</p>
+                          <p className="text-xs text-suave">{nombreColegio.get(t.colegio_id)}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="flex items-center gap-2">
+                        <span className="h-2 flex-1">
+                          <span
+                            className="block h-full rounded-r-[4px]"
+                            style={{ width: `${Math.max(2, (t.monto / maxTop) * 100)}%`, background: ACENTO }}
+                          />
+                        </span>
+                        <span className="w-20 text-right font-medium tabular-nums">{soles(t.monto)}</span>
+                      </div>
+                    </td>
+                    <td className="text-right tabular-nums">{numero(t.unidades)}</td>
+                    <td className="text-right tabular-nums">{soles(t.ganancia)}</td>
+                    <td className="text-right tabular-nums">
+                      {s?.perecible ? <span className="text-xs text-suave">del día</span> : s ? numero(s.total_unidades) : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
             />
           )}
         </div>
@@ -518,7 +566,9 @@ export default async function Dashboard() {
                       {s.total_unidades === 0 ? "Agotado" : `Quedan ${s.total_unidades}`}
                     </span>
                     {pedidoEnCurso.get(`${s.colegio_id}-${s.producto_id}`) && (
-                      <span className="text-[11px] text-[#2b5ea7]">Pedido {pedidoEnCurso.get(`${s.colegio_id}-${s.producto_id}`)}</span>
+                      <span className="text-[11px] text-[#2b5ea7]">
+                        Pedido {pedidoEnCurso.get(`${s.colegio_id}-${s.producto_id}`)}
+                      </span>
                     )}
                   </span>
                 </li>

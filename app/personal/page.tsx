@@ -9,7 +9,7 @@ import {
   obtenerUsuariosMapa,
   obtenerVentas,
 } from "@/lib/data";
-import { enBaldes, hoyISO, NOMBRE_PRESENTACION } from "@/lib/format";
+import { enEnvases, ENVASES, hoyISO, NOMBRE_PRESENTACION } from "@/lib/format";
 import { Avisos, Vacio } from "@/components/ui";
 import { RegistroPersonal } from "./registro";
 
@@ -56,11 +56,12 @@ export default async function PaginaPersonal({ searchParams }: PageProps<"/perso
     return `${cajas} ${cajas === 1 ? nombre : `${nombre}s`} de ${porCaja}${sueltas > 0 ? ` + ${sueltas} sueltas` : ""}`;
   };
 
-  /** Envío de cocina en balde: "1½ baldes de 30 vasos" */
+  /** Envío de cocina en balde o taper: "1½ baldes de 30 vasos" */
   const filaStock = new Map(stock.map((s) => [s.id, s]));
   const enBalde = (vasos: number, pcId: number) => {
     const s = filaStock.get(pcId);
-    return s?.presentacion === "BALDE" ? `${enBaldes(vasos, s.unidades_por_presentacion)} de ${s.unidades_por_presentacion} vasos` : null;
+    const e = s ? ENVASES[s.presentacion] : undefined;
+    return s && e ? `${enEnvases(vasos, s.unidades_por_presentacion, s.presentacion)} de ${s.unidades_por_presentacion} ${e.partes}` : null;
   };
 
   return (

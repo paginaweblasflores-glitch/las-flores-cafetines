@@ -410,7 +410,9 @@ function CamposConfig({
         </select>
       </label>
       <label>
-        <span className="label">{d.presentacion === "BALDE" ? "Vasos por balde" : "Unidades por caja/paquete"}</span>
+        <span className="label">
+          {d.presentacion === "BALDE" ? "Vasos por balde" : d.presentacion === "TAPER" ? "Porciones por taper" : "Unidades por caja/paquete"}
+        </span>
         <input
           type="number"
           min="1"

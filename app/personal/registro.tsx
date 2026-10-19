@@ -20,13 +20,7 @@ import { guardarRegistro } from "@/app/actions/personal";
 import { avisar, Modal } from "@/components/ui";
 import { bajoDeBarra, NavegacionInferior, useTecladoAbierto, type ItemNavegacion } from "@/components/navegacion-inferior";
 import { BarraSuperiorMovil, PerfilMovil } from "@/components/movil";
-import { buscarPorNombre,
-  ESTADO_REPOSICION,
-  fechaISOLima,
-  fechaLarga,
-  lunesDeSemana,
-  soles,
-} from "@/lib/format";
+import { buscarPorNombre, ESTADO_REPOSICION, fechaISOLima, fechaLarga, lunesDeSemana, soles } from "@/lib/format";
 import { RecepcionEnvios, type EnvioPorRecibir } from "./recepcion";
 import { Reposicion, type ReposicionEnviada } from "./reposicion";
 import { MisProductos } from "./productos";
@@ -102,28 +96,35 @@ export function RegistroPersonal({
   const unidadesHoy = ventasHoy.reduce((s, v) => s + v.unidades, 0);
 
   const lunes = lunesDeSemana(hoy);
-  const contadoHoy = (p: Producto) =>
-    recienGuardados.has(p.id) || (!!p.ultimoConteo && fechaISOLima(p.ultimoConteo) === hoy);
-  const contadoSemana = (p: Producto) =>
-    recienGuardados.has(p.id) || (!!p.ultimoConteo && fechaISOLima(p.ultimoConteo) >= lunes);
+  const contadoHoy = (p: Producto) => recienGuardados.has(p.id) || (!!p.ultimoConteo && fechaISOLima(p.ultimoConteo) === hoy);
+  const contadoSemana = (p: Producto) => recienGuardados.has(p.id) || (!!p.ultimoConteo && fechaISOLima(p.ultimoConteo) >= lunes);
   const delDia = productos.filter((p) => p.perecible);
   const semanales = productos.filter((p) => !p.perecible);
-  const delDiaContados = delDia.filter(contadoHoy).length;
-  const porContarSemana = semanales.filter((p) => !contadoSemana(p)).length;
-
   const contadoEnSeccion = (p: Producto) => (p.perecible ? contadoHoy(p) : contadoSemana(p));
+  // Flexible: solo se pide contar lo que HAY (llegó o sobró). Lo que no llegó hoy (stock 0) no queda pendiente.
+  const aplica = (p: Producto) => p.stock > 0 || contadoEnSeccion(p);
+  const delDiaAplican = delDia.filter(aplica);
+  const delDiaContados = delDiaAplican.filter(contadoHoy).length;
+  const porContarSemana = semanales.filter((p) => p.stock > 0 && !contadoSemana(p)).length;
   const deSeccion = seccion === "dia" ? delDia : semanales;
-  // Primero lo que falta contar; lo contado queda abajo con su marca verde
   // Al buscar, primero los que EMPIEZAN con lo escrito
-  const lista = buscarPorNombre(
-    [...deSeccion].sort((a, b) => Number(contadoEnSeccion(a)) - Number(contadoEnSeccion(b))),
-    busqueda,
-    (p) => p.nombre,
-  );
-  const todoContado = deSeccion.length > 0 && deSeccion.every(contadoEnSeccion);
+  const lista = buscarPorNombre(deSeccion, busqueda, (p) => p.nombre);
+  // Tres grupos: por contar (hay stock) · ya contados · sin stock hoy (no llegó: no es obligatorio)
+  const grupos = [
+    { id: "contar", titulo: "Por contar", items: lista.filter((p) => !contadoEnSeccion(p) && p.stock > 0) },
+    { id: "listos", titulo: "Ya contados", items: lista.filter((p) => contadoEnSeccion(p)) },
+    {
+      id: "sinStock",
+      titulo: seccion === "dia" ? "Sin stock hoy (no llegó)" : "Sin stock",
+      nota: "No es obligatorio contarlos. Ábrelos solo si tienes algo que registrar.",
+      items: lista.filter((p) => !contadoEnSeccion(p) && p.stock <= 0),
+    },
+  ].filter((g) => g.items.length > 0);
+  const deSeccionAplican = deSeccion.filter(aplica);
+  const todoContado = deSeccionAplican.length > 0 && deSeccionAplican.every(contadoEnSeccion);
   const abierto = abiertoId === null ? null : (lista.find((p) => p.id === abiertoId) ?? null);
   // "Siguiente": el próximo de la lista que falta contar y no tiene nada escrito
-  const pendiente = (p: Producto) => !contadoEnSeccion(p) && !evaluar(p, ediciones[p.id] ?? {}).hayCambio;
+  const pendiente = (p: Producto) => p.stock > 0 && !contadoEnSeccion(p) && !evaluar(p, ediciones[p.id] ?? {}).hayCambio;
   const siguienteId = (() => {
     if (!abierto) return null;
     const i = lista.findIndex((p) => p.id === abierto.id);
@@ -167,7 +168,9 @@ export function RegistroPersonal({
     });
     setErrores(Object.fromEntries(r.errores.map((x) => [x.id, x.error])));
     setRecienGuardados((prev) => new Set([...prev, ...r.guardados]));
-    const partes = [`${r.guardados.length} producto${r.guardados.length === 1 ? "" : "s"} guardado${r.guardados.length === 1 ? "" : "s"}`];
+    const partes = [
+      `${r.guardados.length} producto${r.guardados.length === 1 ? "" : "s"} guardado${r.guardados.length === 1 ? "" : "s"}`,
+    ];
     if (r.vendido > 0) partes.push(`${r.vendido} vendida${r.vendido === 1 ? "" : "s"}`);
     if (r.merma > 0) partes.push(`${r.merma} de sobrante`);
     if (r.ajustes > 0) partes.push(`${r.ajustes} como ajuste para revisión`);
@@ -181,7 +184,7 @@ export function RegistroPersonal({
     setBusqueda("");
   };
 
-  const faltanDelDia = delDia.length - delDiaContados;
+  const faltanDelDia = delDiaAplican.length - delDiaContados;
 
   // Se está acabando: semanales en su mínimo o menos (los del día los manda cocina a diario)
   const pedidoEnCurso = new Map<number, string>();
@@ -206,7 +209,13 @@ export function RegistroPersonal({
   const recibirSemanal = porRecibir.length - recibirDelDia;
   const menu: ItemNavegacion<Seccion>[] = [
     { id: "inicio", texto: "Inicio", icono: House },
-    { id: "recibir", texto: "Recibir", icono: Truck, marca: porRecibir.length > 0 ? String(porRecibir.length) : null, alerta: true },
+    {
+      id: "recibir",
+      texto: "Recibir",
+      icono: Truck,
+      marca: porRecibir.length > 0 ? String(porRecibir.length) : null,
+      alerta: true,
+    },
     { id: "dia", texto: "Del día", icono: Sun, marca: faltanDelDia > 0 ? String(faltanDelDia) : null, alerta: true },
     { id: "menu", texto: "Menú", icono: Menu, marca: porContarSemana > 0 ? String(porContarSemana) : null },
   ];
@@ -233,10 +242,7 @@ export function RegistroPersonal({
       titulo: "Recibir",
       detalle:
         porRecibir.length > 0
-          ? [
-              recibirDelDia ? `${recibirDelDia} del día (cocina)` : "",
-              recibirSemanal ? `${recibirSemanal} semanal (logística)` : "",
-            ]
+          ? [recibirDelDia ? `${recibirDelDia} de cocina` : "", recibirSemanal ? `${recibirSemanal} de logística` : ""]
               .filter(Boolean)
               .join(" · ") + " por revisar"
           : "Nada por recibir",
@@ -246,8 +252,12 @@ export function RegistroPersonal({
       id: "dia",
       icono: Sun,
       titulo: "Contar los del día",
-      detalle: delDia.length ? `${delDiaContados} de ${delDia.length} contados hoy` : "Aún no hay productos del día",
-      listo: delDia.length > 0 && faltanDelDia === 0,
+      detalle: !delDia.length
+        ? "Aún no hay productos del día"
+        : delDiaAplican.length
+          ? `${delDiaContados} de ${delDiaAplican.length} contados hoy`
+          : "Nada por contar hoy (no llegó nada todavía)",
+      listo: faltanDelDia === 0,
     },
     {
       id: "semanal",
@@ -258,7 +268,7 @@ export function RegistroPersonal({
         : porContarSemana > 0
           ? `${porContarSemana} por contar esta semana`
           : "Todo contado esta semana",
-      listo: semanales.length > 0 && porContarSemana === 0,
+      listo: porContarSemana === 0,
     },
   ];
 
@@ -273,10 +283,12 @@ export function RegistroPersonal({
           <BarraSuperiorMovil
             titulo={titulos[seccion]}
             volverAlPanel={!esPersonal}
-            alVolver={seccion === "semanal" || seccion === "reposicion" || seccion === "productos" ? () => irA("menu") : undefined}
+            alVolver={
+              seccion === "semanal" || seccion === "reposicion" || seccion === "productos" ? () => irA("menu") : undefined
+            }
             derecha={
               seccion === "dia"
-                ? `${delDiaContados}/${delDia.length}`
+                ? `${delDiaContados}/${delDiaAplican.length}`
                 : seccion === "semanal" && porContarSemana > 0
                   ? `${porContarSemana} por contar`
                   : null
@@ -382,10 +394,7 @@ export function RegistroPersonal({
 
         {/* ------- Menú: conteo semanal, reposición y perfil ------- */}
         {seccion === "menu" && (
-          <PerfilMovil
-            fecha={fechaLarga(hoy)}
-            volverAlPanel={!esPersonal}
-          >
+          <PerfilMovil fecha={fechaLarga(hoy)} volverAlPanel={!esPersonal}>
             <ul className="card mt-3 divide-y divide-borde overflow-hidden">
               {[
                 {
@@ -430,7 +439,9 @@ export function RegistroPersonal({
                         <span className="block truncate text-xs text-suave">{o.detalle}</span>
                       </span>
                       {o.marca > 0 && (
-                        <span className="rounded-full bg-fondo px-2 text-xs leading-5 text-suave ring-1 ring-borde">{o.marca}</span>
+                        <span className="rounded-full bg-fondo px-2 text-xs leading-5 text-suave ring-1 ring-borde">
+                          {o.marca}
+                        </span>
                       )}
                       <ChevronRight className="h-4 w-4 shrink-0 text-suave" />
                     </button>
@@ -497,29 +508,35 @@ export function RegistroPersonal({
                   <span className="block font-semibold">Estás al día</span>
                   <span className="block text-sm">
                     {seccion === "dia"
-                      ? `Contaste los ${deSeccion.length} productos de hoy.`
-                      : `Contaste los ${deSeccion.length} productos de esta semana.`}{" "}
+                      ? `Contaste los ${deSeccionAplican.length} productos que tenías hoy.`
+                      : `Contaste los ${deSeccionAplican.length} productos de esta semana.`}{" "}
                     Si te equivocaste, toca &quot;Corregir&quot;.
                   </span>
                 </span>
               </li>
             )}
-            {lista.length > 0 && (
-              <li className="card overflow-hidden">
-                <ul className="divide-y divide-borde">
-                  {lista.map((p) => (
-                    <FilaConteo
-                      key={`${p.id}-${p.ultimoConteo ?? ""}`}
-                      p={p}
-                      e={ediciones[p.id] ?? {}}
-                      contado={contadoEnSeccion(p)}
-                      errorServidor={errores[p.id] ?? null}
-                      abrir={() => setAbiertoId(p.id)}
-                    />
-                  ))}
-                </ul>
+            {grupos.map((g) => (
+              <li key={g.id}>
+                <p className="mb-1.5 px-1 text-xs font-semibold text-suave">
+                  {g.titulo} ({g.items.length})
+                </p>
+                {"nota" in g && g.nota && <p className="mb-1.5 px-1 text-xs text-suave">{g.nota}</p>}
+                <div className={`card overflow-hidden ${g.id === "sinStock" ? "opacity-80" : ""}`}>
+                  <ul className="divide-y divide-borde">
+                    {g.items.map((p) => (
+                      <FilaConteo
+                        key={`${p.id}-${p.ultimoConteo ?? ""}`}
+                        p={p}
+                        e={ediciones[p.id] ?? {}}
+                        contado={contadoEnSeccion(p)}
+                        errorServidor={errores[p.id] ?? null}
+                        abrir={() => setAbiertoId(p.id)}
+                      />
+                    ))}
+                  </ul>
+                </div>
               </li>
-            )}
+            ))}
             {lista.length === 0 && (
               <p className="py-10 text-center text-sm text-suave">
                 {busqueda
@@ -534,10 +551,14 @@ export function RegistroPersonal({
       </main>
 
       {conBuscador && escritos.length > 0 && (
-        <div className="fixed inset-x-0 z-20 border-t border-borde bg-white/95 backdrop-blur" style={{ bottom: bajoDeBarra(teclado) }}>
+        <div
+          className="fixed inset-x-0 z-20 border-t border-borde bg-white/95 backdrop-blur"
+          style={{ bottom: bajoDeBarra(teclado) }}
+        >
           <div className="mx-auto max-w-3xl px-4 py-3">
             <p className="mb-2 truncate text-center text-xs text-suave">
-              {listos.length} producto{listos.length === 1 ? "" : "s"} · vendiste <b className="text-tinta">{soles(ventaEscrita)}</b>
+              {listos.length} producto{listos.length === 1 ? "" : "s"} · vendiste{" "}
+              <b className="text-tinta">{soles(ventaEscrita)}</b>
               {conError > 0 && <span className="text-rojo"> · {conError} con error</span>}
             </p>
             <button

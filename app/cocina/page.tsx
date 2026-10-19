@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { requerirSesion } from "@/lib/auth";
 import { obtenerColegios, obtenerEnvios, obtenerProductosMapa, obtenerStock, obtenerUsuariosMapa } from "@/lib/data";
-import { hoyISO } from "@/lib/format";
+import { ENVASES, hoyISO } from "@/lib/format";
 import { Avisos } from "@/components/ui";
 import { PanelCocina } from "./panel";
 
@@ -27,14 +27,16 @@ export default async function PaginaCocina() {
         colegios={colegios.map((c) => ({ id: c.id, nombre: c.nombre }))}
         productos={stock
           // Del día y que los envía la cocina (los que solo se cuentan en el cafetín no salen aquí)
-          .filter((s) => s.perecible && productos.get(s.producto_id)?.de_cocina !== false)
+          // Todo lo que envía la cocina: diario, interdiario o semanal
+          .filter((s) => productos.get(s.producto_id)?.de_cocina === true)
           .map((s) => ({
             id: s.id,
             colegioId: s.colegio_id,
             nombre: s.producto,
             categoria: s.categoria ?? "Otros",
-            // Balde: la cocina escribe baldes y se guardan como vasos
-            vasosPorBalde: s.presentacion === "BALDE" ? s.unidades_por_presentacion : null,
+            // Balde o taper: la cocina escribe envases y se guardan como vasos o porciones
+            vasosPorBalde: s.presentacion in ENVASES ? s.unidades_por_presentacion : null,
+            envase: s.presentacion in ENVASES ? s.presentacion : null,
           }))}
         envios={envios
           .filter((e) => e.estado !== "ANULADO")

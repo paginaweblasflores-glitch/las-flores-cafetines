@@ -162,15 +162,35 @@ export const NOMBRE_PRESENTACION: Record<string, string> = {
   OTRO: "Otro",
   /** Viene en balde y se vende por vaso (unidades_por_presentacion = vasos por balde) */
   BALDE: "Balde",
+  /** Viene en taper y se vende por porción (unidades_por_presentacion = porciones por taper) */
+  TAPER: "Taper",
 };
 
-/** Productos que vienen en balde y se venden por vaso */
-export const esBalde = (presentacion: string) => presentacion === "BALDE";
+/**
+ * Envases de cocina que se venden por partes: el balde (bebidas) por vaso y el taper (salsas) por porción.
+ * La cocina envía envases, se guardan como partes y al contar se toca cuánto queda del envase.
+ */
+export const ENVASES: Record<string, { envase: string; envases: string; parte: string; partes: string; cuantas: string }> = {
+  BALDE: { envase: "balde", envases: "baldes", parte: "vaso", partes: "vasos", cuantas: "Cuántos vasos" },
+  TAPER: { envase: "taper", envases: "tapers", parte: "porción", partes: "porciones", cuantas: "Cuántas porciones" },
+};
 
-/** "1 balde", "1½ baldes", "¾ de balde" (para mostrar cuánto es en baldes una cantidad de vasos) */
-export function enBaldes(vasos: number, vasosPorBalde: number) {
-  if (vasosPorBalde <= 0) return "";
-  const b = vasos / vasosPorBalde;
+/** Productos que vienen en un envase (balde, taper) y se venden por partes (vaso, porción) */
+export const esEnvase = (presentacion: string) => presentacion in ENVASES;
+
+/** Qué envase corresponde a cada categoría de lo que manda la cocina: bebidas → balde, salsas → taper */
+export function envaseDeCategoria(nombreCategoria: string | null | undefined): "BALDE" | "TAPER" | null {
+  const n = normalizar(nombreCategoria ?? "");
+  if (n.startsWith("bebida")) return "BALDE";
+  if (n.startsWith("salsa")) return "TAPER";
+  return null;
+}
+
+/** "1 balde", "1½ tapers", "¾ de balde" (cuánto es en envases una cantidad de vasos o porciones) */
+export function enEnvases(partes: number, partesPorEnvase: number, presentacion: string) {
+  const e = ENVASES[presentacion] ?? ENVASES.BALDE;
+  if (partesPorEnvase <= 0) return "";
+  const b = partes / partesPorEnvase;
   const entero = Math.floor(b + 1e-9);
   const resto = b - entero;
   const fracciones: [number, string][] = [[0, ""], [0.25, "¼"], [0.5, "½"], [0.75, "¾"], [1, ""]];
@@ -178,14 +198,14 @@ export function enBaldes(vasos: number, vasosPorBalde: number) {
   const total = entero + (f === 1 ? 1 : 0);
   const exacto = Math.abs(f - resto) < 0.06;
   const aprox = exacto ? "" : "≈ ";
-  if (total === 0 && txt) return `${aprox}${txt} de balde`;
-  if (total === 0) return `${aprox}0 baldes`;
-  return `${aprox}${total}${f !== 1 ? txt : ""} balde${total === 1 && !txt ? "" : "s"}`;
+  if (total === 0 && txt) return `${aprox}${txt} de ${e.envase}`;
+  if (total === 0) return `${aprox}0 ${e.envases}`;
+  return `${aprox}${total}${f !== 1 ? txt : ""} ${total === 1 && !txt ? e.envase : e.envases}`;
 }
 
 /** "caja de 24", "paquete de 6" o "unidad" */
 export function descPresentacion(p: string, unidades: number) {
-  if (p === "BALDE") return `balde de ${unidades} vasos`;
+  if (ENVASES[p]) return `${ENVASES[p].envase} de ${unidades} ${ENVASES[p].partes}`;
   if (p === "UNIDAD" || unidades <= 1) return "por unidad";
   return `${NOMBRE_PRESENTACION[p]?.toLowerCase() ?? p} de ${unidades}`;
 }

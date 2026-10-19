@@ -48,7 +48,7 @@ export async function crearEnvio(
         .select("id, colegio_id, producto_id, perecible, activo, producto_activo")
         .in("id", validas.map((l) => l.productoColegioId)),
     ) as { id: number; colegio_id: number; producto_id: number; perecible: boolean; activo: boolean; producto_activo: boolean }[];
-    // Los del día que no manda la cocina no se pueden enviar desde su panel
+    // Solo lo marcado "Lo envía cocina" se puede enviar desde su panel
     const noDeCocina = new Set(
       (
         check(
@@ -62,9 +62,9 @@ export async function crearEnvio(
     );
     if (
       filas.length !== validas.length ||
-      filas.some((f) => f.colegio_id !== colegioId || !f.perecible || noDeCocina.has(f.producto_id) || !f.activo || !f.producto_activo)
+      filas.some((f) => f.colegio_id !== colegioId || noDeCocina.has(f.producto_id) || !f.activo || !f.producto_activo)
     ) {
-      return { ok: false, error: "Solo se pueden enviar productos del día activos de ese colegio." };
+      return { ok: false, error: "Solo se pueden enviar productos de cocina activos de ese colegio." };
     }
     const lote = crypto.randomUUID();
     check(
