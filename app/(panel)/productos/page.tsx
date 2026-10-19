@@ -28,7 +28,14 @@ export default async function PaginaCatalogo() {
         productos={
           productos as { id: number; nombre: string; categoria_id: number | null; activo: boolean; perecible: boolean; de_cocina: boolean }[]
         }
-        presencias={stock.map((s) => ({ colegioId: s.colegio_id, productoId: s.producto_id, activo: s.activo, precio: Number(s.precio_venta) }))}
+        presencias={stock.map((s) => ({
+          colegioId: s.colegio_id,
+          productoId: s.producto_id,
+          activo: s.activo,
+          precio: Number(s.precio_venta),
+          presentacion: s.presentacion,
+          unidades: s.unidades_por_presentacion,
+        }))}
         verGanancia={sesion.rol === "ADMIN"}
       />
     </div>

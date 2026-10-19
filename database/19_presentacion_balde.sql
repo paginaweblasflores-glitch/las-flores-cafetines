@@ -3,7 +3,7 @@
 --
 --  Ejemplo: la cocina manda un balde de refresco y en el cafetín se vende
 --  por vasito a S/ 1.00. En el catálogo:
---     Cómo se compra: Balde · ¿Cuántos vasos rinde cada balde?: 30
+--     Cómo viene: Balde · ¿Cuántos vasos rinde cada balde?: 30
 --     Precio de venta: el de un vaso
 --  La cocina envía baldes (el sistema los convierte en vasos) y el personal,
 --  al contar, toca cuánto queda del balde (lleno, ¾, ½, ¼ o vacío).

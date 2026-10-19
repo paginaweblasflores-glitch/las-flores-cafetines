@@ -26,6 +26,9 @@ export async function editarProducto(
     colegioIds: number[];
     /** Precio de venta por unidad en cada colegio marcado */
     precios?: Record<number, number>;
+    /** Cómo viene y cuántas unidades (o vasos) trae: se aplica en todos sus colegios */
+    presentacion?: Presentacion;
+    unidadesPorPresentacion?: number;
   },
 ): Promise<Resultado> {
   try {
@@ -34,6 +37,17 @@ export async function editarProducto(
     const nombre = mayusculas(d.nombre);
     if (nombre.length < 2) return { ok: false, error: "Escribe el nombre del producto." };
     const precios = d.precios ?? {};
+    if (d.presentacion !== undefined) {
+      if (!PRESENTACIONES.includes(d.presentacion)) return { ok: false, error: "Presentación no válida." };
+      const u = d.presentacion === "UNIDAD" ? 1 : d.unidadesPorPresentacion;
+      if (!Number.isInteger(u) || (u ?? 0) < 1) return { ok: false, error: "Indica cuántas unidades (o vasos) trae cada una." };
+      check(
+        await db()
+          .from("producto_colegio")
+          .update({ presentacion: d.presentacion, unidades_por_presentacion: u, updated_by: sesion.uid })
+          .eq("producto_id", id),
+      );
+    }
     if (Object.values(precios).some((p) => !Number.isFinite(p) || p < 0)) {
       return { ok: false, error: "Los precios no pueden ser negativos." };
     }

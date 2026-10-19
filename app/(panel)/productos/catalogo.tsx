@@ -8,9 +8,24 @@ import { BarraPaginacion, usePaginacion } from "@/components/paginacion";
 import { buscarPorNombre, NOMBRE_PRESENTACION, pct, soles } from "@/lib/format";
 import type { Categoria, Presentacion } from "@/lib/types";
 
-type Producto = { id: number; nombre: string; categoria_id: number | null; activo: boolean; perecible: boolean; de_cocina: boolean };
+type Producto = {
+  id: number;
+  nombre: string;
+  categoria_id: number | null;
+  activo: boolean;
+  perecible: boolean;
+  de_cocina: boolean;
+};
 /** En qué colegio se vende cada producto, si está activo allí y a qué precio (cada colegio tiene el suyo) */
-type Presencia = { colegioId: number; productoId: number; activo: boolean; precio: number };
+type Presencia = {
+  colegioId: number;
+  productoId: number;
+  activo: boolean;
+  precio: number;
+  /** Cómo viene (caja, paquete, balde…) y cuántas unidades (o vasos) trae */
+  presentacion: Presentacion;
+  unidades: number;
+};
 
 export function Catalogo({
   colegios,
@@ -55,7 +70,12 @@ export function Catalogo({
         <div className="flex flex-wrap gap-3 border-b border-borde p-4">
           <div className="relative min-w-[220px] flex-1">
             <Search className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-suave" />
-            <input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar producto..." className="input pl-10" />
+            <input
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar producto..."
+              className="input pl-10"
+            />
           </div>
           <select value={cat} onChange={(e) => setCat(e.target.value)} className="input w-auto min-w-44 flex-none">
             <option value="">Todas las categorías</option>
@@ -65,7 +85,11 @@ export function Catalogo({
               </option>
             ))}
           </select>
-          <select value={estado} onChange={(e) => setEstado(e.target.value as typeof estado)} className="input w-auto min-w-32 flex-none">
+          <select
+            value={estado}
+            onChange={(e) => setEstado(e.target.value as typeof estado)}
+            className="input w-auto min-w-32 flex-none"
+          >
             <option value="">Todos</option>
             <option value="activos">Activos</option>
             <option value="inactivos">Inactivos</option>
@@ -101,7 +125,9 @@ export function Catalogo({
                         <p className="flex items-center gap-2 font-medium">
                           {p.nombre}
                           {p.perecible && (
-                            <span className="chip bg-ambar-50 text-[#8a5a00]">{p.de_cocina ? "Del día" : "Del día · no lo manda cocina"}</span>
+                            <span className="chip bg-ambar-50 text-[#8a5a00]">
+                              {p.de_cocina ? "Del día" : "Del día · no lo manda cocina"}
+                            </span>
                           )}
                         </p>
                       </div>
@@ -149,12 +175,25 @@ export function Catalogo({
           categorias={categorias}
           colegios={colegios}
           activosEn={presencias.filter((x) => x.productoId === editando.id && x.activo).map((x) => x.colegioId)}
-          preciosActuales={Object.fromEntries(presencias.filter((x) => x.productoId === editando.id).map((x) => [x.colegioId, x.precio]))}
+          preciosActuales={Object.fromEntries(
+            presencias.filter((x) => x.productoId === editando.id).map((x) => [x.colegioId, x.precio]),
+          )}
+          compra={
+            presencias.find((x) => x.productoId === editando.id && x.activo) ??
+            presencias.find((x) => x.productoId === editando.id)
+          }
           onCerrar={() => setEditando(null)}
         />
       )}
       {nuevaCat && <ModalCategoria onCerrar={() => setNuevaCat(false)} />}
-      {nuevo && <ModalNuevoProducto colegios={colegios} categorias={categorias} verGanancia={verGanancia} onCerrar={() => setNuevo(false)} />}
+      {nuevo && (
+        <ModalNuevoProducto
+          colegios={colegios}
+          categorias={categorias}
+          verGanancia={verGanancia}
+          onCerrar={() => setNuevo(false)}
+        />
+      )}
     </>
   );
 }
@@ -165,6 +204,7 @@ function ModalProducto({
   colegios,
   activosEn,
   preciosActuales,
+  compra,
   onCerrar,
 }: {
   producto: Producto;
@@ -173,8 +213,17 @@ function ModalProducto({
   activosEn: number[];
   /** Precio de venta actual en cada colegio donde existe el producto */
   preciosActuales: Record<number, number>;
+  /** Cómo viene hoy (de uno de sus colegios) */
+  compra?: { presentacion: Presentacion; unidades: number };
   onCerrar: () => void;
 }) {
+  // Cómo viene: se aplica en todos los colegios donde se vende
+  const [presentacion, setPresentacion] = useState<Presentacion>(compra?.presentacion ?? "UNIDAD");
+  const [porCaja, setPorCaja] = useState(String(compra?.unidades ?? 1));
+  const esUnidadP = presentacion === "UNIDAD";
+  const unidadesP = esUnidadP ? 1 : Number(porCaja);
+  const compraValida = Number.isInteger(unidadesP) && unidadesP >= 1;
+  const cambioCompra = !!compra && (compra.presentacion !== presentacion || compra.unidades !== unidadesP);
   const [elegidos, setElegidos] = useState<number[]>(activosEn);
   // Un colegio nuevo empieza con el precio de otro colegio (se puede cambiar)
   const precioBase = Object.values(preciosActuales)[0];
@@ -192,7 +241,12 @@ function ModalProducto({
   const [deCocina, setDeCocina] = useState(producto.de_cocina);
   const [pendiente, iniciar] = useTransition();
   return (
-    <Modal abierto onCerrar={onCerrar} titulo="Editar producto" subtitulo="Nombre, categoría, en qué colegios se vende y a qué precio">
+    <Modal
+      abierto
+      onCerrar={onCerrar}
+      titulo="Editar producto"
+      subtitulo="Nombre, categoría, en qué colegios se vende y a qué precio"
+    >
       <div className="space-y-3">
         <label className="block">
           <span className="label">Nombre</span>
@@ -209,6 +263,62 @@ function ModalProducto({
             ))}
           </select>
         </label>
+        {/* Cómo viene: los de cocina solo por unidad o en balde; los comprados, caja, paquete… */}
+        {perecible && deCocina ? (
+          <ComoVieneCocina
+            presentacion={presentacion}
+            porCaja={porCaja}
+            cambiar={(p, c) => {
+              setPresentacion(p);
+              setPorCaja(c);
+            }}
+          />
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="label">Cómo se compra</span>
+              <select
+                value={presentacion}
+                onChange={(e) => {
+                  const v = e.target.value as Presentacion;
+                  setPresentacion(v);
+                  if (v === "UNIDAD") setPorCaja("1");
+                  else if (compra?.presentacion === v) setPorCaja(String(compra.unidades));
+                  else setPorCaja("");
+                }}
+                className="input"
+              >
+                {Object.entries(NOMBRE_PRESENTACION).map(([k, v]) => (
+                  <option key={k} value={k}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {!esUnidadP && (
+              <label className="block">
+                <span className="label">
+                  {presentacion === "BALDE"
+                    ? "¿Cuántos vasos rinde cada balde?"
+                    : `Unidades por ${NOMBRE_PRESENTACION[presentacion].toLowerCase()}`}
+                </span>
+                <input
+                  inputMode="numeric"
+                  value={porCaja}
+                  onChange={(e) => setPorCaja(e.target.value.replace(/\D/g, ""))}
+                  className="input"
+                />
+              </label>
+            )}
+          </div>
+        )}
+        {cambioCompra && (
+          <p className="rounded-xl bg-ambar-50 px-3 py-2 text-xs text-[#8a5a00]">
+            Se cambia en todos los colegios donde se vende.
+            {presentacion === "BALDE" && " El precio de venta de cada colegio es por vaso."}
+          </p>
+        )}
+
         <div>
           <span className="label">Se vende en</span>
           <div className="flex flex-wrap gap-2">
@@ -247,8 +357,8 @@ function ModalProducto({
           </div>
           {nuevos.length > 0 && (
             <p className="mt-2 text-xs text-verde-700">
-              Se agregará a {nuevos.map((id) => colegios.find((c) => c.id === id)?.nombre).join(", ")} con stock 0 y el precio
-              que pongas. Luego registra su mercadería en Entregas.
+              Se agregará a {nuevos.map((id) => colegios.find((c) => c.id === id)?.nombre).join(", ")} con stock 0 y el precio que
+              pongas. Luego registra su mercadería en Entregas.
             </p>
           )}
           {quitados.length > 0 && (
@@ -259,7 +369,12 @@ function ModalProducto({
           )}
         </div>
         <label className="flex items-start gap-2 rounded-xl border border-borde p-3 text-sm">
-          <input type="checkbox" checked={perecible} onChange={(e) => setPerecible(e.target.checked)} className="mt-0.5 accent-verde" />
+          <input
+            type="checkbox"
+            checked={perecible}
+            onChange={(e) => setPerecible(e.target.checked)}
+            className="mt-0.5 accent-verde"
+          />
           <span>
             <span className="block font-medium">Se consume en el día</span>
             <span className="block text-xs text-suave">
@@ -274,9 +389,11 @@ function ModalProducto({
         </label>
       </div>
       <div className="mt-5 flex justify-end gap-2">
-        <button onClick={onCerrar} className="btn-secundario">Cancelar</button>
+        <button onClick={onCerrar} className="btn-secundario">
+          Cancelar
+        </button>
         <button
-          disabled={pendiente || !preciosValidos}
+          disabled={pendiente || !preciosValidos || !compraValida}
           className="btn-primario"
           onClick={() =>
             iniciar(async () => {
@@ -288,6 +405,7 @@ function ModalProducto({
                 deCocina,
                 colegioIds: elegidos,
                 precios: Object.fromEntries(elegidos.map((id) => [id, Number(precios[id])])),
+                ...(cambioCompra ? { presentacion, unidadesPorPresentacion: unidadesP } : {}),
               });
               if (r.ok) {
                 avisar(r.mensaje ?? "Guardado");
@@ -300,6 +418,49 @@ function ModalProducto({
         </button>
       </div>
     </Modal>
+  );
+}
+
+/** Productos que prepara la cocina: no se compran (sin costo); solo vienen por unidad o en balde (por vaso) */
+function ComoVieneCocina({
+  presentacion,
+  porCaja,
+  cambiar,
+}: {
+  presentacion: Presentacion;
+  porCaja: string;
+  cambiar: (p: Presentacion, porCaja: string) => void;
+}) {
+  const balde = presentacion === "BALDE";
+  const opcion = (activa: boolean) =>
+    `flex-1 rounded-xl border px-3 py-2.5 text-sm font-semibold ${activa ? "border-panel bg-panel text-white" : "border-campo bg-white text-tinta"}`;
+  return (
+    <div>
+      <p className="label">Cómo viene de la cocina</p>
+      <div className="flex gap-2">
+        <button type="button" onClick={() => cambiar("UNIDAD", "1")} className={opcion(!balde)}>
+          Por unidad
+        </button>
+        <button type="button" onClick={() => cambiar("BALDE", balde ? porCaja : "")} className={opcion(balde)}>
+          En balde (se vende por vaso)
+        </button>
+      </div>
+      {balde && (
+        <label className="mt-3 block">
+          <span className="label">¿Cuántos vasos rinde cada balde?</span>
+          <input
+            inputMode="numeric"
+            value={porCaja}
+            onChange={(e) => cambiar("BALDE", e.target.value.replace(/\D/g, ""))}
+            className="input"
+            placeholder="Ej: 30"
+          />
+        </label>
+      )}
+      <p className="mt-2 text-xs text-suave">
+        Lo prepara la cocina: no lleva costo. El precio de venta de cada colegio es por {balde ? "vaso" : "unidad"}.
+      </p>
+    </div>
   );
 }
 
@@ -327,10 +488,18 @@ function ModalCategoria({ onCerrar }: { onCerrar: () => void }) {
     <Modal abierto onCerrar={onCerrar} titulo="Nueva categoría">
       <label className="block">
         <span className="label">Nombre</span>
-        <input value={nombre} onChange={(e) => setNombre(e.target.value)} className="input uppercase placeholder:normal-case" placeholder="Ej: Helados" autoFocus />
+        <input
+          value={nombre}
+          onChange={(e) => setNombre(e.target.value)}
+          className="input uppercase placeholder:normal-case"
+          placeholder="Ej: Helados"
+          autoFocus
+        />
       </label>
       <div className="mt-5 flex justify-end gap-2">
-        <button onClick={onCerrar} className="btn-secundario">Cancelar</button>
+        <button onClick={onCerrar} className="btn-secundario">
+          Cancelar
+        </button>
         <button
           disabled={pendiente}
           className="btn-primario"
@@ -398,8 +567,7 @@ function ModalNuevoProducto({
     const margen = precio > 0 && costoUnit > 0 ? Math.round((g / precio) * 1000) / 10 : null;
     return { g, margen };
   };
-  const alternar = (id: number) =>
-    setElegidos((xs) => (xs.includes(id) ? xs.filter((x) => x !== id) : [...xs, id]));
+  const alternar = (id: number) => setElegidos((xs) => (xs.includes(id) ? xs.filter((x) => x !== id) : [...xs, id]));
   const nombreCaja = esUnidad ? "unidad" : NOMBRE_PRESENTACION[presentacion].toLowerCase();
 
   function crear() {
@@ -412,7 +580,8 @@ function ModalNuevoProducto({
         colegioIds: elegidos,
         presentacion,
         unidadesPorPresentacion: unidades,
-        costoPresentacion: n(costo),
+        // Lo que prepara la cocina no se compra: sin costo
+        costoPresentacion: perecible && deCocina ? 0 : n(costo),
         precios: Object.fromEntries(elegidos.map((id) => [id, n(precioDe(id))])),
         stockMinimo: n(minimo),
         stockInicial: Object.fromEntries(elegidos.map((id) => [id, n(stockInicial[id] ?? "")])),
@@ -435,7 +604,13 @@ function ModalNuevoProducto({
       <div className="grid grid-cols-2 gap-3">
         <label className="col-span-2 sm:col-span-1">
           <span className="label">Nombre</span>
-          <input value={nombre} onChange={(e) => setNombre(e.target.value)} className="input uppercase placeholder:normal-case" placeholder="Ej: Galleta Oreo" autoFocus />
+          <input
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            className="input uppercase placeholder:normal-case"
+            placeholder="Ej: Galleta Oreo"
+            autoFocus
+          />
         </label>
         <label className="col-span-2 sm:col-span-1">
           <span className="label">Categoría</span>
@@ -452,7 +627,12 @@ function ModalNuevoProducto({
 
       <div className="mt-3 space-y-2">
         <label className="flex items-start gap-2 rounded-xl border border-borde p-3 text-sm">
-          <input type="checkbox" checked={perecible} onChange={(e) => setPerecible(e.target.checked)} className="mt-0.5 accent-verde" />
+          <input
+            type="checkbox"
+            checked={perecible}
+            onChange={(e) => setPerecible(e.target.checked)}
+            className="mt-0.5 accent-verde"
+          />
           <span>
             <span className="block font-medium">Se consume en el día</span>
             <span className="block text-xs text-suave">
@@ -520,54 +700,76 @@ function ModalNuevoProducto({
         })}
       </div>
 
-      <p className="mt-4 mb-2 text-sm font-medium">Compra y venta</p>
-      <div className="grid grid-cols-2 gap-3">
-        <label>
-          <span className="label">Cómo se compra</span>
-          <select
-            value={presentacion}
-            onChange={(e) => {
-              const v = e.target.value as Presentacion;
-              setPresentacion(v);
-              setPorCaja(v === "UNIDAD" ? "1" : "");
+      {perecible && deCocina ? (
+        <div className="mt-4">
+          <ComoVieneCocina
+            presentacion={presentacion}
+            porCaja={porCaja}
+            cambiar={(p, c) => {
+              setPresentacion(p);
+              setPorCaja(c);
             }}
-            className="input"
-          >
-            {Object.entries(NOMBRE_PRESENTACION).map(([k, v]) => (
-              <option key={k} value={k}>
-                {v}
-              </option>
-            ))}
-          </select>
-        </label>
-        {!esUnidad ? (
-          <label>
-            <span className="label">
-              {presentacion === "BALDE" ? "¿Cuántos vasos rinde cada balde?" : `¿Cuántas unidades trae cada ${nombreCaja}?`}
-            </span>
-            <input type="number" min="1" value={porCaja} onChange={(e) => setPorCaja(e.target.value)} className="input" />
-          </label>
-        ) : (
-          <div className="hidden sm:block" />
-        )}
-        <label>
-          <span className="label">Costo por {nombreCaja} (S/)</span>
-          <input type="number" min="0" step="0.01" value={costo} onChange={(e) => setCosto(e.target.value)} className="input" />
-        </label>
-        <label>
-          <span className="label">Stock mínimo (avisar al llegar a)</span>
-          <input type="number" min="0" value={minimo} onChange={(e) => setMinimo(e.target.value)} className="input" />
-        </label>
-        <div className="rounded-xl bg-fondo px-3 py-2 text-xs text-suave">
-          Costo por unidad: <b className="text-tinta">{soles(costoUnit)}</b>
-          <br />
-          El precio de venta va en cada colegio (arriba).
+          />
         </div>
-      </div>
+      ) : (
+        <>
+          <p className="mt-4 mb-2 text-sm font-medium">Compra y venta</p>
+          <div className="grid grid-cols-2 gap-3">
+            <label>
+              <span className="label">Cómo se compra</span>
+              <select
+                value={presentacion}
+                onChange={(e) => {
+                  const v = e.target.value as Presentacion;
+                  setPresentacion(v);
+                  setPorCaja(v === "UNIDAD" ? "1" : "");
+                }}
+                className="input"
+              >
+                {Object.entries(NOMBRE_PRESENTACION).map(([k, v]) => (
+                  <option key={k} value={k}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {!esUnidad ? (
+              <label>
+                <span className="label">
+                  {presentacion === "BALDE" ? "¿Cuántos vasos rinde cada balde?" : `¿Cuántas unidades trae cada ${nombreCaja}?`}
+                </span>
+                <input type="number" min="1" value={porCaja} onChange={(e) => setPorCaja(e.target.value)} className="input" />
+              </label>
+            ) : (
+              <div className="hidden sm:block" />
+            )}
+            <label>
+              <span className="label">Costo por {nombreCaja} (S/)</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={costo}
+                onChange={(e) => setCosto(e.target.value)}
+                className="input"
+              />
+            </label>
+            <label>
+              <span className="label">Stock mínimo (avisar al llegar a)</span>
+              <input type="number" min="0" value={minimo} onChange={(e) => setMinimo(e.target.value)} className="input" />
+            </label>
+            <div className="rounded-xl bg-fondo px-3 py-2 text-xs text-suave">
+              Costo por unidad: <b className="text-tinta">{soles(costoUnit)}</b>
+              <br />
+              El precio de venta va en cada colegio (arriba).
+            </div>
+          </div>
+        </>
+      )}
 
       <p className="mt-4 rounded-xl bg-verde-50 px-3 py-2 text-xs text-verde-700">
-        Cada colegio tiene su propio precio: lo que escribes en uno se copia a los demás hasta que lo cambies. Si no pones
-        stock inicial, empieza en 0 y la mercadería se registra después en <b>Entregas</b>.
+        Cada colegio tiene su propio precio: lo que escribes en uno se copia a los demás hasta que lo cambies. Si no pones stock
+        inicial, empieza en 0 y la mercadería se registra después en <b>Entregas</b>.
       </p>
 
       <div className="mt-5 flex justify-end gap-2">
