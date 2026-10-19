@@ -36,7 +36,8 @@ type Seccion = "enviar" | "enviados" | "perfil";
 
 /**
  * Orden de la lista como lo pidió la cocina (casi por categoría, no estricto):
- * 1 lonchera · 2 chaufa y salchipapa, luego salsas · 3 panes y pizza · 4 frutas · 5 bebidas · 6 el resto.
+ * 1 lonchera · 2 chaufa y salchipapa, luego salsas · 3 panes y pizza · 4 frutas · 5 bebidas ·
+ * 5.5 tortas y pie de limón juntos · 6 el resto.
  */
 function ordenCocina(p: Producto) {
   const n = normalizar(p.nombre);
@@ -48,6 +49,9 @@ function ordenCocina(p: Producto) {
   if (/^pan(es)?( |$)/.test(n) || n.includes("pizza")) return 3;
   if (c.startsWith("fruta")) return 4;
   if (c.startsWith("bebida")) return 5;
+  // Tortas y luego el pie (pye) de limón, juntos
+  if (/^torta( |$)/.test(n)) return 5.5;
+  if (/^p[iy]e( |$)/.test(n)) return 5.6;
   return 6;
 }
 const enOrdenCocina = (a: Producto, b: Producto) => ordenCocina(a) - ordenCocina(b) || a.nombre.localeCompare(b.nombre, "es");
