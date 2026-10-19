@@ -4,7 +4,7 @@ import { check, db } from "./supabase";
 
 /**
  * IA para leer boletas de compra (Entregas → "Llenar con IA").
- * La clave se pega en Administración → IA: se guarda CIFRADA en la base (así funciona en Vercel
+ * La clave se pega en Administración → API: se guarda CIFRADA en la base (así funciona en Vercel
  * sin tocar nada más) y, en la PC de desarrollo, también en .env. Si no hay clave en la base,
  * se usa la variable de entorno (GEMINI_API_KEY / DEEPSEEK_API_KEY) puesta en Vercel.
  */
@@ -128,7 +128,7 @@ async function errorDe(r: Response) {
   if (r.status === 400 && /API_KEY_INVALID|API key not valid/i.test(texto)) return "La clave no es válida. Cópiala de nuevo.";
   if (r.status === 401 || r.status === 403) return "La clave no es válida o no tiene permiso.";
   if (r.status === 429) return "Se pasó el límite de uso de la IA por ahora. Espera un minuto y vuelve a intentar.";
-  if (r.status === 404) return "Ese modelo no existe o no está disponible para tu clave. Elige otro en Administración → IA.";
+  if (r.status === 404) return "Ese modelo no existe o no está disponible para tu clave. Elige otro en Administración → API.";
   if (r.status >= 500) return "El servicio de IA no responde en este momento. Intenta en un rato.";
   let msg = "";
   try {

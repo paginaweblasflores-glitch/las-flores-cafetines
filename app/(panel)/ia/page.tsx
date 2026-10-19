@@ -5,7 +5,7 @@ import { check, db } from "@/lib/supabase";
 import { Encabezado } from "@/components/encabezado";
 import { ConfiguracionIA } from "./configuracion";
 
-export const metadata: Metadata = { title: "Inteligencia artificial" };
+export const metadata: Metadata = { title: "API" };
 
 export default async function PaginaIA() {
   // Administración y logística (Fernanda) pueden conectar o cambiar la clave
@@ -33,7 +33,7 @@ export default async function PaginaIA() {
   return (
     <div className="mx-auto max-w-[1100px]">
       <Encabezado
-        titulo="Inteligencia artificial"
+        titulo="API"
         descripcion='Conecta la IA para que logística llene las entregas leyendo la foto de la boleta (Entregas → "Llenar con IA").'
       />
       <ConfiguracionIA

@@ -91,7 +91,7 @@ si eso pasa, se reactiva en **Actions** con *Enable workflow*.
 ### IA para leer boletas (Entregas → "Llenar con IA")
 1. Ejecutar `database/24_ia_boletas.sql` en Supabase.
 2. Sacar una API key de Gemini en https://aistudio.google.com/apikey.
-3. Entrar como administración → **Administración → Inteligencia artificial**, pegar la clave y tocar **Conectar**.
+3. Entrar como administración → **Administración → API**, pegar la clave y tocar **Conectar**.
    Se prueba, se guarda **cifrada en la base** (funciona en Vercel sin más) y en la PC de desarrollo también en `.env` (`GEMINI_API_KEY`).
    Opcional: ponerla también en Vercel → Settings → Environment Variables como `GEMINI_API_KEY` (se usa si en el panel no hay clave).
 4. En la misma pantalla: instrucciones para la IA, documentos de referencia (su "memoria") y lo que aprendió.
@@ -164,7 +164,7 @@ y queda en el Historial con su motivo.
 - **Historial:** cada movimiento de stock y cada cambio de precio, con fecha, hora y usuario.
 - **Colegios** (solo admin): crear colegios nuevos copiando el catálogo de otro.
 - **Usuarios** (solo admin).
-- **Inteligencia artificial** (solo admin): clave de Gemini/DeepSeek, instrucciones, documentos de referencia y equivalencias aprendidas.
+- **API** (administración y logística): clave de Gemini/DeepSeek, instrucciones, documentos de referencia y equivalencias aprendidas.
 
 ### Agregar un colegio nuevo (el próximo año)
 1. **Colegios → Nuevo colegio** (elige copiar productos y precios de Bosco o Romero).

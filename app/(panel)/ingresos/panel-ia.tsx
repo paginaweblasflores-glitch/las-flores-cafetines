@@ -131,7 +131,7 @@ export function PanelIA({
           La IA todavía no está conectada.{" "}
           {esAdmin ? (
             <Link href="/ia" className="font-medium text-verde-700 underline">
-              Conectarla en Administración → IA
+              Conectarla en Administración → API
             </Link>
           ) : (
             "Pide a administración que la conecte."

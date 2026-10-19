@@ -30,7 +30,7 @@ const MAX_ARCHIVO = 4 * 1024 * 1024;
 const TIPOS = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
 
 // =====================================================================
-//  Administración → IA (administración y logística)
+//  Administración → API (administración y logística)
 // =====================================================================
 
 /** Guarda la clave (cifrada en la base y, en la PC de desarrollo, también en .env) después de probarla */
@@ -295,7 +295,7 @@ export async function leerBoleta(fd: FormData): Promise<BoletaLeida | { ok: fals
 
     const conf = await leerConfiguracion();
     const { clave } = claveDe(conf, "GEMINI");
-    if (!clave) return { ok: false, error: "La IA no está conectada. Administración debe pegar la clave en Administración → IA." };
+    if (!clave) return { ok: false, error: "La IA no está conectada. Hay que pegar la clave en Administración → API." };
 
     const [stock, categorias, equivalencias, documentos] = await Promise.all([
       obtenerStock(),

@@ -93,7 +93,7 @@ const MENU: Item[] = [
     hijos: [
       { href: "/colegios", texto: "Colegios", icono: School, soloAdmin: true },
       { href: "/usuarios", texto: "Usuarios", icono: Users, soloAdmin: true },
-      { href: "/ia", texto: "Inteligencia artificial", icono: Sparkles },
+      { href: "/ia", texto: "API", icono: Sparkles },
     ],
   },
 ];
