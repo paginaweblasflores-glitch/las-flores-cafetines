@@ -48,7 +48,7 @@ drop type if exists tipo_movimiento cascade;
 -- Tipos
 -- ---------------------------------------------------------------------
 
-create type tipo_presentacion as enum ('UNIDAD', 'CAJA', 'PAQUETE', 'BOLSA', 'OTRO');
+create type tipo_presentacion as enum ('UNIDAD', 'CAJA', 'PAQUETE', 'BOLSA', 'OTRO', 'BALDE');
 
 -- INGRESO   : logística entrega mercadería al colegio (suma stock)
 -- VENTA     : unidades vendidas (se calcula sola cuando el personal cuenta su stock)

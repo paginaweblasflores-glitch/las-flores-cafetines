@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { ArrowRight, Check, CheckCircle2, ChevronRight, Package, Pencil, Undo2 } from "lucide-react";
 import type { CambioRegistro } from "@/app/actions/personal";
 import { Inicial, Modal } from "@/components/ui";
-import { descPresentacion, fechaCorta, fechaISOLima, NOMBRE_PRESENTACION, soles } from "@/lib/format";
+import { descPresentacion, enBaldes, esBalde, fechaCorta, fechaISOLima, NOMBRE_PRESENTACION, soles } from "@/lib/format";
 
 export type ProductoConteo = {
   id: number;
@@ -17,6 +17,8 @@ export type ProductoConteo = {
   precio: number;
   /** Producto del día: se cuenta a diario y lo que sobra es merma */
   perecible: boolean;
+  /** Del día que manda la cocina (false = lo prepara el mismo personal: al contar dice cuánto preparó) */
+  deCocina: boolean;
   /** Última vez que se contó (timestamp) */
   ultimoConteo: string | null;
   /** Avisar cuando quede esto o menos */
@@ -24,7 +26,10 @@ export type ProductoConteo = {
   categoria: string;
 };
 
-export type Edicion = { unidades?: string; merma?: string; motivo?: string; motivoOtro?: string };
+export type Edicion = { preparado?: string; unidades?: string; merma?: string; motivo?: string; motivoOtro?: string };
+
+/** Del día que prepara el mismo personal: antes de contar dice cuánto preparó */
+export const preparaElPersonal = (p: ProductoConteo) => p.perecible && !p.deCocina;
 
 export const MOTIVOS_MERMA = ["No se vendió", "Se cayó", "Se rompió o malogró", "Se venció", "Otro"];
 const MOTIVO_POR_DEFECTO = MOTIVOS_MERMA[0];
@@ -43,18 +48,27 @@ function leerMerma(e: Edicion, perecible: boolean) {
 
 /** Lo que resulta de lo escrito en un producto: venta, sobrante, errores y el cambio a guardar */
 export function evaluar(p: ProductoConteo, e: Edicion) {
+  // Lo que preparó hoy el personal (solo en los del día que no manda la cocina)
+  const valorPreparado = preparaElPersonal(p) ? (e.preparado ?? "") : "";
+  const preparado = valorPreparado === "" ? 0 : Number(valorPreparado);
+  const preparadoInvalido = valorPreparado !== "" && (!Number.isInteger(preparado) || preparado < 0);
+  const habia = p.stock + (preparadoInvalido ? 0 : preparado);
   const valorUnidades = e.unidades ?? "";
   const nuevo = valorUnidades === "" ? null : Number(valorUnidades);
   const invalido = nuevo !== null && (!Number.isInteger(nuevo) || nuevo < 0);
-  const vendio = nuevo !== null && !invalido ? p.stock - nuevo : 0;
+  const vendio = nuevo !== null && !invalido ? habia - nuevo : 0;
   const merma = leerMerma(e, p.perecible);
-  const quedan = nuevo ?? p.stock;
+  const quedan = nuevo ?? habia;
   const hayMerma = p.perecible && merma.cantidad > 0;
   const mermaInvalida =
     p.perecible && merma.cantidad !== 0 && (!Number.isInteger(merma.cantidad) || merma.cantidad < 0 || merma.cantidad > quedan);
   const faltaMotivo = hayMerma && merma.motivo.length === 0;
-  const hayCambio = nuevo !== null || hayMerma;
-  const error = invalido
+  const hayCambio = nuevo !== null || hayMerma || preparado > 0;
+  const error = preparadoInvalido
+    ? "Lo preparado debe ser un número entero."
+    : preparado > 0 && nuevo === null
+      ? "Escribe también cuántos quedan."
+      : invalido
     ? "Escribe un número entero (0 o más)."
     : mermaInvalida
       ? `El sobrante no puede ser mayor a lo que queda (${quedan}).`
@@ -62,8 +76,15 @@ export function evaluar(p: ProductoConteo, e: Edicion) {
         ? "Escribe el motivo del sobrante."
         : null;
   const cambio: CambioRegistro | null =
-    hayCambio && !error ? { id: p.id, ...(nuevo !== null ? { unidades: nuevo } : {}), ...(hayMerma ? { merma } : {}) } : null;
-  return { nuevo, invalido, vendio, merma, quedan, hayMerma, hayCambio, error, cambio };
+    hayCambio && !error
+      ? {
+          id: p.id,
+          ...(preparado > 0 ? { preparado } : {}),
+          ...(nuevo !== null ? { unidades: nuevo } : {}),
+          ...(hayMerma ? { merma } : {}),
+        }
+      : null;
+  return { nuevo, invalido, vendio, merma, quedan, hayMerma, hayCambio, error, cambio, habia, preparado };
 }
 
 /**
@@ -104,7 +125,12 @@ export function FilaConteo({
         <span className="text-verde-700">{p.perecible ? "Contado hoy" : "Contado"}</span> · quedan {p.stock}
       </span>
     );
-  else detalle = <span>Hay {p.stock} · {soles(p.precio)}</span>;
+  else
+    detalle = (
+      <span>
+        {preparaElPersonal(p) ? "Lo preparas tú" : `Hay ${p.stock}${esBalde(p.presentacion) ? " vasos" : ""}`} · {soles(p.precio)}
+      </span>
+    );
 
   return (
     <li>
@@ -185,7 +211,8 @@ export function HojaConteo({
       titulo={p.nombre}
       subtitulo={
         <span>
-          Había <b className="text-tinta">{p.stock}</b> · {soles(p.precio)}
+          Había <b className="text-tinta">{p.stock}</b>
+          {esBalde(p.presentacion) ? " vasos" : ""} · {soles(p.precio)}
           <button type="button" onClick={cambiarPrecio} className="ml-2 inline-flex items-center gap-1 text-xs font-medium text-verde-700 underline">
             <Pencil className="h-3 w-3" /> precio
           </button>
@@ -203,9 +230,60 @@ export function HojaConteo({
       )}
       {vendidoHoy !== 0 && <p className="mb-2 text-xs text-verde-700">Vendido hoy: {vendidoHoy}</p>}
 
+      {preparaElPersonal(p) && (
+        <label className="mb-3 block">
+          <span className="label">¿Cuántos preparaste hoy?</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            min="0"
+            value={e.preparado ?? ""}
+            placeholder="0"
+            onChange={(ev) => editar("preparado", ev.target.value.replace(/\D/g, ""))}
+            className="input h-14 text-center text-2xl font-semibold placeholder:text-suave/40"
+            aria-label={`Preparados hoy de ${p.nombre}`}
+          />
+          {r.preparado > 0 && (
+            <span className="mt-1 block text-xs text-suave">
+              Con lo que había ({p.stock}) suman <b className="text-tinta">{r.habia}</b>.
+            </span>
+          )}
+        </label>
+      )}
+
+      {/* Balde: se toca cuánto queda en el balde (el sistema lo pasa a vasos) */}
+      {esBalde(p.presentacion) && p.unidadesPorPresentacion > 0 && (
+        <div className="mb-3">
+          <p className="label">¿Cuánto queda en el balde? ({p.unidadesPorPresentacion} vasos el balde lleno)</p>
+          <div className="grid grid-cols-5 gap-1.5">
+            {[
+              ["Vacío", 0],
+              ["¼", 0.25],
+              ["½", 0.5],
+              ["¾", 0.75],
+              ["Lleno", 1],
+            ].map(([t, f]) => {
+              const vasos = Math.round((f as number) * p.unidadesPorPresentacion);
+              const sel = e.unidades === String(vasos);
+              return (
+                <button
+                  key={t as string}
+                  type="button"
+                  onClick={() => editar("unidades", String(vasos))}
+                  className={`rounded-xl py-2.5 text-sm font-semibold ${sel ? "bg-panel text-white" : "border border-borde bg-white text-tinta"}`}
+                >
+                  {t}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-1 text-xs text-suave">O escribe abajo cuántos vasos quedan.</p>
+        </div>
+      )}
+
       <div className={`grid gap-3 ${p.perecible ? "grid-cols-2" : "grid-cols-1"}`}>
         <label className="block">
-          <span className="label">¿Cuántas quedan?</span>
+          <span className="label">{esBalde(p.presentacion) ? "¿Cuántos vasos quedan?" : "¿Cuántas quedan?"}</span>
           <input
             ref={campo}
             type="number"
@@ -285,18 +363,20 @@ export function HojaConteo({
         <p className="mt-3 rounded-xl bg-rojo-50 px-3 py-2 text-sm text-rojo">{error}</p>
       ) : r.nuevo !== null && r.vendio < 0 ? (
         <p className="mt-3 rounded-xl bg-ambar-50 px-3 py-2 text-sm text-[#8a5a00]">
-          Es más de lo que había ({p.stock}). Si te equivocaste antes, se corrige; si no, queda como ajuste para que logística lo
+          Es más de lo que había ({r.habia}). Si te equivocaste antes, se corrige; si no, queda como ajuste para que logística lo
           revise.
         </p>
-      ) : r.nuevo === 0 && p.stock > 0 ? (
+      ) : r.nuevo === 0 && r.habia > 0 ? (
         <p className="mt-3 rounded-xl bg-ambar-50 px-3 py-2 text-sm text-[#8a5a00]">
-          ¿Se acabó todo? Vendiste {p.stock} = <b>{soles(p.stock * p.precio)}</b>. Revisa que sea correcto.
+          ¿Se acabó todo? Vendiste {r.habia} = <b>{soles(r.habia * p.precio)}</b>. Revisa que sea correcto.
         </p>
       ) : r.hayCambio ? (
         <p className="mt-3 rounded-xl bg-verde-50 px-3 py-2 text-sm text-verde-700">
           {r.vendio > 0 ? (
             <>
-              Vendiste <b>{r.vendio}</b> = <b>{soles(r.vendio * p.precio)}</b>
+              Vendiste <b>{r.vendio}</b>
+              {esBalde(p.presentacion) ? ` vasos (${enBaldes(r.vendio, p.unidadesPorPresentacion)})` : ""} ={" "}
+              <b>{soles(r.vendio * p.precio)}</b>
             </>
           ) : (
             "Sin ventas desde el último conteo"

@@ -125,10 +125,32 @@ export const NOMBRE_PRESENTACION: Record<string, string> = {
   PAQUETE: "Paquete",
   BOLSA: "Bolsa",
   OTRO: "Otro",
+  /** Viene en balde y se vende por vaso (unidades_por_presentacion = vasos por balde) */
+  BALDE: "Balde",
 };
+
+/** Productos que vienen en balde y se venden por vaso */
+export const esBalde = (presentacion: string) => presentacion === "BALDE";
+
+/** "1 balde", "1½ baldes", "¾ de balde" (para mostrar cuánto es en baldes una cantidad de vasos) */
+export function enBaldes(vasos: number, vasosPorBalde: number) {
+  if (vasosPorBalde <= 0) return "";
+  const b = vasos / vasosPorBalde;
+  const entero = Math.floor(b + 1e-9);
+  const resto = b - entero;
+  const fracciones: [number, string][] = [[0, ""], [0.25, "¼"], [0.5, "½"], [0.75, "¾"], [1, ""]];
+  const [f, txt] = fracciones.reduce((m, x) => (Math.abs(x[0] - resto) < Math.abs(m[0] - resto) ? x : m));
+  const total = entero + (f === 1 ? 1 : 0);
+  const exacto = Math.abs(f - resto) < 0.06;
+  const aprox = exacto ? "" : "≈ ";
+  if (total === 0 && txt) return `${aprox}${txt} de balde`;
+  if (total === 0) return `${aprox}0 baldes`;
+  return `${aprox}${total}${f !== 1 ? txt : ""} balde${total === 1 && !txt ? "" : "s"}`;
+}
 
 /** "caja de 24", "paquete de 6" o "unidad" */
 export function descPresentacion(p: string, unidades: number) {
+  if (p === "BALDE") return `balde de ${unidades} vasos`;
   if (p === "UNIDAD" || unidades <= 1) return "por unidad";
   return `${NOMBRE_PRESENTACION[p]?.toLowerCase() ?? p} de ${unidades}`;
 }

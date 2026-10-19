@@ -72,7 +72,10 @@ export function armarFilas(movs: Movimiento[], precios: CambioPrecio[], producto
       const recibidoPersonal = m.tipo === "INGRESO" && m.observacion?.startsWith("Recibido en el cafetín");
       const deCocina = m.tipo === "INGRESO" && m.observacion?.startsWith("Envío de cocina");
       const deLogistica = m.tipo === "INGRESO" && m.observacion?.startsWith("Entrega de logística");
-      const etiqueta = deCocina
+      const preparado = m.tipo === "INGRESO" && m.observacion?.startsWith("Preparado en el cafetín");
+      const etiqueta = preparado
+        ? "Preparado (personal)"
+        : deCocina
         ? "Envío de cocina"
         : deLogistica
         ? "Entrega recibida"

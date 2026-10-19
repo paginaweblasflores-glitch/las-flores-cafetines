@@ -5,7 +5,7 @@ import { sesionAccion, ROLES_PANEL } from "@/lib/auth";
 import { check, db, mensajeError } from "@/lib/supabase";
 import type { Presentacion, Resultado } from "@/lib/types";
 
-const PRESENTACIONES: Presentacion[] = ["UNIDAD", "CAJA", "PAQUETE", "BOLSA", "OTRO"];
+const PRESENTACIONES: Presentacion[] = ["UNIDAD", "CAJA", "PAQUETE", "BOLSA", "OTRO", "BALDE"];
 
 /**
  * Edita nombre/categoría/activo, en qué colegios se vende y el precio en cada uno.

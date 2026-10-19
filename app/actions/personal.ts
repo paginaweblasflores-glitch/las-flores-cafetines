@@ -24,6 +24,8 @@ async function validarColegio(sesion: Sesion, productoColegioIds: number[]) {
  */
 export type CambioRegistro = {
   id: number;
+  /** Del día que prepara el mismo personal: cuántos preparó hoy (entra al stock antes de contar) */
+  preparado?: number;
   unidades?: number;
   precio?: number;
   merma?: { cantidad: number; motivo: string };
@@ -50,6 +52,7 @@ export async function guardarRegistro(cambios: CambioRegistro[]): Promise<Respue
       (c) =>
         Number.isInteger(c.id) &&
         (c.unidades === undefined || (Number.isInteger(c.unidades) && c.unidades >= 0 && c.unidades < 100000)) &&
+        (c.preparado === undefined || (Number.isInteger(c.preparado) && c.preparado > 0 && c.preparado < 100000)) &&
         (c.precio === undefined || (Number.isFinite(c.precio) && c.precio >= 0 && c.precio < 10000)) &&
         (c.merma === undefined ||
           (Number.isInteger(c.merma.cantidad) && c.merma.cantidad > 0 && c.merma.motivo.trim().length > 0)),
@@ -81,6 +84,21 @@ export async function guardarRegistro(cambios: CambioRegistro[]): Promise<Respue
             p_producto_colegio_id: c.id,
             p_precio: c.precio,
               p_usuario_id: sesion.uid,
+            }),
+          );
+        }
+        // Lo que preparó hoy el personal entra al stock antes de contar (así la venta sale bien)
+        if (c.preparado) {
+          check(
+            await db().rpc("fn_registrar_ingreso", {
+              p_producto_colegio_id: c.id,
+              p_cajas: 0,
+              p_unidades_por_caja: null,
+              p_unidades_sueltas: c.preparado,
+              p_costo_presentacion: null,
+              p_usuario_id: sesion.uid,
+              p_fecha: null,
+              p_observacion: "Preparado en el cafetín",
             }),
           );
         }
@@ -122,12 +140,12 @@ export async function guardarRegistro(cambios: CambioRegistro[]): Promise<Respue
         }
         // Queda anotado en el conteo de hoy (o de la semana) con lo que había, quedó y se vendió
         // (si falla no se marca error: el conteo ya se guardó y repetirlo duplicaría la venta)
-        if (c.unidades !== undefined || c.merma) {
+        if (c.unidades !== undefined || c.merma || c.preparado) {
           const a = antes.get(c.id);
           const { error } = await db().rpc("fn_anotar_conteo", {
             p_producto_colegio_id: c.id,
-            p_habia: a?.stock_unidades ?? 0,
-            p_quedan: c.unidades ?? a?.stock_unidades ?? 0,
+            p_habia: (a?.stock_unidades ?? 0) + (c.preparado ?? 0),
+            p_quedan: c.unidades ?? (a?.stock_unidades ?? 0) + (c.preparado ?? 0),
             p_vendido: conteo.vendido,
             p_ajuste: conteo.ajuste,
             p_precio: c.precio ?? Number(a?.precio_venta ?? 0),

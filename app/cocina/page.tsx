@@ -28,12 +28,20 @@ export default async function PaginaCocina() {
         productos={stock
           // Del día y que los envía la cocina (los que solo se cuentan en el cafetín no salen aquí)
           .filter((s) => s.perecible && productos.get(s.producto_id)?.de_cocina !== false)
-          .map((s) => ({ id: s.id, colegioId: s.colegio_id, nombre: s.producto, categoria: s.categoria ?? "Otros" }))}
+          .map((s) => ({
+            id: s.id,
+            colegioId: s.colegio_id,
+            nombre: s.producto,
+            categoria: s.categoria ?? "Otros",
+            // Balde: la cocina escribe baldes y se guardan como vasos
+            vasosPorBalde: s.presentacion === "BALDE" ? s.unidades_por_presentacion : null,
+          }))}
         envios={envios
           .filter((e) => e.estado !== "ANULADO")
           .map((e) => ({
             id: e.id,
             colegioId: e.colegio_id,
+            productoColegioId: e.producto_colegio_id,
             producto: productos.get(e.producto_id)?.nombre ?? "Producto",
             enviada: e.cantidad_enviada,
             recibida: e.cantidad_recibida,

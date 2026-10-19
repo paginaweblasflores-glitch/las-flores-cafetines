@@ -20,24 +20,27 @@ export async function crearEnvio(
     if (lineas.some((l) => !Number.isFinite(l.cantidad) || l.cantidad < 0)) {
       return { ok: false, error: "Las cantidades no pueden ser negativas." };
     }
-    // El envío de cocina es uno por día y por colegio
-    const yaEnviado = check(
-      await db()
-        .from("envios")
-        .select("id")
-        .eq("origen", "COCINA")
-        .eq("colegio_id", colegioId)
-        .eq("fecha", hoyISO())
-        .neq("estado", "ANULADO")
-        .limit(1),
-    ) as { id: number }[];
-    if (yaEnviado.length > 0) {
-      return { ok: false, error: "Ya enviaste los productos de hoy a este colegio." };
-    }
     const validas = lineas.filter((l) => l.cantidad > 0);
     if (validas.length === 0) return { ok: false, error: "Escribe la cantidad de al menos un producto." };
     if (validas.some((l) => !Number.isInteger(l.cantidad) || l.cantidad > 10000)) {
       return { ok: false, error: "Las cantidades deben ser números enteros." };
+    }
+    // Cada producto se envía una vez al día a cada colegio (los que faltan se pueden enviar después)
+    const yaEnviados = check(
+      await db()
+        .from("envios")
+        .select("producto_colegio_id")
+        .eq("origen", "COCINA")
+        .eq("colegio_id", colegioId)
+        .eq("fecha", hoyISO())
+        .neq("estado", "ANULADO")
+        .in("producto_colegio_id", validas.map((l) => l.productoColegioId)),
+    ) as { producto_colegio_id: number }[];
+    if (yaEnviados.length > 0) {
+      return {
+        ok: false,
+        error: `${yaEnviados.length === 1 ? "Un producto ya fue enviado" : `${yaEnviados.length} productos ya fueron enviados`} hoy a este colegio. Actualiza la pantalla.`,
+      };
     }
     const filas = check(
       await db()
@@ -100,6 +103,29 @@ export async function anularEnvio(envioId: number): Promise<Resultado> {
     if (res.length === 0) return { ok: false, error: "Ese envío ya fue recibido y no se puede anular." };
     refresh();
     return { ok: true, mensaje: "Envío anulado." };
+  } catch (e) {
+    return { ok: false, error: mensajeError(e) };
+  }
+}
+
+/** La cocina corrige la cantidad de algo que envió hoy, mientras el colegio todavía no lo recibe */
+export async function editarEnvio(envioId: number, cantidad: number): Promise<Resultado> {
+  try {
+    const sesion = await sesionAccion([...QUIEN_ENVIA]);
+    if (!Number.isInteger(cantidad) || cantidad < 1 || cantidad > 10000) {
+      return { ok: false, error: "Escribe una cantidad de 1 o más." };
+    }
+    let q = db()
+      .from("envios")
+      .update({ cantidad_enviada: cantidad })
+      .eq("id", envioId)
+      .eq("origen", "COCINA")
+      .eq("estado", "PENDIENTE"); // si ya lo recibieron, no se toca
+    if (sesion.rol === "COCINA") q = q.eq("fecha", hoyISO());
+    const res = check(await q.select("id")) as { id: number }[];
+    if (res.length === 0) return { ok: false, error: "Ya lo recibieron en el colegio: no se puede cambiar." };
+    refresh();
+    return { ok: true, mensaje: `Cantidad corregida a ${cantidad}.` };
   } catch (e) {
     return { ok: false, error: mensajeError(e) };
   }

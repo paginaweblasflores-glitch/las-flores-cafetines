@@ -9,7 +9,7 @@ import {
   obtenerUsuariosMapa,
   obtenerVentas,
 } from "@/lib/data";
-import { hoyISO, NOMBRE_PRESENTACION } from "@/lib/format";
+import { enBaldes, hoyISO, NOMBRE_PRESENTACION } from "@/lib/format";
 import { Avisos, Vacio } from "@/components/ui";
 import { RegistroPersonal } from "./registro";
 
@@ -56,6 +56,13 @@ export default async function PaginaPersonal({ searchParams }: PageProps<"/perso
     return `${cajas} ${cajas === 1 ? nombre : `${nombre}s`} de ${porCaja}${sueltas > 0 ? ` + ${sueltas} sueltas` : ""}`;
   };
 
+  /** Envío de cocina en balde: "1½ baldes de 30 vasos" */
+  const filaStock = new Map(stock.map((s) => [s.id, s]));
+  const enBalde = (vasos: number, pcId: number) => {
+    const s = filaStock.get(pcId);
+    return s?.presentacion === "BALDE" ? `${enBaldes(vasos, s.unidades_por_presentacion)} de ${s.unidades_por_presentacion} vasos` : null;
+  };
+
   return (
     <>
       <Avisos />
@@ -74,6 +81,8 @@ export default async function PaginaPersonal({ searchParams }: PageProps<"/perso
           unidadesPorPresentacion: s.unidades_por_presentacion,
           stock: s.total_unidades,
           perecible: s.perecible,
+          // Del día que prepara el mismo personal (no lo manda cocina): al contar dice cuánto preparó
+          deCocina: productosMapa.get(s.producto_id)?.de_cocina !== false,
           stockMinimo: s.stock_minimo,
           categoria: s.categoria ?? "Otros",
           ultimoConteo: s.ultimo_conteo,
@@ -86,7 +95,10 @@ export default async function PaginaPersonal({ searchParams }: PageProps<"/perso
           origen: e.origen,
           producto: productosMapa.get(e.producto_id)?.nombre ?? "Producto",
           cantidad: e.cantidad_enviada,
-          detalle: e.origen === "LOGISTICA" ? comoViene(e.cajas, e.unidades_por_caja, e.unidades_sueltas, e.producto_colegio_id) : null,
+          detalle:
+            e.origen === "LOGISTICA"
+              ? comoViene(e.cajas, e.unidades_por_caja, e.unidades_sueltas, e.producto_colegio_id)
+              : enBalde(e.cantidad_enviada, e.producto_colegio_id),
           hora: e.created_at,
           enviadoPor: e.enviado_por ? (usuarios.get(e.enviado_por)?.nombre ?? null) : null,
           nota: e.observacion,

@@ -539,7 +539,9 @@ function ModalNuevoProducto({
         </label>
         {!esUnidad ? (
           <label>
-            <span className="label">¿Cuántas unidades trae cada {nombreCaja}?</span>
+            <span className="label">
+              {presentacion === "BALDE" ? "¿Cuántos vasos rinde cada balde?" : `¿Cuántas unidades trae cada ${nombreCaja}?`}
+            </span>
             <input type="number" min="1" value={porCaja} onChange={(e) => setPorCaja(e.target.value)} className="input" />
           </label>
         ) : (

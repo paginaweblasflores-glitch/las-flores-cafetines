@@ -5,7 +5,7 @@ import { sesionAccion, ROLES_PANEL } from "@/lib/auth";
 import { check, db, mensajeError } from "@/lib/supabase";
 import type { Presentacion, Resultado } from "@/lib/types";
 
-const PRESENTACIONES: Presentacion[] = ["UNIDAD", "CAJA", "PAQUETE", "BOLSA", "OTRO"];
+const PRESENTACIONES: Presentacion[] = ["UNIDAD", "CAJA", "PAQUETE", "BOLSA", "OTRO", "BALDE"];
 
 const entero = (n: unknown) => Number.isInteger(n) && (n as number) >= 0;
 const decimal = (n: unknown) => typeof n === "number" && Number.isFinite(n) && n >= 0;
