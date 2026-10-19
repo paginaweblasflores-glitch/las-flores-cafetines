@@ -5,7 +5,7 @@ import { Pencil, Search, FolderPlus, Plus } from "lucide-react";
 import { crearCategoria, crearProducto, editarProducto } from "@/app/actions/catalogo";
 import { avisar, Inicial, Modal } from "@/components/ui";
 import { BarraPaginacion, usePaginacion } from "@/components/paginacion";
-import { buscarPorNombre, NOMBRE_PRESENTACION, pct, soles } from "@/lib/format";
+import { buscarPorNombre, NOMBRE_PRESENTACION, normalizar, pct, soles } from "@/lib/format";
 import type { Categoria, Presentacion } from "@/lib/types";
 
 type Producto = {
@@ -263,8 +263,8 @@ function ModalProducto({
             ))}
           </select>
         </label>
-        {/* Cómo viene: los de cocina solo por unidad o en balde; los comprados, caja, paquete… */}
-        {perecible && deCocina ? (
+        {/* Cómo viene: bebidas de cocina por unidad o en balde; el resto de cocina no lleva nada; lo comprado, caja, paquete… */}
+        {perecible && deCocina && !esBebida(categorias, categoriaId) ? null : perecible && deCocina ? (
           <ComoVieneCocina
             presentacion={presentacion}
             porCaja={porCaja}
@@ -421,7 +421,11 @@ function ModalProducto({
   );
 }
 
-/** Productos que prepara la cocina: no se compran (sin costo); solo vienen por unidad o en balde (por vaso) */
+/** La categoría elegida es de bebidas (solo ahí tiene sentido el balde que se vende por vaso) */
+const esBebida = (categorias: Categoria[], categoriaId: string) =>
+  normalizar(categorias.find((c) => String(c.id) === categoriaId)?.nombre ?? "").startsWith("bebida");
+
+/** Bebidas que prepara la cocina: no se compran (sin costo); vienen por unidad o en balde (por vaso) */
 function ComoVieneCocina({
   presentacion,
   porCaja,
@@ -578,8 +582,9 @@ function ModalNuevoProducto({
         perecible,
         deCocina,
         colegioIds: elegidos,
-        presentacion,
-        unidadesPorPresentacion: unidades,
+        // Lo de cocina que no es bebida viene siempre por unidad
+        presentacion: perecible && deCocina && !esBebida(categorias, categoriaId) ? "UNIDAD" : presentacion,
+        unidadesPorPresentacion: perecible && deCocina && !esBebida(categorias, categoriaId) ? 1 : unidades,
         // Lo que prepara la cocina no se compra: sin costo
         costoPresentacion: perecible && deCocina ? 0 : n(costo),
         precios: Object.fromEntries(elegidos.map((id) => [id, n(precioDe(id))])),
@@ -700,7 +705,7 @@ function ModalNuevoProducto({
         })}
       </div>
 
-      {perecible && deCocina ? (
+      {perecible && deCocina && !esBebida(categorias, categoriaId) ? null : perecible && deCocina ? (
         <div className="mt-4">
           <ComoVieneCocina
             presentacion={presentacion}
@@ -777,7 +782,12 @@ function ModalNuevoProducto({
           Cancelar
         </button>
         <button
-          disabled={pendiente || nombre.trim().length < 2 || !preciosListos || !(Number.isInteger(unidades) && unidades >= 1)}
+          disabled={
+            pendiente ||
+            nombre.trim().length < 2 ||
+            !preciosListos ||
+            !((perecible && deCocina && !esBebida(categorias, categoriaId)) || (Number.isInteger(unidades) && unidades >= 1))
+          }
           className="btn-primario"
           onClick={crear}
         >
