@@ -39,6 +39,7 @@ Reemplaza los Excel `INVENTARIO.xlsx` (Administración), `CONTROL BOSCO.xlsx` y 
 > Y luego `database/21_corregir_entrega_nota_opcional.sql` (sin nota antes de recibir; detalle opcional después).
 > Y luego `database/22_presentacion_taper.sql` (salsas que vienen en taper y se venden por porción).
 > Y luego `database/23_cocina_semanal.sql` (la cocina también envía productos interdiarios o semanales).
+> Y luego `database/24_ia_boletas.sql` (llenar entregas con IA leyendo la boleta).
 >
 > **Empezar en limpio:** (después del 11) `database/10_vaciar_datos_prueba.sql` borra para siempre productos, stock, ventas, historial,
 > envíos y reposiciones. Conserva colegios, usuarios y categorías. Después los productos se crean desde el Catálogo.
@@ -86,6 +87,18 @@ que solo devuelve 1 (no lee ni escribe datos). Necesita:
 
 GitHub desactiva los workflows programados si el repositorio pasa **60 días sin commits**;
 si eso pasa, se reactiva en **Actions** con *Enable workflow*.
+
+### IA para leer boletas (Entregas → "Llenar con IA")
+1. Ejecutar `database/24_ia_boletas.sql` en Supabase.
+2. Sacar una API key de Gemini en https://aistudio.google.com/apikey.
+3. Entrar como administración → **Administración → Inteligencia artificial**, pegar la clave y tocar **Conectar**.
+   Se prueba, se guarda **cifrada en la base** (funciona en Vercel sin más) y en la PC de desarrollo también en `.env` (`GEMINI_API_KEY`).
+   Opcional: ponerla también en Vercel → Settings → Environment Variables como `GEMINI_API_KEY` (se usa si en el panel no hay clave).
+4. En la misma pantalla: instrucciones para la IA, documentos de referencia (su "memoria") y lo que aprendió.
+
+La IA **nunca registra sola**: llena la lista, marca lo dudoso y los productos nuevos, y avisa si el total no cuadra con la boleta.
+Al registrar, crea los productos que faltan (solo en ese colegio, con precio de venta S/ 0) y aprende cómo sale cada producto en la boleta.
+DeepSeek: se puede guardar su clave, pero su API no lee fotos todavía.
 
 ### c) Ejecutar
 ```bash
@@ -151,6 +164,7 @@ y queda en el Historial con su motivo.
 - **Historial:** cada movimiento de stock y cada cambio de precio, con fecha, hora y usuario.
 - **Colegios** (solo admin): crear colegios nuevos copiando el catálogo de otro.
 - **Usuarios** (solo admin).
+- **Inteligencia artificial** (solo admin): clave de Gemini/DeepSeek, instrucciones, documentos de referencia y equivalencias aprendidas.
 
 ### Agregar un colegio nuevo (el próximo año)
 1. **Colegios → Nuevo colegio** (elige copiar productos y precios de Bosco o Romero).

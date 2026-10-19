@@ -24,6 +24,9 @@ drop function if exists fn_registrar_ingreso(bigint, int, int, int, numeric, big
 drop function if exists fn_ajustar_stock(bigint, int, int, tipo_movimiento, bigint, text);
 drop function if exists fn_ajustar_stock(bigint, int, tipo_movimiento, bigint, text);
 drop view if exists v_stock cascade;
+drop table if exists ia_equivalencias cascade;
+drop table if exists ia_documentos cascade;
+drop table if exists configuracion cascade;
 drop table if exists pedidos cascade;
 drop table if exists reposicion_items cascade;
 drop table if exists conteo_items cascade;
@@ -937,6 +940,37 @@ begin
   return jsonb_build_object('estado', v_estado, 'diferencia', v_dif, 'cantidad', v_nuevo);
 end $$;
 
+-- ---------------------------------------------------------------------
+-- IA para leer boletas de compra (Entregas → "Llenar con IA")
+--   configuracion: claves (cifradas por la app), modelo e instrucciones
+--   ia_documentos: memoria de referencia (PDF, fotos) que se pasa en cada lectura
+--   ia_equivalencias: cómo sale un producto en la boleta → producto del sistema
+-- ---------------------------------------------------------------------
+create table configuracion (
+  clave       text primary key,
+  valor       text not null,
+  updated_at  timestamptz not null default now(),
+  updated_by  bigint references usuarios(id) on delete set null
+);
+
+create table ia_documentos (
+  id          bigint generated always as identity primary key,
+  nombre      text not null,
+  tipo        text not null,
+  tamano      int not null,
+  datos       text not null,
+  created_at  timestamptz not null default now(),
+  subido_por  bigint references usuarios(id) on delete set null
+);
+
+create table ia_equivalencias (
+  id           bigint generated always as identity primary key,
+  texto        text not null unique,
+  producto_id  bigint not null references productos(id) on delete cascade,
+  usos         int not null default 1,
+  updated_at   timestamptz not null default now()
+);
+
 -- =====================================================================
 -- SEGURIDAD
 --   La app entra a la base SOLO desde el servidor con la "service_role key".
@@ -957,6 +991,9 @@ alter table reposicion_items  enable row level security;
 alter table conteos           enable row level security;
 alter table conteo_items      enable row level security;
 alter table reportes_mensuales enable row level security;
+alter table configuracion     enable row level security;
+alter table ia_documentos     enable row level security;
+alter table ia_equivalencias  enable row level security;
 
 revoke all on all tables    in schema public from anon, authenticated;
 revoke all on all functions in schema public from anon, authenticated, public;

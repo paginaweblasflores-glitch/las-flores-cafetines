@@ -20,6 +20,7 @@ import {
   Package,
   School,
   Settings,
+  Sparkles,
   Sun,
   Tag,
   Truck,
@@ -88,10 +89,11 @@ const MENU: Item[] = [
     id: "admin",
     texto: "Administración",
     icono: Settings,
-    soloAdmin: true,
+    // Logística solo ve la IA (para conectar o cambiar la clave)
     hijos: [
-      { href: "/colegios", texto: "Colegios", icono: School },
-      { href: "/usuarios", texto: "Usuarios", icono: Users },
+      { href: "/colegios", texto: "Colegios", icono: School, soloAdmin: true },
+      { href: "/usuarios", texto: "Usuarios", icono: Users, soloAdmin: true },
+      { href: "/ia", texto: "Inteligencia artificial", icono: Sparkles },
     ],
   },
 ];
@@ -103,9 +105,9 @@ export function BarraLateral({ rol, avisos = {} }: { rol: Rol; avisos?: Record<s
   const ruta = usePathname();
   const params = useSearchParams();
   const [abierto, setAbierto] = useState(false);
-  const items = MENU.filter((i) => !(i.soloAdmin && rol !== "ADMIN")).map((i) =>
-    esGrupo(i) ? { ...i, hijos: i.hijos.filter((h) => !(h.soloAdmin && rol !== "ADMIN")) } : i,
-  );
+  const items = MENU.filter((i) => !(i.soloAdmin && rol !== "ADMIN"))
+    .map((i) => (esGrupo(i) ? { ...i, hijos: i.hijos.filter((h) => !(h.soloAdmin && rol !== "ADMIN")) } : i))
+    .filter((i) => !esGrupo(i) || i.hijos.length > 0);
 
   /** ¿El enlace corresponde a la página actual? (con ?tipo= cuando el enlace lo indica) */
   const activo = (href: string) => {

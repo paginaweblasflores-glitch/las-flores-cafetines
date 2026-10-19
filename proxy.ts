@@ -8,7 +8,7 @@ const SOLO_ADMIN = ["/usuarios", "/colegios"];
 // Lo que no es del trabajo de logística (ella compra y entrega): conteos, ventas y las pantallas del cafetín
 const NO_LOGISTICA = ["/conteos", "/ventas", "/personal", "/cocina"];
 // Rutas del panel (administración y logística)
-const PANEL = ["/dashboard", "/stock", "/ventas", "/conteos", "/reporte-mensual", "/ingresos", "/reposiciones", "/productos", "/movimientos", ...SOLO_ADMIN];
+const PANEL = ["/dashboard", "/stock", "/ventas", "/conteos", "/reporte-mensual", "/ingresos", "/reposiciones", "/productos", "/movimientos", "/ia", ...SOLO_ADMIN];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ChefHat, ChevronRight, Truck } from "lucide-react";
 import { requerirSesion, ROLES_PANEL } from "@/lib/auth";
+import { claveDe, leerConfiguracion } from "@/lib/ia";
 import {
+  obtenerCategorias,
   obtenerColegios,
   obtenerEnvios,
   obtenerStock,
@@ -16,20 +18,24 @@ import { FormularioEntrega } from "./formulario";
 import { agruparLotes, estadoLote, type Lote } from "@/lib/entregas";
 
 export const metadata: Metadata = { title: "Entregas" };
+// Leer una boleta con la IA puede tardar (las Server Actions de esta página usan este límite)
+export const maxDuration = 60;
 
 export default async function PaginaIngresos({ searchParams }: PageProps<"/ingresos">) {
-  await requerirSesion(ROLES_PANEL);
+  const sesion = await requerirSesion(ROLES_PANEL);
   const sp = await searchParams;
   const mes = typeof sp.mes === "string" && /^\d{4}-\d{2}$/.test(sp.mes) ? sp.mes : mesActual();
   const { desde, hasta } = rangoMes(mes);
   // ?obs=1: solo lo que llegó con observación (incompleto o dañado)
   const soloObs = sp.obs === "1";
 
-  const [colegios, stock, usuarios, envios] = await Promise.all([
+  const [colegios, stock, usuarios, envios, categorias, confIA] = await Promise.all([
     obtenerColegios(),
     obtenerStock(),
     obtenerUsuariosMapa(),
     obtenerEnvios({ desde, hasta }),
+    obtenerCategorias(),
+    leerConfiguracion().catch(() => new Map<string, string>()),
   ]);
   const filaStock = new Map(stock.map((s) => [s.id, s]));
   /** Costo de lo entregado: con el costo de la entrega, o el del producto si no se indicó */
@@ -104,8 +110,11 @@ export default async function PaginaIngresos({ searchParams }: PageProps<"/ingre
       />
 
       <div className="grid gap-6">
-        <div className="max-w-3xl">
+        <div>
           <FormularioEntrega
+            categorias={categorias.map((c) => ({ id: c.id, nombre: c.nombre }))}
+            iaConectada={!!claveDe(confIA, "GEMINI").clave}
+            esAdmin={ROLES_PANEL.includes(sesion.rol)}
             colegios={colegios.map((c) => ({ id: c.id, nombre: c.nombre }))}
             colegioInicial={colegios[0]?.id ?? 0}
             stock={stock.map((s) => ({
