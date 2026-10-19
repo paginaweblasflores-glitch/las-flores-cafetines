@@ -204,6 +204,8 @@ export type Envio = {
   unidades_sueltas: number;
   costo_presentacion: number | null;
   observacion: string | null;
+  /** Correcciones de logística: "19/10 11:32: 240 → 216 (motivo)" */
+  correccion?: string | null;
 };
 
 /** Envíos de cocina y entregas de logística (se suman al stock cuando el colegio los recibe) */

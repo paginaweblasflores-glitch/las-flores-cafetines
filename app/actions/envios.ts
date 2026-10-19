@@ -131,6 +131,43 @@ export async function editarEnvio(envioId: number, cantidad: number): Promise<Re
   }
 }
 
+/**
+ * Logística (o administración) corrige cuánto entregó, aunque el colegio ya lo haya recibido.
+ * La base ajusta el stock por la diferencia y guarda la nota (fn_corregir_entrega).
+ */
+export async function corregirEntrega(
+  envioId: number,
+  d: { cajas: number; unidadesPorCaja: number | null; sueltas: number; nota: string },
+): Promise<Resultado> {
+  try {
+    const sesion = await sesionAccion(["LOGISTICA", "ADMIN"]);
+    const entero = (n: number | null) => n === null || (Number.isInteger(n) && n >= 0 && n <= 100000);
+    if (!entero(d.cajas) || !entero(d.unidadesPorCaja) || !entero(d.sueltas)) {
+      return { ok: false, error: "Las cantidades deben ser números enteros (0 o más)." };
+    }
+    const r = check(
+      await db().rpc("fn_corregir_entrega", {
+        p_envio_id: envioId,
+        p_cajas: d.cajas,
+        p_unidades_por_caja: d.unidadesPorCaja,
+        p_unidades_sueltas: d.sueltas,
+        p_nota: d.nota.trim().slice(0, 200),
+        p_usuario_id: sesion.uid,
+      }),
+    ) as { estado: string; diferencia: number; cantidad: number };
+    refresh();
+    const extra =
+      r.diferencia > 0
+        ? ` El stock del colegio subió ${r.diferencia}.`
+        : r.diferencia < 0
+          ? ` El stock del colegio bajó ${-r.diferencia}.`
+          : "";
+    return { ok: true, mensaje: `Entrega corregida a ${r.cantidad} unidades.${extra}` };
+  } catch (e) {
+    return { ok: false, error: mensajeError(e) };
+  }
+}
+
 /** El personal confirma lo que llegó: todo (conforme) o menos, con el motivo */
 export async function recibirEnvio(envioId: number, cantidadRecibida: number, motivo: string) {
   try {

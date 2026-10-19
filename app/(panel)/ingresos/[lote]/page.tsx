@@ -5,9 +5,10 @@ import { ArrowLeft } from "lucide-react";
 import { requerirSesion, ROLES_PANEL } from "@/lib/auth";
 import { obtenerColegios, obtenerEnvios, obtenerProductosMapa, obtenerStock, obtenerUsuariosMapa } from "@/lib/data";
 import { agruparLotes, ESTADO_ENVIO, estadoLote } from "@/lib/entregas";
-import { fechaHoraLima, fechaLarga, horaLima, numero, soles } from "@/lib/format";
+import { fechaHoraLima, fechaLarga, horaLima, NOMBRE_PRESENTACION, numero, soles } from "@/lib/format";
 import { BotonImprimir } from "@/components/imprimir";
 import { AnularEntrega } from "../anular";
+import { CorregirEntrega } from "../corregir";
 
 export const metadata: Metadata = { title: "Entrega" };
 
@@ -124,11 +125,27 @@ export default async function PaginaEntrega({ params }: PageProps<"/ingresos/[lo
                           {e.motivo}
                         </span>
                       )}
-                      {e.estado === "PENDIENTE" && (
-                        <span className="mt-1 block print:hidden">
-                          <AnularEntrega id={e.id} producto={nombre} />
-                        </span>
-                      )}
+                      {e.correccion && <span className="mt-1 block text-xs text-[#2b5ea7]">Corregido {e.correccion}</span>}
+                      <span className="mt-1 flex flex-wrap gap-3 print:hidden">
+                        {esLogistica && e.estado !== "ANULADO" && (
+                          <CorregirEntrega
+                            e={{
+                              id: e.id,
+                              producto: nombre,
+                              estado: e.estado,
+                              enviada: e.cantidad_enviada,
+                              recibida: e.cantidad_recibida,
+                              cajas: e.cajas,
+                              unidadesPorCaja: e.unidades_por_caja,
+                              sueltas: e.unidades_sueltas,
+                              nombreCaja: (
+                                NOMBRE_PRESENTACION[filaStock.get(e.producto_colegio_id)?.presentacion ?? "CAJA"] ?? "Caja"
+                              ).toLowerCase(),
+                            }}
+                          />
+                        )}
+                        {e.estado === "PENDIENTE" && <AnularEntrega id={e.id} producto={nombre} />}
+                      </span>
                     </td>
                     <td className="whitespace-nowrap text-suave">
                       {e.recibido_por ? usuarios.get(e.recibido_por)?.nombre : "—"}
