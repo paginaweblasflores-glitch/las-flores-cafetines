@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { BookOpen, ChevronDown, PenLine, Plus, Search, Send, Trash2, X } from "lucide-react";
 import { anularReposicion, crearReposicion, type ItemNuevo } from "@/app/actions/reposiciones";
 import { avisar } from "@/components/ui";
-import {
+import { buscarPorNombre,
   cantidadConUnidad,
   descPresentacion,
   ESTADO_REPOSICION,
@@ -266,7 +266,7 @@ function Agregar({ catalogo, agregar }: { catalogo: ProductoCatalogo[]; agregar:
   const cantidadRef = useRef<HTMLInputElement>(null);
 
   const q = normalizar(busqueda);
-  const resultados = catalogo.filter((p) => !q || normalizar(p.nombre).includes(q));
+  const resultados = buscarPorNombre(catalogo, busqueda, (p) => p.nombre);
   const n = Number(cantidad);
   const listo = Number.isInteger(n) && n > 0 && (modo === "catalogo" ? !!elegido : nombre.trim().length > 0);
 
@@ -380,7 +380,7 @@ function Agregar({ catalogo, agregar }: { catalogo: ProductoCatalogo[]; agregar:
             value={nombre}
             onChange={(e) => setNombre(e.target.value)}
             placeholder="Ej.: Cucharón, platos descartables"
-            className="input h-11 text-base"
+            className="input h-11 text-base uppercase placeholder:normal-case"
           />
         </label>
       )}

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ChevronRight, Package, Search, Sun, TriangleAlert } from "lucide-react";
 import { cambiarMinimo } from "@/app/actions/personal";
 import { avisar, Inicial, Modal } from "@/components/ui";
-import { descPresentacion, fechaCorta, fechaISOLima, normalizar, numero, soles } from "@/lib/format";
+import { buscarPorNombre, descPresentacion, fechaCorta, fechaISOLima, numero, soles } from "@/lib/format";
 
 export type MiProducto = {
   id: number;
@@ -28,13 +28,15 @@ export function MisProductos({ productos }: { productos: MiProducto[] }) {
   const [editando, setEditando] = useState<MiProducto | null>(null);
 
   const seAcaba = (p: MiProducto) => !p.perecible && p.stock <= p.stockMinimo;
-  const q = normalizar(busqueda);
-  const lista = productos
-    .filter((p) => !q || normalizar(p.nombre).includes(q))
-    .filter((p) =>
-      filtro === "semanales" ? !p.perecible : filtro === "dia" ? p.perecible : filtro === "acaban" ? seAcaba(p) : true,
-    )
-    .sort((a, b) => Number(a.perecible) - Number(b.perecible) || a.nombre.localeCompare(b.nombre));
+  const lista = buscarPorNombre(
+    productos
+      .filter((p) =>
+        filtro === "semanales" ? !p.perecible : filtro === "dia" ? p.perecible : filtro === "acaban" ? seAcaba(p) : true,
+      )
+      .sort((a, b) => Number(a.perecible) - Number(b.perecible) || a.nombre.localeCompare(b.nombre)),
+    busqueda,
+    (p) => p.nombre,
+  );
 
   const chips: { id: Filtro; texto: string; n: number }[] = [
     { id: "todos", texto: "Todos", n: productos.length },

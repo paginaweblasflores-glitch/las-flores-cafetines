@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { ChevronDown, Search, X } from "lucide-react";
 import { Inicial } from "@/components/ui";
-import { normalizar, numero } from "@/lib/format";
+import { buscarPorNombre, numero } from "@/lib/format";
 
 export type OpcionProducto = {
   id: number;
@@ -18,7 +18,7 @@ export type OpcionProducto = {
 
 /**
  * Buscador de productos para el panel: al hacer clic se abre la lista (con su stock) y se puede
- * desplazar; al escribir, filtra al instante. Flechas ↑ ↓ para moverse, Enter para elegir, Esc para cerrar.
+ * desplazar; al escribir, filtra al instante. Con solo tener el cursor no se abre (no tapa lo de abajo). Flechas ↑ ↓ para moverse, Enter para elegir, Esc para cerrar.
  */
 export function BuscadorProducto({
   opciones,
@@ -41,8 +41,7 @@ export function BuscadorProducto({
   const lista = useRef<HTMLUListElement>(null);
   const idLista = useId();
 
-  const q = normalizar(texto);
-  const visibles = q ? opciones.filter((o) => normalizar(o.nombre).includes(q)) : opciones;
+  const visibles = buscarPorNombre(opciones, texto, (o) => o.nombre);
 
   // Clic fuera: se cierra
   useEffect(() => {
@@ -102,7 +101,6 @@ export function BuscadorProducto({
           autoFocus={autoFocus}
           value={abierto ? texto : (elegido?.nombre ?? "")}
           placeholder={abierto && elegido ? elegido.nombre : placeholder}
-          onFocus={abrir}
           onClick={() => !abierto && abrir()}
           onChange={(e) => {
             setTexto(e.target.value);

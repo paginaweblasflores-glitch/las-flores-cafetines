@@ -6,7 +6,7 @@ import { crearEnvio, editarEnvio } from "@/app/actions/envios";
 import { avisar, Inicial, Modal } from "@/components/ui";
 import { bajoDeBarra, NavegacionInferior, useTecladoAbierto, type ItemNavegacion } from "@/components/navegacion-inferior";
 import { BarraSuperiorMovil, PerfilMovil } from "@/components/movil";
-import { enBaldes, fechaLarga, horaLima, normalizar } from "@/lib/format";
+import { buscarPorNombre, enBaldes, fechaLarga, horaLima } from "@/lib/format";
 
 type Producto = {
   id: number;
@@ -101,8 +101,7 @@ export function PanelCocina({
   const enviadosHoy = enviadosA(colegioId);
   const faltan = porEnviar(colegioId);
   const todoEnviado = todoEnviadoA(colegioId);
-  const q = normalizar(busqueda);
-  const delColegio = faltan.filter((p) => !q || normalizar(p.nombre).includes(q));
+  const delColegio = buscarPorNombre(faltan, busqueda, (p) => p.nombre);
 
   const n = (v: string | undefined) => (v === undefined || v.trim() === "" ? 0 : Number(v));
   /** Lo que se guarda: unidades (o vasos, si el producto viene en balde) */

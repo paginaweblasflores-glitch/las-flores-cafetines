@@ -10,7 +10,7 @@ import {
 } from "@/app/actions/inventario";
 import { avisar, Inicial, Modal, Vacio } from "@/components/ui";
 import { BarraPaginacion, usePaginacion } from "@/components/paginacion";
-import { descPresentacion, fechaHoraLima, hoyISO, NOMBRE_PRESENTACION, normalizar, numero, pct, soles } from "@/lib/format";
+import { buscarPorNombre, descPresentacion, fechaHoraLima, hoyISO, NOMBRE_PRESENTACION, numero, pct, soles } from "@/lib/format";
 import type { Categoria, Presentacion, StockRow } from "@/lib/types";
 
 /** verGanancia: solo administración ve ganancia y margen */
@@ -31,13 +31,11 @@ export function TablaStock({
   const [modal, setModal] = useState<{ tipo: "ingreso" | "ajuste" | "editar"; fila: StockRow } | null>(null);
 
   const visibles = useMemo(() => {
-    const q = normalizar(busqueda);
     const lista = filas.filter(
       (f) =>
         (verInactivos || (f.activo && f.producto_activo)) &&
         (!cat || String(f.categoria_id) === cat) &&
-        (!soloBajos || f.stock_bajo) &&
-        (!q || normalizar(f.producto).includes(q)),
+        (!soloBajos || f.stock_bajo),
     );
     // Más recientes = último movimiento primero (venta contada, entrega, ajuste, cambio de precio)
     const comparar: Record<typeof orden, (a: StockRow, b: StockRow) => number> = {
@@ -45,7 +43,8 @@ export function TablaStock({
       nombre: (a, b) => a.producto.localeCompare(b.producto, "es"),
       stock: (a, b) => a.total_unidades - b.total_unidades || a.producto.localeCompare(b.producto, "es"),
     };
-    return [...lista].sort(comparar[orden]);
+    // Al buscar, primero los que EMPIEZAN con lo escrito (dentro de cada grupo, el orden elegido)
+    return buscarPorNombre([...lista].sort(comparar[orden]), busqueda, (f) => f.producto);
   }, [filas, busqueda, cat, verInactivos, soloBajos, orden]);
 
   const tot = visibles.reduce(

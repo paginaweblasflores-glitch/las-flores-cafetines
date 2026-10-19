@@ -119,6 +119,41 @@ export function normalizar(s: string) {
     .trim();
 }
 
+/** Nombres en MAYÚSCULAS y sin espacios de más (productos, categorías…): "pan con  pollo" → "PAN CON POLLO" */
+export function mayusculas(s: string) {
+  return s.trim().replace(/\s+/g, " ").toLocaleUpperCase("es-PE");
+}
+
+/**
+ * Qué tan bien coincide un nombre con lo buscado (sin importar mayúsculas ni tildes):
+ * 0 = empieza igual · 1 = cada palabra buscada empieza una palabra del nombre · 2 = lo contiene · -1 = no coincide.
+ * Si se escriben varias palabras ("pan pollo"), tienen que estar todas.
+ */
+export function coincidencia(nombre: string, buscado: string) {
+  const n = normalizar(nombre);
+  const q = normalizar(buscado);
+  if (!q) return 0;
+  const palabrasQ = q.split(" ");
+  if (!palabrasQ.every((p) => n.includes(p))) return -1;
+  if (n.startsWith(q)) return 0;
+  const palabrasN = n.split(" ");
+  if (palabrasQ.every((p) => palabrasN.some((w) => w.startsWith(p)))) return 1;
+  return 2;
+}
+
+/**
+ * Filtra por nombre y ordena por coincidencia: primero lo que EMPIEZA con lo escrito, luego lo que tiene una
+ * palabra que empieza así, al final lo que solo lo contiene. Dentro de cada grupo se respeta el orden anterior.
+ */
+export function buscarPorNombre<T>(lista: T[], buscado: string, nombre: (x: T) => string): T[] {
+  if (!normalizar(buscado)) return lista;
+  return lista
+    .map((x, i) => ({ x, i, p: coincidencia(nombre(x), buscado) }))
+    .filter((r) => r.p >= 0)
+    .sort((a, b) => a.p - b.p || a.i - b.i)
+    .map((r) => r.x);
+}
+
 export const NOMBRE_PRESENTACION: Record<string, string> = {
   UNIDAD: "Unidad",
   CAJA: "Caja",

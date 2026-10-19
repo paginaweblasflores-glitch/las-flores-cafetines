@@ -4,7 +4,7 @@ import { refresh } from "next/cache";
 import { sesionAccion } from "@/lib/auth";
 import { check, db, mensajeError } from "@/lib/supabase";
 import { enParalelo } from "@/lib/paralelo";
-import { hoyISO, UNIDADES_REPOSICION } from "@/lib/format";
+import { hoyISO, mayusculas, UNIDADES_REPOSICION } from "@/lib/format";
 import type { Resultado } from "@/lib/types";
 
 export type ItemNuevo = {
@@ -38,7 +38,7 @@ export async function crearReposicion(colegioId: number, items: ItemNuevo[], not
         p_nota: nota,
         p_items: items.map((it) => ({
           producto_id: it.productoId,
-          nombre: it.nombre.trim(),
+          nombre: mayusculas(it.nombre),
           cantidad: it.cantidad,
           unidad: it.unidad,
         })),

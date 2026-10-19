@@ -20,12 +20,11 @@ import { guardarRegistro } from "@/app/actions/personal";
 import { avisar, Modal } from "@/components/ui";
 import { bajoDeBarra, NavegacionInferior, useTecladoAbierto, type ItemNavegacion } from "@/components/navegacion-inferior";
 import { BarraSuperiorMovil, PerfilMovil } from "@/components/movil";
-import {
+import { buscarPorNombre,
   ESTADO_REPOSICION,
   fechaISOLima,
   fechaLarga,
   lunesDeSemana,
-  normalizar,
   soles,
 } from "@/lib/format";
 import { RecepcionEnvios, type EnvioPorRecibir } from "./recepcion";
@@ -112,13 +111,15 @@ export function RegistroPersonal({
   const delDiaContados = delDia.filter(contadoHoy).length;
   const porContarSemana = semanales.filter((p) => !contadoSemana(p)).length;
 
-  const q = normalizar(busqueda);
   const contadoEnSeccion = (p: Producto) => (p.perecible ? contadoHoy(p) : contadoSemana(p));
   const deSeccion = seccion === "dia" ? delDia : semanales;
   // Primero lo que falta contar; lo contado queda abajo con su marca verde
-  const lista = deSeccion
-    .filter((p) => !q || normalizar(p.nombre).includes(q))
-    .sort((a, b) => Number(contadoEnSeccion(a)) - Number(contadoEnSeccion(b)));
+  // Al buscar, primero los que EMPIEZAN con lo escrito
+  const lista = buscarPorNombre(
+    [...deSeccion].sort((a, b) => Number(contadoEnSeccion(a)) - Number(contadoEnSeccion(b))),
+    busqueda,
+    (p) => p.nombre,
+  );
   const todoContado = deSeccion.length > 0 && deSeccion.every(contadoEnSeccion);
   const abierto = abiertoId === null ? null : (lista.find((p) => p.id === abiertoId) ?? null);
   // "Siguiente": el próximo de la lista que falta contar y no tiene nada escrito

@@ -5,7 +5,7 @@ import { Pencil, Search, FolderPlus, Plus } from "lucide-react";
 import { crearCategoria, crearProducto, editarProducto } from "@/app/actions/catalogo";
 import { avisar, Inicial, Modal } from "@/components/ui";
 import { BarraPaginacion, usePaginacion } from "@/components/paginacion";
-import { NOMBRE_PRESENTACION, normalizar, pct, soles } from "@/lib/format";
+import { buscarPorNombre, NOMBRE_PRESENTACION, pct, soles } from "@/lib/format";
 import type { Categoria, Presentacion } from "@/lib/types";
 
 type Producto = { id: number; nombre: string; categoria_id: number | null; activo: boolean; perecible: boolean; de_cocina: boolean };
@@ -35,15 +35,18 @@ export function Catalogo({
 
   const nombreCat = (id: number | null) => categorias.find((c) => c.id === id)?.nombre ?? "Sin categoría";
   const corto = (n: string) => n.replace(/^Colegio\s+/i, "");
-  const visibles = useMemo(() => {
-    const q = normalizar(busqueda);
-    return productos.filter(
-      (p) =>
-        (!cat || String(p.categoria_id) === cat) &&
-        (!estado || (estado === "activos" ? p.activo : !p.activo)) &&
-        (!q || normalizar(p.nombre).includes(q)),
-    );
-  }, [productos, busqueda, cat, estado]);
+  const visibles = useMemo(
+    () =>
+      // Primero los que EMPIEZAN con lo escrito
+      buscarPorNombre(
+        productos.filter(
+          (p) => (!cat || String(p.categoria_id) === cat) && (!estado || (estado === "activos" ? p.activo : !p.activo)),
+        ),
+        busqueda,
+        (p) => p.nombre,
+      ),
+    [productos, busqueda, cat, estado],
+  );
   const pag = usePaginacion(visibles.length, `${busqueda}|${cat}|${estado}`);
 
   return (
@@ -193,7 +196,7 @@ function ModalProducto({
       <div className="space-y-3">
         <label className="block">
           <span className="label">Nombre</span>
-          <input value={nombre} onChange={(e) => setNombre(e.target.value)} className="input" />
+          <input value={nombre} onChange={(e) => setNombre(e.target.value)} className="input uppercase" />
         </label>
         <label className="block">
           <span className="label">Categoría</span>
@@ -324,7 +327,7 @@ function ModalCategoria({ onCerrar }: { onCerrar: () => void }) {
     <Modal abierto onCerrar={onCerrar} titulo="Nueva categoría">
       <label className="block">
         <span className="label">Nombre</span>
-        <input value={nombre} onChange={(e) => setNombre(e.target.value)} className="input" placeholder="Ej: Helados" autoFocus />
+        <input value={nombre} onChange={(e) => setNombre(e.target.value)} className="input uppercase placeholder:normal-case" placeholder="Ej: Helados" autoFocus />
       </label>
       <div className="mt-5 flex justify-end gap-2">
         <button onClick={onCerrar} className="btn-secundario">Cancelar</button>
@@ -432,7 +435,7 @@ function ModalNuevoProducto({
       <div className="grid grid-cols-2 gap-3">
         <label className="col-span-2 sm:col-span-1">
           <span className="label">Nombre</span>
-          <input value={nombre} onChange={(e) => setNombre(e.target.value)} className="input" placeholder="Ej: Galleta Oreo" autoFocus />
+          <input value={nombre} onChange={(e) => setNombre(e.target.value)} className="input uppercase placeholder:normal-case" placeholder="Ej: Galleta Oreo" autoFocus />
         </label>
         <label className="col-span-2 sm:col-span-1">
           <span className="label">Categoría</span>

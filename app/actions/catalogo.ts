@@ -3,6 +3,7 @@
 import { refresh } from "next/cache";
 import { sesionAccion, ROLES_PANEL } from "@/lib/auth";
 import { check, db, mensajeError } from "@/lib/supabase";
+import { mayusculas } from "@/lib/format";
 import type { Presentacion, Resultado } from "@/lib/types";
 
 const PRESENTACIONES: Presentacion[] = ["UNIDAD", "CAJA", "PAQUETE", "BOLSA", "OTRO", "BALDE"];
@@ -29,7 +30,8 @@ export async function editarProducto(
 ): Promise<Resultado> {
   try {
     const sesion = await sesionAccion(ROLES_PANEL);
-    const nombre = d.nombre.trim().replace(/\s+/g, " ");
+    // Los nombres se guardan en MAYÚSCULAS (así se ven igual en todo el sistema)
+    const nombre = mayusculas(d.nombre);
     if (nombre.length < 2) return { ok: false, error: "Escribe el nombre del producto." };
     const precios = d.precios ?? {};
     if (Object.values(precios).some((p) => !Number.isFinite(p) || p < 0)) {
@@ -101,7 +103,7 @@ export async function editarProducto(
 export async function crearCategoria(nombre: string): Promise<Resultado> {
   try {
     await sesionAccion(ROLES_PANEL);
-    const limpio = nombre.trim().replace(/\s+/g, " ");
+    const limpio = mayusculas(nombre);
     if (limpio.length < 2) return { ok: false, error: "Escribe el nombre de la categoría." };
     const max = check(await db().from("categorias").select("orden").order("orden", { ascending: false }).limit(1)) as {
       orden: number;
@@ -135,7 +137,7 @@ export type NuevoProducto = {
 export async function crearProducto(d: NuevoProducto): Promise<Resultado> {
   try {
     const sesion = await sesionAccion(ROLES_PANEL);
-    const nombre = d.nombre.trim().replace(/\s+/g, " ");
+    const nombre = mayusculas(d.nombre);
     if (nombre.length < 2) return { ok: false, error: "Escribe el nombre del producto." };
     if (d.colegioIds.length === 0) return { ok: false, error: "Marca al menos un colegio donde se venderá." };
     if (!PRESENTACIONES.includes(d.presentacion)) return { ok: false, error: "Presentación no válida." };
