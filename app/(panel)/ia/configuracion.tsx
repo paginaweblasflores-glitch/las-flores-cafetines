@@ -1,12 +1,11 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { BookOpen, Brain, CheckCircle2, FileText, ImageIcon, KeyRound, Link2, Plug, Sparkles, Trash2, Upload, X } from "lucide-react";
+import { Brain, CheckCircle2, FileText, ImageIcon, KeyRound, Link2, Plug, Sparkles, Trash2, Upload, X } from "lucide-react";
 import {
   borrarDocumentoIA,
   borrarEquivalenciaIA,
   guardarClaveIA,
-  guardarInstruccionesIA,
   guardarModeloIA,
   probarIA,
   quitarClaveIA,
@@ -31,19 +30,12 @@ const DONDE_CLAVE: Record<Proveedor, { url: string; texto: string }> = {
   DEEPSEEK: { url: "https://platform.deepseek.com/api_keys", texto: "DeepSeek Platform → API keys" },
 };
 
-const EJEMPLO_INSTRUCCIONES = `Ej.:
-- En las boletas de MAZZU, lo marcado con naranja es la cantidad de paquetes y lo azul las unidades que trae cada uno.
-- "CJA" de Chicolac o Frugos son 4 paquetes de 6.
-- El costo es el precio por paquete que figura en la boleta.`;
-
 export function ConfiguracionIA({
   proveedores,
-  instrucciones,
   documentos,
   equivalencias,
 }: {
   proveedores: InfoProveedor[];
-  instrucciones: string;
   documentos: { id: number; nombre: string; tipo: string; tamano: number; created_at: string }[];
   equivalencias: { id: number; texto: string; usos: number; producto: string }[];
 }) {
@@ -54,7 +46,6 @@ export function ConfiguracionIA({
           <TarjetaProveedor key={p.id} p={p} />
         ))}
       </div>
-      <Instrucciones inicial={instrucciones} />
       <Documentos documentos={documentos} />
       <Equivalencias lista={equivalencias} />
     </div>
@@ -188,36 +179,6 @@ function TarjetaProveedor({ p }: { p: InfoProveedor }) {
           )}
         </>
       )}
-    </div>
-  );
-}
-
-function Instrucciones({ inicial }: { inicial: string }) {
-  const [texto, setTexto] = useState(inicial);
-  const [pendiente, iniciar] = useTransition();
-  return (
-    <div className="card p-5">
-      <h2 className="mb-1 flex items-center gap-2 font-medium">
-        <BookOpen className="h-4 w-4 text-suave" /> Instrucciones para la IA
-      </h2>
-      <p className="mb-3 text-sm text-suave">Lo que la IA debe tener en cuenta siempre al leer una boleta: cómo marcan las cantidades, cómo viene cada producto, etc.</p>
-      <textarea value={texto} onChange={(e) => setTexto(e.target.value)} rows={6} className="input" placeholder={EJEMPLO_INSTRUCCIONES} />
-      <div className="mt-3 flex items-center justify-between gap-3">
-        <span className="text-xs text-suave">{texto.length}/6000</span>
-        <button
-          onClick={() =>
-            iniciar(async () => {
-              const r = await guardarInstruccionesIA(texto);
-              if (r.ok) avisar(r.mensaje ?? "Guardado");
-              else avisar(r.error, "error");
-            })
-          }
-          disabled={pendiente || texto === inicial}
-          className="btn-primario"
-        >
-          {pendiente ? "Guardando..." : "Guardar instrucciones"}
-        </button>
-      </div>
     </div>
   );
 }

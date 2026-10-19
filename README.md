@@ -94,7 +94,7 @@ si eso pasa, se reactiva en **Actions** con *Enable workflow*.
 3. Entrar como administración → **Administración → API**, pegar la clave y tocar **Conectar**.
    Se prueba, se guarda **cifrada en la base** (funciona en Vercel sin más) y en la PC de desarrollo también en `.env` (`GEMINI_API_KEY`).
    Opcional: ponerla también en Vercel → Settings → Environment Variables como `GEMINI_API_KEY` (se usa si en el panel no hay clave).
-4. En la misma pantalla: instrucciones para la IA, documentos de referencia (su "memoria") y lo que aprendió.
+4. En la misma pantalla: documentos de referencia (su "memoria") y lo que aprendió. Lo que debe hacer ya está en su prompt interno (`app/actions/ia.ts`).
 
 La IA **nunca registra sola**: llena la lista, marca lo dudoso y los productos nuevos, y avisa si el total no cuadra con la boleta.
 Al registrar, crea los productos que faltan (solo en ese colegio, con precio de venta S/ 0) y aprende cómo sale cada producto en la boleta.
@@ -164,7 +164,7 @@ y queda en el Historial con su motivo.
 - **Historial:** cada movimiento de stock y cada cambio de precio, con fecha, hora y usuario.
 - **Colegios** (solo admin): crear colegios nuevos copiando el catálogo de otro.
 - **Usuarios** (solo admin).
-- **API** (administración y logística): clave de Gemini/DeepSeek, instrucciones, documentos de referencia y equivalencias aprendidas.
+- **API** (administración y logística): clave de Gemini/DeepSeek, documentos de referencia y equivalencias aprendidas.
 
 ### Agregar un colegio nuevo (el próximo año)
 1. **Colegios → Nuevo colegio** (elige copiar productos y precios de Bosco o Romero).

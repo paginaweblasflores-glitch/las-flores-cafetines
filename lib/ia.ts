@@ -19,7 +19,6 @@ export const PROVEEDORES: Record<Proveedor, { nombre: string; variable: string; 
 
 const CLAVE = (p: Proveedor) => `ia.${p.toLowerCase()}.clave`;
 const MODELO = (p: Proveedor) => `ia.${p.toLowerCase()}.modelo`;
-export const CONF_INSTRUCCIONES = "ia.instrucciones";
 
 // ---------- Cifrado (la clave de la IA nunca queda en texto plano en la base) ----------
 function llaveCifrado() {

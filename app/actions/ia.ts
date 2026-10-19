@@ -6,11 +6,9 @@ import { obtenerCategorias, obtenerStock } from "@/lib/data";
 import { mayusculas } from "@/lib/format";
 import {
   claveDe,
-  CONF_INSTRUCCIONES,
   escribirEnEnv,
   geminiJSON,
   guardarClave,
-  guardarConfiguracion,
   guardarModelo,
   leerConfiguracion,
   modeloDe,
@@ -93,19 +91,6 @@ export async function guardarModeloIA(p: Proveedor, modelo: string): Promise<Res
     await guardarModelo(p, modelo, sesion.uid);
     refresh();
     return { ok: true, mensaje: `Modelo: ${modelo}` };
-  } catch (e) {
-    return { ok: false, error: mensajeError(e) };
-  }
-}
-
-export async function guardarInstruccionesIA(texto: string): Promise<Resultado> {
-  try {
-    const sesion = await sesionAccion(ROLES_PANEL);
-    const t = texto.trim();
-    if (t.length > 6000) return { ok: false, error: "Las instrucciones son muy largas (máximo 6000 letras)." };
-    await guardarConfiguracion(CONF_INSTRUCCIONES, t || null, sesion.uid);
-    refresh();
-    return { ok: true, mensaje: "Instrucciones guardadas." };
   } catch (e) {
     return { ok: false, error: mensajeError(e) };
   }
@@ -279,7 +264,14 @@ Reglas:
 6. Costos en soles: costo_por_paquete = precio de cada caja/paquete; costo_por_unidad si va por unidad. importe = total de la línea impreso. Debe cumplirse paquetes × costo_por_paquete ≈ importe; si no cuadra, revisa de nuevo y si persiste, explícalo en nota.
 7. total = el TOTAL A PAGAR impreso del documento (no lo calcules tú). Si no se ve, null.
 8. confianza: ALTA si lo leíste claro y el producto es seguro; MEDIA si dudas del producto o de una cifra; BAJA si es una estimación.
-9. Sigue también las INSTRUCCIONES DE ADMINISTRACIÓN y usa los DOCUMENTOS DE REFERENCIA como apoyo (no son la boleta a registrar).`;
+9. Usa los DOCUMENTOS DE REFERENCIA como apoyo para reconocer productos, presentaciones y precios (no son la boleta a registrar).
+
+Cómo trabaja logística en Las Flores (tenlo siempre en cuenta):
+- Sobre la boleta escriben a mano: lo marcado en NARANJA es la cantidad de paquetes/cajas/bolsas comprados, y lo marcado en AZUL son las unidades que trae cada uno ("c/u"). Esas marcas mandan sobre lo impreso.
+- El costo a registrar es el precio por paquete/caja que figura en la boleta (no el precio por unidad), salvo que se compre por unidad.
+- Una "CJA" de CHICOLAC o de FRUGOS DEL VALLE son 4 paquetes de 6 unidades: regístrala como 4 paquetes de 6 por cada caja, con el costo de la caja dividido entre 4.
+- "Bebida Gloria Durazno" de caja de 24 es FRUGOS KIDS TRIANGULO.
+- Los nombres de productos van en MAYÚSCULAS, con el nombre comercial con el que se vende en el cafetín.`;
 
 /** Lee la boleta (fotos/PDF) y la relaciona con el catálogo del colegio. No guarda nada. */
 export async function leerBoleta(fd: FormData): Promise<BoletaLeida | { ok: false; error: string }> {
@@ -327,7 +319,6 @@ export async function leerBoleta(fd: FormData): Promise<BoletaLeida | { ok: fals
       { texto: `CATEGORÍAS (id | nombre):\n${categorias.map((c) => `${c.id} | ${c.nombre}`).join("\n")}` },
       { texto: `CATÁLOGO (id | nombre | categoría | cómo se compra):\n${catalogo}` },
       { texto: `EQUIVALENCIAS CONFIRMADAS (texto de boleta → id):\n${equivTexto || "(todavía ninguna)"}` },
-      { texto: `INSTRUCCIONES DE ADMINISTRACIÓN:\n${conf.get(CONF_INSTRUCCIONES) || "(ninguna)"}` },
     ];
     for (const d of documentos) {
       partes.push({ texto: `DOCUMENTO DE REFERENCIA (solo apoyo, NO se registra): ${d.nombre}` });

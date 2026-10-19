@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { requerirSesion, ROLES_PANEL } from "@/lib/auth";
-import { claveDe, CONF_INSTRUCCIONES, leerConfiguracion, modeloDe, ocultar, PROVEEDORES, type Proveedor } from "@/lib/ia";
+import { claveDe, leerConfiguracion, modeloDe, ocultar, PROVEEDORES, type Proveedor } from "@/lib/ia";
 import { check, db } from "@/lib/supabase";
 import { Encabezado } from "@/components/encabezado";
 import { ConfiguracionIA } from "./configuracion";
@@ -34,11 +34,10 @@ export default async function PaginaIA() {
     <div className="mx-auto max-w-[1100px]">
       <Encabezado
         titulo="API"
-        descripcion='Conecta la IA para que logística llene las entregas leyendo la foto de la boleta (Entregas → "Llenar con IA").'
+        descripcion='Conecta la IA para llenar las entregas con la foto de la boleta (Entregas → "Llenar con IA"). Ya sabe qué hacer: solo pega la clave.'
       />
       <ConfiguracionIA
         proveedores={proveedores}
-        instrucciones={conf.get(CONF_INSTRUCCIONES) ?? ""}
         documentos={documentos as { id: number; nombre: string; tipo: string; tamano: number; created_at: string }[]}
         equivalencias={(equivalencias as unknown as { id: number; texto: string; usos: number; updated_at: string; productos: { nombre: string } | null }[]).map(
           (e) => ({ id: e.id, texto: e.texto, usos: e.usos, producto: e.productos?.nombre ?? "—" }),
