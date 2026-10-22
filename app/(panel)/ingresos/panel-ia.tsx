@@ -236,7 +236,7 @@ export function PanelIA({
               </>
             )}
           </button>
-          {leyendo && <p className="mt-2 text-center text-xs text-suave">Suele tardar entre 10 y 30 segundos.</p>}
+          {leyendo && <p className="mt-2 text-center text-xs text-suave">Suele tardar entre 10 y 40 segundos. Si Google está saturado, prueba otro modelo solo (hasta 2 minutos).</p>}
 
           {resumen && (
             <div className="mt-3 rounded-xl bg-verde-50 px-3 py-2 text-sm text-verde-700">

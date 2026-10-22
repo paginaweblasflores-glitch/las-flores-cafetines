@@ -12,6 +12,7 @@ import {
   guardarModelo,
   leerConfiguracion,
   mejorModeloGemini,
+  modelosDeRespaldo,
   modeloDe,
   normalizar,
   probarClave,
@@ -328,19 +329,30 @@ export async function leerBoleta(fd: FormData): Promise<BoletaLeida | { ok: fals
     partes.push({ texto: `BOLETA A REGISTRAR (${archivos.length} archivo${archivos.length === 1 ? "" : "s"}, pueden ser páginas del mismo documento o varios documentos):` });
     for (const a of archivos) partes.push({ archivo: { tipo: a.type, base64: Buffer.from(await a.arrayBuffer()).toString("base64") } });
 
-    const pedir = (modelo: string) => geminiJSON<RespuestaIA>({ clave, modelo, sistema: SISTEMA, partes, esquema: ESQUEMA });
-    const modelo = modeloDe(conf, "GEMINI");
-    let r = await pedir(modelo);
-    // Modelo retirado por Google (404) u ocupado (503): se prueba con el flash más nuevo disponible
-    const retirado = !r.ok && r.estado === 404;
-    if (!r.ok && (r.estado === 404 || r.estado === 503)) {
-      const lista = await probarClave("GEMINI", clave);
-      const otro = lista.ok ? mejorModeloGemini(lista.modelos.filter((m) => m !== modelo)) : null;
-      if (otro) {
-        r = await pedir(otro);
+    // Si un modelo está saturado (503), retirado (404), con límite (429) o no responde, se prueba el siguiente
+    const elegido = modeloDe(conf, "GEMINI");
+    const PLAZO = 100_000;
+    let r: Awaited<ReturnType<typeof geminiJSON<RespuestaIA>>> = { ok: false, error: "La IA no respondió." };
+    let candidatos = [elegido];
+    let retirado = false;
+    for (let i = 0; i < candidatos.length && i < 5; i++) {
+      const queda = PLAZO - (Date.now() - inicio);
+      if (queda < 8000) break;
+      const modelo = candidatos[i];
+      r = await geminiJSON<RespuestaIA>({ clave, modelo, sistema: SISTEMA, partes, esquema: ESQUEMA, limiteMs: Math.min(45_000, queda) });
+      if (r.ok) {
         // Si Google retiró el elegido, queda guardado el que funcionó
-        if (r.ok && retirado) await guardarModelo("GEMINI", otro, sesionUid);
+        if (retirado && modelo !== elegido) await guardarModelo("GEMINI", modelo, sesionUid);
+        break;
       }
+      if (![404, 429, 500, 503, 504].includes(r.estado ?? 0)) break;
+      if (i === 0) {
+        retirado = r.estado === 404;
+        const lista = await probarClave("GEMINI", clave);
+        candidatos = modelosDeRespaldo(elegido, lista.ok ? lista.modelos : []);
+      }
+      console.warn(`[IA] ${modelo}: ${r.error} → probando otro modelo`);
+      await new Promise((ok) => setTimeout(ok, 1000));
     }
     if (!r.ok) return { ok: false, error: r.error };
 

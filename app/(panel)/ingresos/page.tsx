@@ -19,7 +19,7 @@ import { agruparLotes, estadoLote, type Lote } from "@/lib/entregas";
 
 export const metadata: Metadata = { title: "Entregas" };
 // Leer una boleta con la IA puede tardar (las Server Actions de esta página usan este límite)
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 export default async function PaginaIngresos({ searchParams }: PageProps<"/ingresos">) {
   const sesion = await requerirSesion(ROLES_PANEL);

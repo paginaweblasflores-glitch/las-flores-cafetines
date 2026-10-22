@@ -81,6 +81,24 @@ export function mejorModeloGemini(modelos: string[]): string | null {
   return estables[0] ?? modelos.find((m) => m === "gemini-flash-latest") ?? null;
 }
 
+/**
+ * Orden en que se prueban los modelos si uno está saturado: el elegido, los dos flash estables
+ * más nuevos, el "lite" más nuevo, el alias "latest" y la versión preview.
+ */
+export function modelosDeRespaldo(elegido: string, modelos: string[]): string[] {
+  const version = (m: string, re: RegExp) => {
+    const x = re.exec(m);
+    return x ? Number(x[1]) * 1000 + Number(x[2] ?? 0) : -1;
+  };
+  const ordenar = (re: RegExp) =>
+    modelos.filter((m) => version(m, re) >= 0).sort((a, b) => version(b, re) - version(a, re));
+  const flash = ordenar(/^gemini-(\d+)(?:\.(\d+))?-flash$/);
+  const lite = ordenar(/^gemini-(\d+)(?:\.(\d+))?-flash-lite$/);
+  const extra = ["gemini-flash-latest", "gemini-3-flash-preview"].filter((m) => modelos.includes(m));
+  // El "lite" va antes del preview: cuando hay mucha demanda suele responder (el preview a veces se cuelga)
+  return [...new Set([elegido, ...flash.slice(0, 2), ...lite.slice(0, 1), ...extra])];
+}
+
 export async function guardarClave(p: Proveedor, clave: string | null, usuarioId: number) {
   await guardarConfiguracion(CLAVE(p), clave ? cifrar(clave) : null, usuarioId);
 }
@@ -142,6 +160,7 @@ async function errorDe(r: Response) {
   if (r.status === 401 || r.status === 403) return "La clave no es válida o no tiene permiso.";
   if (r.status === 429) return "Se pasó el límite de uso de la IA por ahora. Espera un minuto y vuelve a intentar.";
   if (r.status === 404) return "Ese modelo no existe o no está disponible para tu clave. Elige otro en Administración → API.";
+  if (r.status === 503) return "Google Gemini está saturado en este momento (mucha demanda). Intenta de nuevo en 1 o 2 minutos.";
   if (r.status >= 500) return "El servicio de IA no responde en este momento. Intenta en un rato.";
   let msg = "";
   try {
@@ -160,12 +179,15 @@ export async function geminiJSON<T>(o: {
   sistema: string;
   partes: ({ texto: string } | { archivo: Archivo })[];
   esquema: object;
+  /** Si no responde en este tiempo, se corta (para probar con otro modelo) */
+  limiteMs?: number;
 }): Promise<{ ok: true; datos: T } | { ok: false; error: string; estado?: number }> {
   try {
     const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(o.modelo)}:generateContent`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": o.clave },
       cache: "no-store",
+      signal: AbortSignal.timeout(o.limiteMs ?? 60000),
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: o.sistema }] },
         contents: [
@@ -189,6 +211,9 @@ export async function geminiJSON<T>(o: {
     return { ok: true, datos: JSON.parse(texto) as T };
   } catch (e) {
     if (e instanceof SyntaxError) return { ok: false, error: "La IA respondió algo incompleto. Vuelve a intentar." };
+    if (e instanceof DOMException && (e.name === "TimeoutError" || e.name === "AbortError")) {
+      return { ok: false, error: "La IA tardó demasiado en responder. Vuelve a intentar.", estado: 504 };
+    }
     return { ok: false, error: "No se pudo conectar con la IA. Revisa el internet." };
   }
 }
