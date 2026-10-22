@@ -12,7 +12,7 @@ import { check, db } from "./supabase";
 export type Proveedor = "GEMINI" | "DEEPSEEK";
 
 export const PROVEEDORES: Record<Proveedor, { nombre: string; variable: string; modeloPorDefecto: string; leeFotos: boolean }> = {
-  GEMINI: { nombre: "Google Gemini", variable: "GEMINI_API_KEY", modeloPorDefecto: "gemini-2.5-flash", leeFotos: true },
+  GEMINI: { nombre: "Google Gemini", variable: "GEMINI_API_KEY", modeloPorDefecto: "gemini-3.8-flash", leeFotos: true },
   // La API de DeepSeek (por ahora) solo trabaja con texto: no puede leer la foto de la boleta
   DEEPSEEK: { nombre: "DeepSeek", variable: "DEEPSEEK_API_KEY", modeloPorDefecto: "deepseek-chat", leeFotos: false },
 };
@@ -66,6 +66,20 @@ export function claveDe(conf: Map<string, string>, p: Proveedor): { clave: strin
 }
 
 export const modeloDe = (conf: Map<string, string>, p: Proveedor) => conf.get(MODELO(p)) || PROVEEDORES[p].modeloPorDefecto;
+
+/**
+ * El "flash" estable más nuevo de la lista (gemini-3.8-flash antes que gemini-3.7-flash…).
+ * Google retira los modelos viejos para usuarios nuevos: así siempre se usa uno vigente.
+ */
+export function mejorModeloGemini(modelos: string[]): string | null {
+  // 3.10 es más nuevo que 3.8: se compara mayor y menor por separado
+  const version = (m: string) => {
+    const x = /^gemini-(\d+)(?:\.(\d+))?-flash$/.exec(m);
+    return x ? Number(x[1]) * 1000 + Number(x[2] ?? 0) : -1;
+  };
+  const estables = modelos.filter((m) => version(m) >= 0).sort((a, b) => version(b) - version(a));
+  return estables[0] ?? modelos.find((m) => m === "gemini-flash-latest") ?? null;
+}
 
 export async function guardarClave(p: Proveedor, clave: string | null, usuarioId: number) {
   await guardarConfiguracion(CLAVE(p), clave ? cifrar(clave) : null, usuarioId);
@@ -146,7 +160,7 @@ export async function geminiJSON<T>(o: {
   sistema: string;
   partes: ({ texto: string } | { archivo: Archivo })[];
   esquema: object;
-}): Promise<{ ok: true; datos: T } | { ok: false; error: string }> {
+}): Promise<{ ok: true; datos: T } | { ok: false; error: string; estado?: number }> {
   try {
     const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(o.modelo)}:generateContent`, {
       method: "POST",
@@ -163,7 +177,7 @@ export async function geminiJSON<T>(o: {
         generationConfig: { temperature: 0, responseMimeType: "application/json", responseSchema: o.esquema },
       }),
     });
-    if (!r.ok) return { ok: false, error: await errorDe(r) };
+    if (!r.ok) return { ok: false, error: await errorDe(r), estado: r.status };
     const j = (await r.json()) as {
       candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[];
       promptFeedback?: { blockReason?: string };

@@ -11,6 +11,7 @@ import {
   guardarClave,
   guardarModelo,
   leerConfiguracion,
+  mejorModeloGemini,
   modeloDe,
   normalizar,
   probarClave,
@@ -44,9 +45,9 @@ export async function guardarClaveIA(p: Proveedor, clave: string): Promise<Resul
     // Si el modelo elegido no está entre los de esta clave, se usa el recomendado
     const conf = await leerConfiguracion();
     if (prueba.modelos.length && !prueba.modelos.includes(modeloDe(conf, p))) {
-      const recomendado = prueba.modelos.includes(PROVEEDORES[p].modeloPorDefecto)
-        ? PROVEEDORES[p].modeloPorDefecto
-        : (prueba.modelos.find((m) => /flash/.test(m) && !/lite|preview|exp/.test(m)) ?? prueba.modelos[0]);
+      const recomendado =
+        (p === "GEMINI" ? mejorModeloGemini(prueba.modelos) : null) ??
+        (prueba.modelos.includes(PROVEEDORES[p].modeloPorDefecto) ? PROVEEDORES[p].modeloPorDefecto : prueba.modelos[0]);
       await guardarModelo(p, recomendado, sesion.uid);
     }
     const enEnv = await escribirEnEnv(PROVEEDORES[p].variable, limpia);
@@ -277,7 +278,7 @@ Cómo trabaja logística en Las Flores (tenlo siempre en cuenta):
 export async function leerBoleta(fd: FormData): Promise<BoletaLeida | { ok: false; error: string }> {
   const inicio = Date.now();
   try {
-    await sesionAccion(ROLES_PANEL);
+    const sesionUid = (await sesionAccion(ROLES_PANEL)).uid;
     const colegioId = Number(fd.get("colegioId"));
     if (!Number.isInteger(colegioId) || colegioId <= 0) return { ok: false, error: "Elige el colegio." };
     const archivos = fd.getAll("archivos").filter((a): a is File => a instanceof File && a.size > 0);
@@ -327,8 +328,21 @@ export async function leerBoleta(fd: FormData): Promise<BoletaLeida | { ok: fals
     partes.push({ texto: `BOLETA A REGISTRAR (${archivos.length} archivo${archivos.length === 1 ? "" : "s"}, pueden ser páginas del mismo documento o varios documentos):` });
     for (const a of archivos) partes.push({ archivo: { tipo: a.type, base64: Buffer.from(await a.arrayBuffer()).toString("base64") } });
 
-    const r = await geminiJSON<RespuestaIA>({ clave, modelo: modeloDe(conf, "GEMINI"), sistema: SISTEMA, partes, esquema: ESQUEMA });
-    if (!r.ok) return r;
+    const pedir = (modelo: string) => geminiJSON<RespuestaIA>({ clave, modelo, sistema: SISTEMA, partes, esquema: ESQUEMA });
+    const modelo = modeloDe(conf, "GEMINI");
+    let r = await pedir(modelo);
+    // Modelo retirado por Google (404) u ocupado (503): se prueba con el flash más nuevo disponible
+    const retirado = !r.ok && r.estado === 404;
+    if (!r.ok && (r.estado === 404 || r.estado === 503)) {
+      const lista = await probarClave("GEMINI", clave);
+      const otro = lista.ok ? mejorModeloGemini(lista.modelos.filter((m) => m !== modelo)) : null;
+      if (otro) {
+        r = await pedir(otro);
+        // Si Google retiró el elegido, queda guardado el que funcionó
+        if (r.ok && retirado) await guardarModelo("GEMINI", otro, sesionUid);
+      }
+    }
+    if (!r.ok) return { ok: false, error: r.error };
 
     // ---- Revisión en el servidor: lo aprendido manda, y todo se ajusta a cómo está el producto en el sistema ----
     const porTexto = new Map(equivalencias.map((e) => [e.texto, e.producto_id]));
