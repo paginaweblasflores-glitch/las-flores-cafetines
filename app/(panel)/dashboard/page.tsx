@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { after } from "next/server";
 import Link from "next/link";
-import { ArrowDownRight, ArrowUpRight, CheckCircle2, Clock, AlertTriangle, ArrowRight, BellRing, Minus } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, CheckCircle2, Clock, AlertTriangle, ArrowRight, Minus } from "lucide-react";
 import { requerirSesion, ROLES_PANEL } from "@/lib/auth";
 import {
   colegioSeleccionado,
@@ -136,22 +136,12 @@ export default async function Dashboard() {
     return { cocina: p.filter((e) => e.origen === "COCINA").length, logistica: p.filter((e) => e.origen === "LOGISTICA").length };
   };
 
-  // Lo que espera a quien entra (Betsy aprueba, Fernanda compra)
-  const entregasSinRecibir = new Set(porRecibirTodo.filter((e) => e.origen === "LOGISTICA").map((e) => e.lote ?? e.id)).size;
   const pedidoEnCurso = new Map<string, string>();
   for (const r of reposiciones) {
     if (r.estado !== "POR_APROBAR" && r.estado !== "APROBADA" && r.estado !== "EN_COMPRA") continue;
     for (const i of r.items)
       if (i.producto_id != null && !i.quitado) pedidoEnCurso.set(`${r.colegio_id}-${i.producto_id}`, r.codigo);
   }
-  const pendientes = [
-    entregasSinRecibir > 0
-      ? {
-          texto: `${entregasSinRecibir} entrega${entregasSinRecibir === 1 ? "" : "s"} sin recibir en el colegio`,
-          href: "/ingresos",
-        }
-      : null,
-  ].filter((x): x is { texto: string; href: string } => x !== null);
 
   // Ventas por día del mes actual (total)
   const porDia = Array.from({ length: rMes.dias }, () => 0);
@@ -238,19 +228,6 @@ export default async function Dashboard() {
           {colegioId ? nombreColegio.get(colegioId) : "Todos los colegios"} · resumen de {nombreMes(mes)}
         </p>
       </div>
-
-      {pendientes.length > 0 && (
-        <div className="mb-6 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-2xl border border-ambar/40 bg-ambar-50 px-5 py-3 text-sm">
-          <span className="flex items-center gap-2 font-medium text-[#8a5a00]">
-            <BellRing className="h-4 w-4" /> Pendiente
-          </span>
-          {pendientes.map((p) => (
-            <Link key={p.texto} href={p.href} className="text-[#8a5a00] underline-offset-2 hover:underline">
-              {p.texto} →
-            </Link>
-          ))}
-        </div>
-      )}
 
       {/* ---------- Indicadores: el número es la respuesta ---------- */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">

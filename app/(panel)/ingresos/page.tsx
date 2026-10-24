@@ -51,7 +51,9 @@ export default async function PaginaIngresos({ searchParams }: PageProps<"/ingre
   const observadas = (ls: Lote[]) => ls.filter((l) => l.observados > 0);
   const entregas = soloObs ? observadas(todasEntregas) : todasEntregas;
   const deCocina = soloObs ? observadas(todoCocina) : todoCocina;
-  const totalObs = observadas(todasEntregas).length + observadas(todoCocina).length;
+  // Logística solo ve su historial (las entregas); los envíos de cocina los ve administración
+  const verCocina = sesion.rol === "ADMIN";
+  const totalObs = observadas(todasEntregas).length + (verCocina ? observadas(todoCocina).length : 0);
   const enlaceObs = (activo: boolean) => `/ingresos?mes=${mes}${activo ? "&obs=1" : ""}`;
   const nombreColegio = new Map(colegios.map((c) => [c.id, c.nombre]));
   const totalMes = todasEntregas.reduce((a, l) => a + l.items.reduce((b, e) => b + costoEnvio(e), 0), 0);
@@ -182,7 +184,8 @@ export default async function PaginaIngresos({ searchParams }: PageProps<"/ingre
         </div>
       </div>
 
-      {/* Envíos de cocina (productos del día), uno por envío */}
+      {/* Envíos de cocina (productos del día), uno por envío. Solo administración. */}
+      {verCocina && (
       <div className="card mt-6 overflow-hidden">
         <div className="border-b border-borde px-5 py-4">
           <h2 className="flex items-center gap-2 font-medium">
@@ -213,6 +216,7 @@ export default async function PaginaIngresos({ searchParams }: PageProps<"/ingre
           />
         )}
       </div>
+      )}
     </div>
   );
 }
