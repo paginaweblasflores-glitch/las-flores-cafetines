@@ -221,3 +221,29 @@ export async function crearProducto(d: NuevoProducto): Promise<Resultado> {
     return { ok: false, error: msg.startsWith("Ya existe") ? "Ya existe un producto con ese nombre en el catálogo." : msg };
   }
 }
+
+/**
+ * Elimina un producto por completo (de todos los colegios). Solo administración.
+ * Si ya tiene historial (entregas, envíos, ventas, conteos) no se borra, porque los reportes
+ * pasados dependen de él: en ese caso se desactiva.
+ */
+export async function eliminarProducto(productoId: number): Promise<Resultado> {
+  try {
+    await sesionAccion(["ADMIN"]);
+    const p = check(await db().from("productos").select("id, nombre").eq("id", productoId).maybeSingle()) as { id: number; nombre: string } | null;
+    if (!p) return { ok: false, error: "El producto ya no existe. Recarga la página." };
+    const cuenta = async (tabla: string) => (await db().from(tabla).select("*", { count: "exact", head: true }).eq("producto_id", productoId)).count ?? 0;
+    const [movs, envios, conteos] = await Promise.all([cuenta("movimientos"), cuenta("envios"), cuenta("conteo_items")]);
+    if (movs + envios + conteos > 0) {
+      return {
+        ok: false,
+        error: `"${p.nombre}" ya tiene historial (entregas, ventas o conteos) y los reportes dependen de él. Desactívalo en Editar en vez de eliminarlo.`,
+      };
+    }
+    check(await db().from("productos").delete().eq("id", productoId));
+    refresh();
+    return { ok: true, mensaje: `"${p.nombre}" eliminado del catálogo.` };
+  } catch (e) {
+    return { ok: false, error: mensajeError(e) };
+  }
+}

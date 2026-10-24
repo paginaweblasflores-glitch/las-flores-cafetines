@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { Pencil, Search, FolderPlus, Plus } from "lucide-react";
-import { crearCategoria, crearProducto, editarProducto } from "@/app/actions/catalogo";
+import { Pencil, Search, FolderPlus, Plus, Trash2 } from "lucide-react";
+import { crearCategoria, crearProducto, editarProducto, eliminarProducto } from "@/app/actions/catalogo";
 import { avisar, Inicial, Modal } from "@/components/ui";
 import { BarraPaginacion, usePaginacion } from "@/components/paginacion";
 import { buscarPorNombre, ENVASES, envasesDeCategoria, ML_POR_VASO, NOMBRE_PRESENTACION, pct, soles, stockEnCompra } from "@/lib/format";
@@ -33,6 +33,7 @@ export function Catalogo({
   productos,
   presencias,
   verGanancia = true,
+  puedeEliminar = false,
 }: {
   colegios: { id: number; nombre: string }[];
   categorias: Categoria[];
@@ -40,7 +41,19 @@ export function Catalogo({
   presencias: Presencia[];
   /** Solo administración ve la ganancia por unidad */
   verGanancia?: boolean;
+  /** Solo administración puede eliminar productos */
+  puedeEliminar?: boolean;
 }) {
+  const [eliminando, iniciarEliminar] = useTransition();
+  const [porEliminar, setPorEliminar] = useState<Producto | null>(null);
+  const eliminar = (p: Producto) =>
+    iniciarEliminar(async () => {
+      const r = await eliminarProducto(p.id);
+      if (r.ok) {
+        avisar(r.mensaje ?? "Eliminado");
+        setPorEliminar(null);
+      } else avisar(r.error, "error");
+    });
   const [busqueda, setBusqueda] = useState("");
   const [cat, setCat] = useState("");
   const [estado, setEstado] = useState<"" | "activos" | "inactivos">("");
@@ -152,10 +165,21 @@ export function Catalogo({
                         {p.activo ? "Activo" : "Inactivo"}
                       </span>
                     </td>
-                    <td className="text-right">
-                      <button onClick={() => setEditando(p)} className="btn-fantasma" title="Editar">
+                    <td className="text-right whitespace-nowrap">
+                      <button onClick={() => setEditando(p)} className="btn-fantasma" title="Editar" aria-label={`Editar ${p.nombre}`}>
                         <Pencil className="h-4 w-4" />
                       </button>
+                      {puedeEliminar && (
+                        <button
+                          onClick={() => setPorEliminar(p)}
+                          disabled={eliminando}
+                          className="btn-fantasma text-suave hover:bg-rojo-50 hover:text-rojo"
+                          title="Eliminar"
+                          aria-label={`Eliminar ${p.nombre}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
@@ -166,6 +190,39 @@ export function Catalogo({
         <BarraPaginacion p={pag} etiqueta="productos" />
       </div>
 
+      {porEliminar && (
+        <Modal
+          abierto
+          onCerrar={() => !eliminando && setPorEliminar(null)}
+          titulo="Eliminar producto"
+          subtitulo="Se borra de todos los colegios. No se puede deshacer."
+          ancho="max-w-md"
+        >
+          <div className="flex items-start gap-3 rounded-xl bg-rojo-50 p-3">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-rojo">
+              <Trash2 className="h-4 w-4" />
+            </span>
+            <p className="text-sm">
+              ¿Eliminar <b>{porEliminar.nombre}</b> por completo?
+              <span className="mt-1 block text-xs text-suave">
+                Si ya tiene entregas, ventas o conteos, no se elimina: en ese caso desactívalo en Editar.
+              </span>
+            </p>
+          </div>
+          <div className="mt-5 flex justify-end gap-2">
+            <button onClick={() => setPorEliminar(null)} disabled={eliminando} className="btn-secundario">
+              Cancelar
+            </button>
+            <button
+              onClick={() => eliminar(porEliminar)}
+              disabled={eliminando}
+              className="btn-primario bg-rojo hover:bg-rojo/90"
+            >
+              <Trash2 className="h-4 w-4" /> {eliminando ? "Eliminando..." : "Eliminar"}
+            </button>
+          </div>
+        </Modal>
+      )}
       {editando && (
         <ModalProducto
           producto={editando}

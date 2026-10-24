@@ -37,6 +37,7 @@ export default async function PaginaCatalogo() {
           unidades: s.unidades_por_presentacion,
         }))}
         verGanancia={sesion.rol === "ADMIN"}
+        puedeEliminar={sesion.rol === "ADMIN"}
       />
     </div>
   );

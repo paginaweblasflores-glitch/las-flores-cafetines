@@ -49,6 +49,12 @@ const soloDecimal = (v: string) => {
   const [entero, ...resto] = limpio.split(".");
   return resto.length ? `${entero}.${resto.join("").slice(0, 2)}` : entero;
 };
+/** Al tocar un campo se selecciona lo que tiene (el 0 o el número), para escribir encima sin borrar */
+const seleccionarTodo = (e: React.FocusEvent<HTMLElement>) => {
+  const campo = e.target;
+  // Después del clic (si no, el navegador deja el cursor y quita la selección)
+  if (campo instanceof HTMLInputElement) requestAnimationFrame(() => campo.select());
+};
 let contador = 0;
 const nuevaClave = () => `l${++contador}`;
 const PRESENTACIONES_COMPRA: Presentacion[] = ["UNIDAD", "CAJA", "PAQUETE", "BOLSA", "OTRO"];
@@ -353,7 +359,7 @@ export function FormularioEntrega({
 
           {it && (
             <>
-              <div className={`mt-3 grid gap-3 ${esUnidad ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-4"}`}>
+              <div className={`mt-3 grid items-end gap-3 ${esUnidad ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-4"}`} onFocus={seleccionarTodo}>
                 {!esUnidad && (
                   <>
                     <label>
@@ -368,7 +374,7 @@ export function FormularioEntrega({
                       />
                     </label>
                     <label>
-                      <span className="label">Unidades por {nombreCaja}</span>
+                      <span className="label">Unid. por {nombreCaja}</span>
                       <input
                         inputMode="numeric"
                         value={b.porCaja}
@@ -391,7 +397,7 @@ export function FormularioEntrega({
                   />
                 </label>
                 <label>
-                  <span className="label">Costo por {esUnidad ? "unidad" : nombreCaja} (S/)</span>
+                  <span className="label">Costo x {esUnidad ? "unidad" : nombreCaja} S/</span>
                   <input
                     inputMode="decimal"
                     value={b.costo}
@@ -733,7 +739,7 @@ function HojaPorCrear({
           </>
         )}
 
-        <div className={`grid gap-3 ${unidad ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-4"}`}>
+        <div className={`grid items-end gap-3 ${unidad ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-4"}`} onFocus={seleccionarTodo}>
           {!unidad && (
             <>
               <label>
@@ -741,7 +747,7 @@ function HojaPorCrear({
                 <input inputMode="numeric" value={cajas} onChange={(e) => setCajas(soloDigitos(e.target.value))} className="input text-base" />
               </label>
               <label>
-                <span className="label">Unidades c/u</span>
+                <span className="label">Unid. por {(NOMBRE_PRESENTACION[presentacion] ?? "caja").toLowerCase()}</span>
                 <input inputMode="numeric" value={porCaja} onChange={(e) => setPorCaja(soloDigitos(e.target.value))} className="input text-base" />
               </label>
             </>
@@ -751,7 +757,7 @@ function HojaPorCrear({
             <input inputMode="numeric" value={sueltas} onChange={(e) => setSueltas(soloDigitos(e.target.value))} className="input text-base" />
           </label>
           <label>
-            <span className="label">Costo c/{unidad ? "unid." : (NOMBRE_PRESENTACION[presentacion] ?? "caja").toLowerCase()} (S/)</span>
+            <span className="label">Costo x {unidad ? "unidad" : (NOMBRE_PRESENTACION[presentacion] ?? "caja").toLowerCase()} S/</span>
             <input inputMode="decimal" value={costo} onChange={(e) => setCosto(soloDecimal(e.target.value))} className="input text-base" />
           </label>
         </div>
