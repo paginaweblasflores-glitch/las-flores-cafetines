@@ -1,16 +1,33 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { startTransition, useActionState, useEffect, useRef, useState } from "react";
 import { ChevronDown, CircleUserRound, Eye, EyeOff, Lock, LogIn } from "lucide-react";
 import { iniciarSesion, type EstadoLogin } from "@/app/actions/auth";
 
 export function FormularioLogin({ usuarios }: { usuarios: string[] }) {
   const [estado, accion, pendiente] = useActionState<EstadoLogin, FormData>(iniciarSesion, {});
   const [ver, setVer] = useState(false);
+  // El usuario elegido se queda aunque falle la contraseña (solo la contraseña se limpia)
+  const [usuario, setUsuario] = useState("");
+  const clave = useRef<HTMLInputElement>(null);
+  // Tras un error: contraseña vacía y el cursor en ella
+  useEffect(() => {
+    if (!estado.error || !clave.current) return;
+    clave.current.value = "";
+    clave.current.focus();
+  }, [estado]);
   const conLista = usuarios.length > 0;
 
   return (
-    <form action={accion} className="space-y-4">
+    <form
+      // Con onSubmit (y no action=) React no reinicia el formulario: así no se pierde el usuario elegido
+      onSubmit={(e) => {
+        e.preventDefault();
+        const datos = new FormData(e.currentTarget);
+        startTransition(() => accion(datos));
+      }}
+      className="space-y-4"
+    >
       <div>
         <label htmlFor="usuario" className="mb-2 flex items-center gap-1.5 text-xs font-semibold tracking-[0.14em] text-suave uppercase">
           <CircleUserRound className="h-3.5 w-3.5" />
@@ -21,7 +38,8 @@ export function FormularioLogin({ usuarios }: { usuarios: string[] }) {
             <select
               id="usuario"
               name="usuario"
-              defaultValue={estado.usuario ?? ""}
+              value={usuario}
+              onChange={(e) => setUsuario(e.target.value)}
               required
               className="input h-12 cursor-pointer appearance-none pr-10 text-[15px] invalid:text-suave/70"
             >
@@ -43,7 +61,8 @@ export function FormularioLogin({ usuarios }: { usuarios: string[] }) {
             className="input h-12 text-[15px]"
             placeholder="Escribe tu usuario"
             autoComplete="username"
-            defaultValue={estado.usuario}
+            value={usuario}
+            onChange={(e) => setUsuario(e.target.value)}
             required
           />
         )}
@@ -56,6 +75,7 @@ export function FormularioLogin({ usuarios }: { usuarios: string[] }) {
         </label>
         <div className="relative">
           <input
+            ref={clave}
             id="password"
             name="password"
             type={ver ? "text" : "password"}

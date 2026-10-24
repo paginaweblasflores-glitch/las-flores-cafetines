@@ -6,7 +6,7 @@ import { crearEnvio, editarEnvio } from "@/app/actions/envios";
 import { avisar, Inicial, Modal } from "@/components/ui";
 import { bajoDeBarra, NavegacionInferior, useTecladoAbierto, type ItemNavegacion } from "@/components/navegacion-inferior";
 import { BarraSuperiorMovil, PerfilMovil } from "@/components/movil";
-import { buscarPorNombre, enEnvases, ENVASES, fechaLarga, horaLima, normalizar } from "@/lib/format";
+import { buscarPorNombre, enEnvases, ENVASES, fechaLarga, horaLima, normalizar, partesPorEnvase } from "@/lib/format";
 
 type Producto = {
   id: number;
@@ -128,8 +128,9 @@ export function PanelCocina({
   const delColegio = buscarPorNombre(faltan, busqueda, (p) => p.nombre);
 
   const n = (v: string | undefined) => (v === undefined || v.trim() === "" ? 0 : Number(v));
-  /** Lo que se guarda: unidades (o vasos, si el producto viene en balde) */
-  const unidadesDe = (p: Producto) => (p.vasosPorBalde ? Math.round(n(cantidades[p.id]) * p.vasosPorBalde) : n(cantidades[p.id]));
+  /** Lo que se guarda: unidades (o vasos/porciones, si viene en balde, taper o litros) */
+  const unidadesDe = (p: Producto) =>
+    p.vasosPorBalde ? Math.round(n(cantidades[p.id]) * partesPorEnvase(p.envase ?? "BALDE", p.vasosPorBalde)) : n(cantidades[p.id]);
   const lineas = faltan
     .filter((p) => unidadesDe(p) > 0)
     .map((p) => ({ productoColegioId: p.id, cantidad: unidadesDe(p), nombre: p.nombre }));
@@ -285,8 +286,13 @@ export function PanelCocina({
                             <p className="text-xs text-suave">
                               {p.vasosPorBalde ? (
                                 <>
-                                  En {ENVASES[p.envase ?? "BALDE"].envases} de {p.vasosPorBalde}{" "}
-                                  {ENVASES[p.envase ?? "BALDE"].partes}
+                                  {p.envase === "LITRO" ? (
+                                    <>Escribe litros (1 litro = {Math.round(partesPorEnvase("LITRO", p.vasosPorBalde) * 100) / 100} vasos)</>
+                                  ) : (
+                                    <>
+                                      En {ENVASES[p.envase ?? "BALDE"].envases} de {p.vasosPorBalde} {ENVASES[p.envase ?? "BALDE"].partes}
+                                    </>
+                                  )}
                                   {marcado && (
                                     <b className="text-verde-700">
                                       {" "}

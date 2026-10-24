@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Check, CheckCircle2, ChevronRight, Package, Pencil, Undo2 } from "lucide-react";
 import type { CambioRegistro } from "@/app/actions/personal";
 import { Inicial, Modal } from "@/components/ui";
@@ -11,7 +11,9 @@ import {
   esEnvase,
   fechaCorta,
   fechaISOLima,
+  litrosTexto,
   NOMBRE_PRESENTACION,
+  partesPorEnvase,
   soles,
 } from "@/lib/format";
 
@@ -271,8 +273,13 @@ export function HojaConteo({
         </label>
       )}
 
+      {/* Litros: el personal escribe cuántos litros quedan (el sistema lo pasa a vasos) */}
+      {p.presentacion === "LITRO" && p.unidadesPorPresentacion > 0 && (
+        <LitrosQuedan key={p.id} mlPorVaso={p.unidadesPorPresentacion} vasos={e.unidades} cambiar={(v) => editar("unidades", v)} />
+      )}
+
       {/* Balde o taper: se toca cuánto queda en el envase (el sistema lo pasa a vasos o porciones) */}
-      {esEnvase(p.presentacion) && p.unidadesPorPresentacion > 0 && (
+      {esEnvase(p.presentacion) && p.presentacion !== "LITRO" && p.unidadesPorPresentacion > 0 && (
         <div className="mb-3">
           <p className="label">
             ¿Cuánto queda en el {ENVASES[p.presentacion].envase}? ({p.unidadesPorPresentacion} {ENVASES[p.presentacion].partes}{" "}
@@ -446,5 +453,34 @@ export function HojaConteo({
       </div>
       <p className="mt-2 text-center text-[11px] text-suave">Se guarda todo junto con &quot;Guardar conteo&quot;.</p>
     </Modal>
+  );
+}
+
+/** "¿Cuántos litros quedan?": se escribe en litros (con decimales) y se guarda en vasos */
+function LitrosQuedan({ mlPorVaso, vasos, cambiar }: { mlPorVaso: number; vasos: string | undefined; cambiar: (vasos: string) => void }) {
+  const porLitro = partesPorEnvase("LITRO", mlPorVaso);
+  // Al abrir: los vasos que ya se escribieron, pasados a litros
+  const [litros, setLitros] = useState(vasos && vasos !== "" ? litrosTexto(Number(vasos) / porLitro) : "");
+  return (
+    <label className="mb-3 block">
+      <span className="label">¿Cuántos litros quedan?</span>
+      <input
+        inputMode="decimal"
+        value={litros}
+        placeholder="0"
+        onChange={(ev) => {
+          const limpio = ev.target.value.replace(",", ".").replace(/[^\d.]/g, "");
+          const [ent, ...dec] = limpio.split(".");
+          const valor = dec.length ? `${ent}.${dec.join("").slice(0, 2)}` : ent;
+          setLitros(valor);
+          cambiar(valor === "" ? "" : String(Math.round(Number(valor) * porLitro)));
+        }}
+        className="input h-16 text-center text-3xl font-semibold placeholder:text-suave/40"
+        aria-label="Litros que quedan"
+      />
+      <span className="mt-1 block text-xs text-suave">
+        1 litro = {Math.round(porLitro * 100) / 100} vasos ({mlPorVaso} ml cada uno). Abajo sale en vasos.
+      </span>
+    </label>
   );
 }

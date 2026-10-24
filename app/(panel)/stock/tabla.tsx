@@ -10,7 +10,7 @@ import {
 } from "@/app/actions/inventario";
 import { avisar, Inicial, Modal, Vacio } from "@/components/ui";
 import { BarraPaginacion, usePaginacion } from "@/components/paginacion";
-import { buscarPorNombre, descPresentacion, fechaHoraLima, hoyISO, NOMBRE_PRESENTACION, numero, pct, soles } from "@/lib/format";
+import { stockEnCompra, buscarPorNombre, descPresentacion, fechaHoraLima, hoyISO, NOMBRE_PRESENTACION, numero, pct, soles } from "@/lib/format";
 import type { Categoria, Presentacion, StockRow } from "@/lib/types";
 
 /** verGanancia: solo administración ve ganancia y margen */
@@ -397,6 +397,8 @@ function CamposConfig({
 }) {
   const costoUnit = d.presentacion === "UNIDAD" ? d.costoPresentacion : d.costoPresentacion / (d.unidadesPorPresentacion || 1);
   const margen = d.precioVenta > 0 && costoUnit > 0 ? ((d.precioVenta - costoUnit) / d.precioVenta) * 100 : null;
+  // El mínimo se escribe en lo que se compra (bolsas, cajas…) y se guarda en unidades
+  const compra = stockEnCompra(d.presentacion, d.unidadesPorPresentacion);
   return (
     <div className="grid grid-cols-2 gap-3">
       <label>
@@ -411,7 +413,13 @@ function CamposConfig({
       </label>
       <label>
         <span className="label">
-          {d.presentacion === "BALDE" ? "Vasos por balde" : d.presentacion === "TAPER" ? "Porciones por taper" : "Unidades por caja/paquete"}
+          {d.presentacion === "BALDE"
+            ? "Vasos por balde"
+            : d.presentacion === "TAPER"
+              ? "Porciones por taper"
+              : d.presentacion === "LITRO"
+                ? "ml por vaso"
+                : "Unidades por caja/paquete"}
         </span>
         <input
           type="number"
@@ -445,14 +453,18 @@ function CamposConfig({
         />
       </label>
       <label>
-        <span className="label">Stock mínimo (avisar al llegar a)</span>
+        <span className="label">
+          Stock mínimo{compra.factor > 1 ? ` (en ${compra.plural})` : ""} (avisar al llegar a)
+        </span>
         <input
           type="number"
           min="0"
-          value={d.stockMinimo}
-          onChange={(e) => set({ stockMinimo: Number(e.target.value) })}
+          step="any"
+          value={Math.round((d.stockMinimo / compra.factor) * 100) / 100}
+          onChange={(e) => set({ stockMinimo: Math.round(Number(e.target.value) * compra.factor) })}
           className="input"
         />
+        {compra.factor > 1 && <span className="mt-1 block text-xs text-suave">= {d.stockMinimo} unidades</span>}
       </label>
       <div className="rounded-xl bg-fondo px-3 py-2 text-xs text-suave">
         Costo por unidad: <b className="text-tinta">{soles(costoUnit)}</b>

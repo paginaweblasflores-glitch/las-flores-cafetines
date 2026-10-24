@@ -6,7 +6,7 @@ import { check, db, mensajeError } from "@/lib/supabase";
 import { mayusculas } from "@/lib/format";
 import type { Presentacion, Resultado } from "@/lib/types";
 
-const PRESENTACIONES: Presentacion[] = ["UNIDAD", "CAJA", "PAQUETE", "BOLSA", "OTRO", "BALDE", "TAPER"];
+const PRESENTACIONES: Presentacion[] = ["UNIDAD", "CAJA", "PAQUETE", "BOLSA", "OTRO", "BALDE", "TAPER", "LITRO"];
 
 /**
  * Edita nombre/categoría/activo, en qué colegios se vende y el precio en cada uno.

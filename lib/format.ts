@@ -164,7 +164,12 @@ export const NOMBRE_PRESENTACION: Record<string, string> = {
   BALDE: "Balde",
   /** Viene en taper y se vende por porción (unidades_por_presentacion = porciones por taper) */
   TAPER: "Taper",
+  /** Bebida que la cocina manda en litros y se vende por vaso (unidades_por_presentacion = ml por vaso) */
+  LITRO: "Litros",
 };
+
+/** Lo que entra en un vaso de S/ 1 (vaso de 7 oz, servido sin llenar al ras): 200 ml → 5 vasos por litro. Se ajusta en el catálogo. */
+export const ML_POR_VASO = 200;
 
 /**
  * Envases de cocina que se venden por partes: el balde (bebidas) por vaso y el taper (salsas) por porción.
@@ -173,24 +178,40 @@ export const NOMBRE_PRESENTACION: Record<string, string> = {
 export const ENVASES: Record<string, { envase: string; envases: string; parte: string; partes: string; cuantas: string }> = {
   BALDE: { envase: "balde", envases: "baldes", parte: "vaso", partes: "vasos", cuantas: "Cuántos vasos" },
   TAPER: { envase: "taper", envases: "tapers", parte: "porción", partes: "porciones", cuantas: "Cuántas porciones" },
+  LITRO: { envase: "litro", envases: "litros", parte: "vaso", partes: "vasos", cuantas: "Cuántos vasos" },
 };
+
+/**
+ * Cuántas partes (vasos/porciones) hay en un envase. En balde y taper es el número guardado;
+ * en litros lo guardado son los ml por vaso: 1000 / 200 ml = 5 vasos por litro.
+ */
+export function partesPorEnvase(presentacion: string, unidadesPorPresentacion: number) {
+  if (presentacion !== "LITRO") return unidadesPorPresentacion;
+  return unidadesPorPresentacion > 0 ? 1000 / unidadesPorPresentacion : 0;
+}
+
+/** Litros con un decimal como mucho: "12.5" */
+export const litrosTexto = (l: number) => String(Math.round(l * 10) / 10);
 
 /** Productos que vienen en un envase (balde, taper) y se venden por partes (vaso, porción) */
 export const esEnvase = (presentacion: string) => presentacion in ENVASES;
 
-/** Qué envase corresponde a cada categoría de lo que manda la cocina: bebidas → balde, salsas → taper */
-export function envaseDeCategoria(nombreCategoria: string | null | undefined): "BALDE" | "TAPER" | null {
+/** Qué envases corresponden a cada categoría de lo que manda la cocina: bebidas → litros (o balde), salsas → taper */
+export function envasesDeCategoria(nombreCategoria: string | null | undefined): ("LITRO" | "BALDE" | "TAPER")[] {
   const n = normalizar(nombreCategoria ?? "");
-  if (n.startsWith("bebida")) return "BALDE";
-  if (n.startsWith("salsa")) return "TAPER";
-  return null;
+  if (n.startsWith("bebida")) return ["LITRO", "BALDE"];
+  if (n.startsWith("salsa")) return ["TAPER"];
+  return [];
 }
 
-/** "1 balde", "1½ tapers", "¾ de balde" (cuánto es en envases una cantidad de vasos o porciones) */
-export function enEnvases(partes: number, partesPorEnvase: number, presentacion: string) {
+/** "1 balde", "1½ tapers", "¾ de balde", "12.5 litros" (cuánto es en envases una cantidad de vasos o porciones) */
+export function enEnvases(partes: number, unidadesPorPresentacion: number, presentacion: string) {
   const e = ENVASES[presentacion] ?? ENVASES.BALDE;
-  if (partesPorEnvase <= 0) return "";
-  const b = partes / partesPorEnvase;
+  const porEnvase = partesPorEnvase(presentacion, unidadesPorPresentacion);
+  if (porEnvase <= 0) return "";
+  const b = partes / porEnvase;
+  // En litros: "12.5 litros" (sin fracciones de balde)
+  if (presentacion === "LITRO") return `${litrosTexto(b)} ${litrosTexto(b) === "1" ? e.envase : e.envases}`;
   const entero = Math.floor(b + 1e-9);
   const resto = b - entero;
   const fracciones: [number, string][] = [[0, ""], [0.25, "¼"], [0.5, "½"], [0.75, "¾"], [1, ""]];
@@ -203,8 +224,22 @@ export function enEnvases(partes: number, partesPorEnvase: number, presentacion:
   return `${aprox}${total}${f !== 1 ? txt : ""} ${total === 1 && !txt ? e.envase : e.envases}`;
 }
 
+/**
+ * En qué se escribe el stock (mínimo, inicial) de un producto: en la presentación de compra
+ * (bolsas, cajas, paquetes) o en unidades. Lo de cocina (balde, taper, litros) y lo suelto va en unidades.
+ * Siempre se guarda en unidades: bolsas × unidades por bolsa.
+ */
+export function stockEnCompra(presentacion: string, unidadesPorPresentacion: number) {
+  const enCompra = ["CAJA", "PAQUETE", "BOLSA", "OTRO"].includes(presentacion) && unidadesPorPresentacion > 1;
+  const nombre = (NOMBRE_PRESENTACION[presentacion] ?? "Caja").toLowerCase();
+  return enCompra
+    ? { factor: unidadesPorPresentacion, singular: nombre, plural: nombre === "otro" ? "otros" : `${nombre}s` }
+    : { factor: 1, singular: "unidad", plural: "unidades" };
+}
+
 /** "caja de 24", "paquete de 6" o "unidad" */
 export function descPresentacion(p: string, unidades: number) {
+  if (p === "LITRO") return `en litros (vaso de ${unidades} ml)`;
   if (ENVASES[p]) return `${ENVASES[p].envase} de ${unidades} ${ENVASES[p].partes}`;
   if (p === "UNIDAD" || unidades <= 1) return "por unidad";
   return `${NOMBRE_PRESENTACION[p]?.toLowerCase() ?? p} de ${unidades}`;

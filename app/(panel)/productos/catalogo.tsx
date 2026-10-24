@@ -5,7 +5,7 @@ import { Pencil, Search, FolderPlus, Plus } from "lucide-react";
 import { crearCategoria, crearProducto, editarProducto } from "@/app/actions/catalogo";
 import { avisar, Inicial, Modal } from "@/components/ui";
 import { BarraPaginacion, usePaginacion } from "@/components/paginacion";
-import { buscarPorNombre, ENVASES, envaseDeCategoria, NOMBRE_PRESENTACION, pct, soles } from "@/lib/format";
+import { buscarPorNombre, ENVASES, envasesDeCategoria, ML_POR_VASO, NOMBRE_PRESENTACION, pct, soles, stockEnCompra } from "@/lib/format";
 import type { Categoria, Presentacion } from "@/lib/types";
 
 type Producto = {
@@ -261,9 +261,9 @@ function ModalProducto({
           </select>
         </label>
         {/* Cómo viene: bebidas de cocina por unidad o en balde; el resto de cocina no lleva nada; lo comprado, caja, paquete… */}
-        {deCocina && !envaseDe(categorias, categoriaId) ? null : deCocina ? (
+        {deCocina && envasesDe(categorias, categoriaId).length === 0 ? null : deCocina ? (
           <ComoVieneCocina
-            envase={envaseDe(categorias, categoriaId)!}
+            envases={envasesDe(categorias, categoriaId)}
             presentacion={presentacion}
             porCaja={porCaja}
             cambiar={(p, c) => {
@@ -286,7 +286,9 @@ function ModalProducto({
                 }}
                 className="input"
               >
-                {Object.entries(NOMBRE_PRESENTACION).map(([k, v]) => (
+                {Object.entries(NOMBRE_PRESENTACION)
+                  .filter(([k]) => k !== "LITRO")
+                  .map(([k, v]) => (
                   <option key={k} value={k}>
                     {v}
                   </option>
@@ -419,53 +421,85 @@ function ModalProducto({
   );
 }
 
-/** Envase que corresponde a la categoría elegida: bebidas → balde, salsas → taper (en otras, ninguno) */
-const envaseDe = (categorias: Categoria[], categoriaId: string) =>
-  envaseDeCategoria(categorias.find((c) => String(c.id) === categoriaId)?.nombre);
+/** Envases que corresponden a la categoría elegida: bebidas → litros o balde, salsas → taper (en otras, ninguno) */
+const envasesDe = (categorias: Categoria[], categoriaId: string) =>
+  envasesDeCategoria(categorias.find((c) => String(c.id) === categoriaId)?.nombre);
 
-/** Lo que prepara la cocina en un envase: no se compra (sin costo); viene por unidad o en balde/taper (por vaso/porción) */
+/**
+ * Lo que prepara la cocina: no se compra (sin costo). Viene por unidad o en un envase que se vende por partes:
+ * bebidas en litros (o balde) por vaso, salsas en taper por porción.
+ */
 function ComoVieneCocina({
-  envase,
+  envases,
   presentacion,
   porCaja,
   cambiar,
 }: {
-  envase: "BALDE" | "TAPER";
+  envases: ("LITRO" | "BALDE" | "TAPER")[];
   presentacion: Presentacion;
   porCaja: string;
   cambiar: (p: Presentacion, porCaja: string) => void;
 }) {
-  const e = ENVASES[envase];
-  const enEnvase = presentacion === envase;
+  // El balde solo se muestra si el producto ya estaba en balde (las bebidas nuevas van en litros)
+  const opciones = envases.filter((e) => e !== "BALDE" || presentacion === "BALDE");
+  const actual = opciones.find((e) => e === presentacion);
+  const e = actual ? ENVASES[actual] : null;
   const opcion = (activa: boolean) =>
     `flex-1 rounded-xl border px-3 py-2.5 text-sm font-semibold ${activa ? "border-panel bg-panel text-white" : "border-campo bg-white text-tinta"}`;
+  const ml = Number(porCaja);
   return (
     <div>
       <p className="label">Cómo viene de la cocina</p>
-      <div className="flex gap-2">
-        <button type="button" onClick={() => cambiar("UNIDAD", "1")} className={opcion(!enEnvase)}>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={() => cambiar("UNIDAD", "1")} className={opcion(!actual)}>
           Por unidad
         </button>
-        <button type="button" onClick={() => cambiar(envase, enEnvase ? porCaja : "")} className={opcion(enEnvase)}>
-          En {e.envase} (se vende por {e.parte})
-        </button>
+        {opciones.map((o) => (
+          <button
+            key={o}
+            type="button"
+            onClick={() => cambiar(o, o === presentacion ? porCaja : o === "LITRO" ? String(ML_POR_VASO) : "")}
+            className={opcion(actual === o)}
+          >
+            En {ENVASES[o].envases} (se vende por {ENVASES[o].parte})
+          </button>
+        ))}
       </div>
-      {enEnvase && (
+      {actual === "LITRO" ? (
         <label className="mt-3 block">
-          <span className="label">
-            ¿{e.cuantas} rinde cada {e.envase}?
-          </span>
+          <span className="label">¿Cuántos ml entran en un vaso?</span>
           <input
             inputMode="numeric"
             value={porCaja}
-            onChange={(ev) => cambiar(envase, ev.target.value.replace(/\D/g, ""))}
+            onChange={(ev) => cambiar("LITRO", ev.target.value.replace(/\D/g, ""))}
             className="input"
-            placeholder="Ej: 30"
+            placeholder={String(ML_POR_VASO)}
           />
+          <span className="mt-1 block text-xs text-suave">
+            {ml > 0
+              ? `1 litro = ${Math.round((1000 / ml) * 100) / 100} vasos. La cocina manda litros, el personal reporta los litros que quedan y el sistema lo pasa a vasos.`
+              : "Un vaso de S/ 1 (7 oz) servido normal tiene unos 200 ml."}
+          </span>
         </label>
+      ) : (
+        actual &&
+        e && (
+          <label className="mt-3 block">
+            <span className="label">
+              ¿{e.cuantas} rinde cada {e.envase}?
+            </span>
+            <input
+              inputMode="numeric"
+              value={porCaja}
+              onChange={(ev) => cambiar(actual, ev.target.value.replace(/\D/g, ""))}
+              className="input"
+              placeholder="Ej: 30"
+            />
+          </label>
+        )
       )}
       <p className="mt-2 text-xs text-suave">
-        Lo prepara la cocina: no lleva costo. El precio de venta de cada colegio es por {enEnvase ? e.parte : "unidad"}.
+        Lo prepara la cocina: no lleva costo. El precio de venta de cada colegio es por {e ? e.parte : "unidad"}.
       </p>
     </div>
   );
@@ -564,6 +598,9 @@ function ModalNuevoProducto({
   const esUnidad = presentacion === "UNIDAD";
   const unidades = esUnidad ? 1 : n(porCaja);
   const costoUnit = unidades > 0 ? n(costo) / unidades : 0;
+  // Stock mínimo e inicial se escriben en lo que se compra (bolsas, cajas…) y se guardan en unidades
+  const enCompra = stockEnCompra(presentacion, unidades);
+  const aUnidades = (v: string) => Math.round(n(v) * enCompra.factor);
   const precioDe = (id: number) => precios[id] ?? "";
   const preciosListos = elegidos.length > 0 && elegidos.every((id) => precioDe(id).trim() !== "" && n(precioDe(id)) >= 0);
   const cambiarPrecio = (id: number, v: string) => {
@@ -593,13 +630,13 @@ function ModalNuevoProducto({
         deCocina,
         colegioIds: elegidos,
         // Lo de cocina que no es bebida viene siempre por unidad
-        presentacion: deCocina && presentacion !== envaseDe(categorias, categoriaId) ? "UNIDAD" : presentacion,
-        unidadesPorPresentacion: deCocina && presentacion !== envaseDe(categorias, categoriaId) ? 1 : unidades,
+        presentacion: deCocina && !envasesDe(categorias, categoriaId).includes(presentacion as "LITRO") ? "UNIDAD" : presentacion,
+        unidadesPorPresentacion: deCocina && !envasesDe(categorias, categoriaId).includes(presentacion as "LITRO") ? 1 : unidades,
         // Lo que prepara la cocina no se compra: sin costo
         costoPresentacion: deCocina ? 0 : n(costo),
         precios: Object.fromEntries(elegidos.map((id) => [id, n(precioDe(id))])),
-        stockMinimo: n(minimo),
-        stockInicial: Object.fromEntries(elegidos.map((id) => [id, n(stockInicial[id] ?? "")])),
+        stockMinimo: aUnidades(minimo),
+        stockInicial: Object.fromEntries(elegidos.map((id) => [id, aUnidades(stockInicial[id] ?? "")])),
       });
       if (r.ok) {
         avisar(r.mensaje ?? "Producto creado");
@@ -694,7 +731,7 @@ function ModalNuevoProducto({
                     />
                   </label>
                   <label className="flex items-center gap-2">
-                    Stock inicial
+                    Stock inicial{enCompra.factor > 1 ? ` (${enCompra.plural})` : ""}
                     <input
                       type="number"
                       min="0"
@@ -705,6 +742,9 @@ function ModalNuevoProducto({
                       className="input h-9 w-20 py-1 text-center"
                       aria-label={`Stock inicial en ${c.nombre}`}
                     />
+                    {enCompra.factor > 1 && n(stockInicial[c.id] ?? "") > 0 && (
+                      <span className="text-xs text-suave">= {aUnidades(stockInicial[c.id] ?? "")} unid.</span>
+                    )}
                   </label>
                   {verGanancia && precioDe(c.id).trim() !== "" && costoUnit > 0 && (
                     <span className={`w-full text-right ${gananciaEn(c.id).g < 0 ? "text-rojo" : ""}`}>
@@ -718,10 +758,10 @@ function ModalNuevoProducto({
         })}
       </div>
 
-      {deCocina && !envaseDe(categorias, categoriaId) ? null : deCocina ? (
+      {deCocina && envasesDe(categorias, categoriaId).length === 0 ? null : deCocina ? (
         <div className="mt-4">
           <ComoVieneCocina
-            envase={envaseDe(categorias, categoriaId)!}
+            envases={envasesDe(categorias, categoriaId)}
             presentacion={presentacion}
             porCaja={porCaja}
             cambiar={(p, c) => {
@@ -745,7 +785,9 @@ function ModalNuevoProducto({
                 }}
                 className="input"
               >
-                {Object.entries(NOMBRE_PRESENTACION).map(([k, v]) => (
+                {Object.entries(NOMBRE_PRESENTACION)
+                  .filter(([k]) => k !== "LITRO")
+                  .map(([k, v]) => (
                   <option key={k} value={k}>
                     {v}
                   </option>
@@ -776,8 +818,15 @@ function ModalNuevoProducto({
               />
             </label>
             <label>
-              <span className="label">Stock mínimo (avisar al llegar a)</span>
-              <input type="number" min="0" value={minimo} onChange={(e) => setMinimo(e.target.value)} className="input" />
+              <span className="label">
+                Stock mínimo{enCompra.factor > 1 ? ` (en ${enCompra.plural})` : ""} (avisar al llegar a)
+              </span>
+              <input type="number" min="0" step="any" value={minimo} onChange={(e) => setMinimo(e.target.value)} className="input" />
+              {enCompra.factor > 1 && minimo.trim() !== "" && (
+                <span className="mt-1 block text-xs text-suave">
+                  = {aUnidades(minimo)} unidades ({enCompra.factor} por {enCompra.singular})
+                </span>
+              )}
             </label>
             <div className="rounded-xl bg-fondo px-3 py-2 text-xs text-suave">
               Costo por unidad: <b className="text-tinta">{soles(costoUnit)}</b>
@@ -802,7 +851,7 @@ function ModalNuevoProducto({
             pendiente ||
             nombre.trim().length < 2 ||
             !preciosListos ||
-            !((deCocina && !envaseDe(categorias, categoriaId)) || (Number.isInteger(unidades) && unidades >= 1))
+            !((deCocina && envasesDe(categorias, categoriaId).length === 0) || (Number.isInteger(unidades) && unidades >= 1))
           }
           className="btn-primario"
           onClick={crear}

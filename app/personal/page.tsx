@@ -61,7 +61,9 @@ export default async function PaginaPersonal({ searchParams }: PageProps<"/perso
   const enBalde = (vasos: number, pcId: number) => {
     const s = filaStock.get(pcId);
     const e = s ? ENVASES[s.presentacion] : undefined;
-    return s && e ? `${enEnvases(vasos, s.unidades_por_presentacion, s.presentacion)} de ${s.unidades_por_presentacion} ${e.partes}` : null;
+    if (!s || !e) return null;
+    if (s.presentacion === "LITRO") return enEnvases(vasos, s.unidades_por_presentacion, s.presentacion);
+    return `${enEnvases(vasos, s.unidades_por_presentacion, s.presentacion)} de ${s.unidades_por_presentacion} ${e.partes}`;
   };
 
   return (

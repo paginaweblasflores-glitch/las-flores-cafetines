@@ -1,6 +1,6 @@
 export type Rol = "ADMIN" | "LOGISTICA" | "PERSONAL" | "COCINA";
 
-export type Presentacion = "UNIDAD" | "CAJA" | "PAQUETE" | "BOLSA" | "OTRO" | "BALDE" | "TAPER";
+export type Presentacion = "UNIDAD" | "CAJA" | "PAQUETE" | "BOLSA" | "OTRO" | "BALDE" | "TAPER" | "LITRO";
 
 export type TipoMovimiento = "INGRESO" | "VENTA" | "AJUSTE" | "MERMA";
 
