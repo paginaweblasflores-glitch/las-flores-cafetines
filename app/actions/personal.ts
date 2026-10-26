@@ -219,3 +219,69 @@ export async function corregirConteoHoy(
     return { ok: false, error: mensajeError(e) };
   }
 }
+
+/**
+ * El personal retira un producto de SU cafetín (ya no lo vende): se desactiva solo en su colegio,
+ * igual que desmarcar el colegio en el Catálogo. No se borra nada: administración lo vuelve a activar
+ * marcando el colegio en el Catálogo.
+ */
+export async function retirarProducto(productoColegioId: number): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const sesion = await sesionAccion(["PERSONAL"]);
+    if (!Number.isInteger(productoColegioId)) return { ok: false, error: "Producto no válido." };
+    await validarColegio(sesion, [productoColegioId]);
+    check(
+      await db()
+        .from("producto_colegio")
+        .update({ activo: false, updated_at: new Date().toISOString(), updated_by: sesion.uid })
+        .eq("id", productoColegioId),
+    );
+    refresh();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: mensajeError(e) };
+  }
+}
+
+/** Lo que se anota en el historial: así administración distingue los ajustes del personal */
+const PREFIJO_AJUSTE = "Ajuste del personal: ";
+
+/**
+ * El personal corrige la cantidad que hay (no es venta): el sistema dice 5 y hay 4 o 7.
+ * El motivo es obligatorio. "Se dañó o venció" queda como merma; lo demás, como ajuste.
+ * No toca las ventas ni "Vendido hoy".
+ */
+export async function ajustarCantidad(
+  productoColegioId: number,
+  unidades: number,
+  motivo: string,
+  esMerma: boolean,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const sesion = await sesionAccion(["PERSONAL"]);
+    if (!Number.isInteger(productoColegioId)) return { ok: false, error: "Producto no válido." };
+    if (!Number.isInteger(unidades) || unidades < 0 || unidades >= 100000) return { ok: false, error: "Escribe cuántas hay (0 o más)." };
+    const m = motivo.trim();
+    if (m.length < 3) return { ok: false, error: "Elige o escribe el motivo." };
+    await validarColegio(sesion, [productoColegioId]);
+    const fila = check(await db().from("producto_colegio").select("stock_unidades").eq("id", productoColegioId).single()) as {
+      stock_unidades: number;
+    };
+    if (fila.stock_unidades === unidades) return { ok: false, error: "Es la misma cantidad que dice el sistema." };
+    // Merma solo si hay menos (lo dañado sale); si hay más, siempre es ajuste
+    const tipo = esMerma && unidades < fila.stock_unidades ? "MERMA" : "AJUSTE";
+    check(
+      await db().rpc("fn_ajustar_stock", {
+        p_producto_colegio_id: productoColegioId,
+        p_unidades: unidades,
+        p_tipo: tipo,
+        p_usuario_id: sesion.uid,
+        p_observacion: PREFIJO_AJUSTE + m.slice(0, 200),
+      }),
+    );
+    refresh();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: mensajeError(e) };
+  }
+}

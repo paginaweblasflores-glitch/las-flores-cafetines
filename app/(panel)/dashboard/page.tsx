@@ -75,6 +75,7 @@ export default async function Dashboard() {
     porRecibirTodo,
     reposiciones,
     gastosMes,
+    movimientosHoy,
     observadosSemana,
   ] = await Promise.all([
     obtenerColegios(),
@@ -90,6 +91,8 @@ export default async function Dashboard() {
     obtenerEnvios({ estado: "PENDIENTE", colegioId }),
     obtenerReposiciones({ colegioId, limite: 200 }),
     obtenerOtrosGastos(rMes.desde, hoy, colegioId),
+    // Ajustes de cantidad que hizo hoy el personal (no son venta)
+    obtenerMovimientos({ desde: hoy, hasta: hoy, colegioId, limite: 500 }),
     // Lo que llegó a un colegio incompleto o dañado en los últimos 7 días
     obtenerEnvios({ estado: "OBSERVADO", desde: new Date(Date.parse(hoy) - 7 * 86400000).toISOString().slice(0, 10), hasta: hoy, colegioId }),
   ]);
@@ -263,6 +266,20 @@ export default async function Dashboard() {
         });
       }
     }
+  }
+  // Ajustes del personal hoy (por colegio): discreto, en azul
+  const ajustesHoy = new Map<number, number>();
+  for (const m of movimientosHoy) {
+    if (m.observacion?.startsWith("Ajuste del personal: ")) ajustesHoy.set(m.colegio_id, (ajustesHoy.get(m.colegio_id) ?? 0) + 1);
+  }
+  for (const [cid, n] of ajustesHoy) {
+    tareas.push({
+      texto: `${corto(nombreColegio.get(cid) ?? "")} hizo ${n} ajuste${n === 1 ? "" : "s"} de cantidad hoy`,
+      detalle: "No son ventas: el personal corrigió lo que había, con su motivo",
+      href: "/movimientos?tipo=personal",
+      accion: "Ver",
+      tono: "info",
+    });
   }
   const sinPrecio = new Set(stock.filter((s) => s.activo && Number(s.precio_venta) === 0).map((s) => s.producto));
   if (sinPrecio.size) {

@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronRight, Package, Pencil, Search, Sun, TriangleAlert } from "lucide-react";
+import { ChevronRight, Package, PackageX, Pencil, Search, Sun, TriangleAlert } from "lucide-react";
 import { ModalPrecio } from "./modal-precio";
-import { cambiarMinimo } from "@/app/actions/personal";
+import { ajustarCantidad, cambiarMinimo, retirarProducto } from "@/app/actions/personal";
+import { CampoLitros } from "./conteo";
 import { avisar, Inicial, Modal } from "@/components/ui";
-import { buscarPorNombre, descPresentacion, fechaCorta, fechaISOLima, numero, soles } from "@/lib/format";
+import { buscarPorNombre, descPresentacion, fechaCorta, fechaISOLima, litrosTexto, numero, partesPorEnvase, soles } from "@/lib/format";
 
 export type MiProducto = {
   id: number;
@@ -128,8 +129,19 @@ export function MisProductos({ productos }: { productos: MiProducto[] }) {
 function ModalMinimo({ p, cerrar, cambiarPrecio }: { p: MiProducto; cerrar: () => void; cambiarPrecio: () => void }) {
   const [valor, setValor] = useState(String(p.stockMinimo));
   const [guardando, setGuardando] = useState(false);
+  const [retirando, setRetirando] = useState(false);
+  const [ajustando, setAjustando] = useState(false);
   const n = valor.trim() === "" ? NaN : Number(valor);
   const valido = Number.isInteger(n) && n >= 0;
+
+  async function retirar() {
+    setGuardando(true);
+    const r = await retirarProducto(p.id);
+    setGuardando(false);
+    if (!r.ok) return avisar(r.error, "error");
+    avisar(`${p.nombre}: retirado de tu cafetín`);
+    cerrar();
+  }
   const acaba = !p.perecible && p.stock <= p.stockMinimo;
 
   async function guardar() {
@@ -153,11 +165,46 @@ function ModalMinimo({ p, cerrar, cambiarPrecio }: { p: MiProducto; cerrar: () =
     },
   ];
 
+
+  // Ajustar la cantidad (no es venta): ventana propia
+  if (ajustando) return <HojaAjuste p={p} volver={() => setAjustando(false)} cerrar={cerrar} />;
+
+  // Confirmación sola (sin el resto de la ficha)
+  if (retirando) {
+    return (
+      <Modal abierto onCerrar={() => !guardando && setRetirando(false)} titulo={`¿Retirar ${p.nombre}?`}>
+        <p className="text-sm text-suave">Ya no aparecerá en tu lista.</p>
+        <div className="mt-5 grid grid-cols-2 gap-2">
+          <button onClick={() => setRetirando(false)} disabled={guardando} className="btn-secundario h-12">
+            Cancelar
+          </button>
+          <button onClick={retirar} disabled={guardando} className="btn-peligro h-12">
+            {guardando ? "Retirando..." : "Sí, retirar"}
+          </button>
+        </div>
+      </Modal>
+    );
+  }
   return (
     <Modal abierto onCerrar={cerrar} titulo={p.nombre} subtitulo={p.categoria}>
       <div className="grid grid-cols-2 gap-2">
         {datos.map((d) =>
-          d.t === "Precio" ? (
+          d.t === "Hay" ? (
+            <button
+              key={d.t}
+              type="button"
+              onClick={() => setAjustando(true)}
+              className="rounded-xl border border-borde bg-fondo px-3 py-2.5 text-left transition-colors hover:border-campo"
+            >
+              <p className="flex items-center justify-between text-[11px] text-suave">
+                {d.t}
+                <span className="flex items-center gap-1 font-medium text-tinta">
+                  <Pencil className="h-3 w-3" /> ajustar
+                </span>
+              </p>
+              <p className="font-semibold">{d.v}</p>
+            </button>
+          ) : d.t === "Precio" ? (
             // El precio se cambia aquí mismo (abre la ventana de cambiar precio)
             <button
               key={d.t}
@@ -222,6 +269,113 @@ function ModalMinimo({ p, cerrar, cambiarPrecio }: { p: MiProducto; cerrar: () =
             {guardando ? "Guardando..." : "Guardar mínimo"}
           </button>
         )}
+      </div>
+
+      {/* Retirar de este cafetín: discreto, abajo (al tocarlo, la ventana pasa a pedir confirmación) */}
+      <button
+        type="button"
+        onClick={() => setRetirando(true)}
+        className="mx-auto mt-4 flex items-center gap-1.5 text-sm text-suave hover:text-rojo"
+      >
+        <PackageX className="h-4 w-4" /> Ya no lo vendo: retirar de mi cafetín
+      </button>
+    </Modal>
+  );
+}
+
+const MOTIVOS_MENOS = ["Se dañó o venció", "Se perdió / faltante", "Error en un conteo anterior", "Otro"];
+const MOTIVOS_MAS = ["Llegó de más sin registrar", "Devolución", "Error en un conteo anterior", "Otro"];
+
+/**
+ * "Ajustar cantidad": el sistema dice X y en el cafetín hay otra cantidad. No es venta.
+ * El motivo es obligatorio y queda en el historial que ve administración.
+ */
+function HojaAjuste({ p, volver, cerrar }: { p: MiProducto; volver: () => void; cerrar: () => void }) {
+  const [hay, setHay] = useState("");
+  const [motivo, setMotivo] = useState("");
+  const [otro, setOtro] = useState("");
+  const [guardando, setGuardando] = useState(false);
+  const enLitros = p.presentacion === "LITRO" && p.unidadesPorPresentacion > 0;
+  const litros = (v: number) => litrosTexto(v / partesPorEnvase("LITRO", p.unidadesPorPresentacion));
+  const parte = enLitros ? "vasos" : "unid.";
+
+  const n = hay.trim() === "" ? NaN : Number(hay);
+  const valido = Number.isInteger(n) && n >= 0 && n !== p.stock;
+  const dif = valido ? n - p.stock : 0;
+  const motivos = dif < 0 ? MOTIVOS_MENOS : MOTIVOS_MAS;
+  const textoMotivo = motivo === "Otro" ? otro.trim() : motivo;
+  const listo = valido && motivos.includes(motivo) && textoMotivo.length >= 3;
+
+  async function guardar() {
+    if (!listo || guardando) return;
+    setGuardando(true);
+    const r = await ajustarCantidad(p.id, n, textoMotivo, motivo === "Se dañó o venció");
+    setGuardando(false);
+    if (!r.ok) return avisar(r.error, "error");
+    avisar(`${p.nombre}: ahora hay ${numero(n)} (${dif > 0 ? "+" : ""}${numero(dif)} · ${textoMotivo})`);
+    cerrar();
+  }
+
+  return (
+    <Modal
+      abierto
+      onCerrar={() => !guardando && volver()}
+      titulo={`Ajustar ${p.nombre}`}
+      subtitulo={`El sistema dice ${enLitros ? `${litros(p.stock)} L (${numero(p.stock)} vasos)` : `${numero(p.stock)} unid.`}`}
+    >
+      {enLitros ? (
+        <CampoLitros etiqueta="¿Cuántos litros hay de verdad?" mlPorVaso={p.unidadesPorPresentacion} vasos={hay} cambiar={setHay} autoFocus />
+      ) : (
+        <label className="block">
+          <span className="label">¿Cuántas hay de verdad?</span>
+          <input
+            inputMode="numeric"
+            value={hay}
+            onChange={(e) => setHay(e.target.value.replace(/\D/g, ""))}
+            placeholder={String(p.stock)}
+            className="input h-16 text-center text-3xl font-semibold placeholder:text-suave/40"
+            autoFocus
+          />
+          {p.unidadesPorPresentacion > 1 && !p.perecible && (
+            <span className="mt-1 block text-xs text-suave">En unidades: suma también las de paquetes o cajas cerradas.</span>
+          )}
+        </label>
+      )}
+
+      {valido && (
+        <>
+          <p className="label mt-4">¿Por qué {dif < 0 ? "hay menos" : "hay más"}?</p>
+          <div className="flex flex-wrap gap-2">
+            {motivos.map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMotivo(m)}
+                className={`rounded-full px-3 py-2 text-sm font-medium ${motivo === m ? "bg-panel text-white" : "border border-borde bg-white text-tinta"}`}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+          {motivo === "Otro" && (
+            <input value={otro} onChange={(e) => setOtro(e.target.value)} className="input mt-2" placeholder="Escribe el motivo" aria-label="Otro motivo" />
+          )}
+          <p className="mt-3 rounded-xl bg-ambar-50 px-3 py-2 text-sm text-[#8a5a00]">
+            Quedarán <b>{enLitros ? `${litros(n)} L` : numero(n)}</b> · {dif > 0 ? "+" : ""}
+            {numero(dif)} {parte}
+            {textoMotivo ? ` por ${textoMotivo}` : ""}. No es venta: lo vendido de hoy no cambia.
+          </p>
+        </>
+      )}
+      {hay !== "" && Number(hay) === p.stock && <p className="mt-3 text-sm text-suave">Es lo mismo que dice el sistema: no hay nada que ajustar.</p>}
+
+      <div className="mt-5 grid grid-cols-2 gap-2">
+        <button onClick={volver} disabled={guardando} className="btn-secundario h-12">
+          Cancelar
+        </button>
+        <button onClick={guardar} disabled={!listo || guardando} className="btn-primario h-12">
+          {guardando ? "Guardando..." : "Guardar"}
+        </button>
       </div>
     </Modal>
   );
