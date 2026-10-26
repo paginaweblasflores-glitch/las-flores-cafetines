@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { check, db } from "@/lib/supabase";
 import { ArrowLeft } from "lucide-react";
 import { requerirSesion } from "@/lib/auth";
-import { obtenerColegios, obtenerConteos, obtenerProductosMapa, obtenerStock, obtenerUsuariosMapa } from "@/lib/data";
+import { obtenerColegios, obtenerConteos, obtenerProductosMapa, obtenerUsuariosMapa } from "@/lib/data";
 import { horaLima, nombreConteo, numero, soles } from "@/lib/format";
 import { BotonImprimir } from "@/components/imprimir";
 
@@ -16,19 +17,28 @@ export default async function PaginaConteo({ params }: PageProps<"/conteos/[id]"
   const [c] = await obtenerConteos({ id });
   if (!c) notFound();
 
-  const [colegios, productos, usuarios, stock] = await Promise.all([
-    obtenerColegios(false),
-    obtenerProductosMapa(),
-    obtenerUsuariosMapa(),
-    obtenerStock({ colegioId: c.colegio_id }),
-  ]);
+  const [colegios, productos, usuarios] = await Promise.all([obtenerColegios(false), obtenerProductosMapa(), obtenerUsuariosMapa()]);
   const colegio = colegios.find((x) => x.id === c.colegio_id)?.nombre ?? "";
   const items = [...c.items].sort((a, b) =>
     (productos.get(a.producto_id)?.nombre ?? "").localeCompare(productos.get(b.producto_id)?.nombre ?? ""),
   );
-  // Productos de ese tipo que hoy no aparecen en el conteo
-  const contados = new Set(items.map((i) => i.producto_colegio_id));
-  const faltaron = stock.filter((s) => s.perecible === (c.tipo === "DIA") && !contados.has(s.id));
+  // Venta de ese día según el sistema (todas las ventas registradas ese día en ese colegio)
+  const ventaSistema = (
+    check(
+      await db().from("movimientos").select("monto").eq("colegio_id", c.colegio_id).eq("tipo", "VENTA").eq("fecha", c.fecha),
+    ) as { monto: number }[]
+  ).reduce((a, m) => a + Number(m.monto), 0);
+  // Caja de ese día: lo que anotó el personal en físico frente al sistema
+  const [caja] =
+    c.tipo === "DIA"
+      ? (check(
+          await db()
+            .from("cierres_dia")
+            .select("total_ventas, monto_fisico, motivo, usuario_id, created_at")
+            .eq("colegio_id", c.colegio_id)
+            .eq("fecha", c.fecha),
+        ) as { total_ventas: number; monto_fisico: number | null; motivo: string | null; usuario_id: number | null; created_at: string }[])
+      : [];
 
   const venta = items.reduce((a, i) => a + Number(i.monto), 0);
   const unidades = items.reduce((a, i) => a + i.vendido, 0);
@@ -37,7 +47,7 @@ export default async function PaginaConteo({ params }: PageProps<"/conteos/[id]"
 
   return (
     <div className="mx-auto max-w-[1200px]">
-      <Link href={`/conteos?tipo=${c.tipo === "DIA" ? "dia" : "semana"}`} className="mb-4 inline-flex items-center gap-1.5 text-sm text-suave hover:text-tinta print:hidden">
+      <Link href={`/conteos?colegio=${c.colegio_id}`} className="mb-4 inline-flex items-center gap-1.5 text-sm text-suave hover:text-tinta print:hidden">
         <ArrowLeft className="h-4 w-4" /> Conteos
       </Link>
 
@@ -54,7 +64,7 @@ export default async function PaginaConteo({ params }: PageProps<"/conteos/[id]"
       {/* Resumen */}
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
-          { t: "Contados", v: `${items.length} de ${items.length + faltaron.length}` },
+          { t: "Contados", v: `${items.length} producto${items.length === 1 ? "" : "s"}` },
           { t: "Venta", v: soles(venta) },
           { t: "Unidades vendidas", v: numero(unidades) },
           { t: "Sobrante", v: sobrante > 0 ? `${numero(sobrante)} unid.` : "—" },
@@ -124,12 +134,57 @@ export default async function PaginaConteo({ params }: PageProps<"/conteos/[id]"
         </div>
       </div>
 
-      {faltaron.length > 0 && (
-        <div className="card mt-4 px-5 py-4">
-          <p className="text-sm font-medium">No se contaron ({faltaron.length})</p>
-          <p className="mt-1 text-sm text-suave">{faltaron.map((s) => s.producto).join(" · ")}</p>
-        </div>
-      )}
+      {/* Caja del día: lo que dice el sistema y lo que hay en físico, siempre los dos */}
+      {c.tipo === "DIA" &&
+        (() => {
+          const fisico = caja && caja.monto_fisico != null ? Number(caja.monto_fisico) : null;
+          const dif = fisico == null ? null : Math.round((fisico - ventaSistema) * 100) / 100;
+          return (
+            <div className="card mt-4 overflow-hidden">
+              <div className="border-b border-borde px-5 py-3">
+                <p className="font-medium">Caja del día</p>
+              </div>
+              <div className="grid gap-3 px-5 py-4 sm:grid-cols-4">
+                <div>
+                  <p className="text-xs text-suave">Según el sistema</p>
+                  <p className="text-lg font-semibold tabular-nums">{soles(ventaSistema)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-suave">En físico (efectivo + Yape)</p>
+                  <p className={`text-lg font-semibold tabular-nums ${fisico == null ? "text-suave" : ""}`}>
+                    {fisico == null ? "Sin registrar" : soles(fisico)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-suave">Diferencia</p>
+                  {dif == null ? (
+                    <p className="text-lg font-semibold text-suave">—</p>
+                  ) : dif === 0 ? (
+                    <p className="text-lg font-semibold text-verde-700">Cuadra</p>
+                  ) : (
+                    <p className="text-lg font-semibold text-[#8a5a00] tabular-nums">
+                      {dif > 0 ? "Sobran " : "Faltan "}
+                      {soles(Math.abs(dif))}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-xs text-suave">Registró la caja</p>
+                  <p className="text-sm">
+                    {caja && fisico != null ? (caja.usuario_id ? (usuarios.get(caja.usuario_id)?.nombre ?? "") : "—") : "—"}
+                    {caja && fisico != null && <span className="block text-xs text-suave">{horaLima(caja.created_at)}</span>}
+                  </p>
+                </div>
+                {caja?.motivo && fisico != null && dif !== 0 && (
+                  <p className="rounded-xl bg-ambar-50 px-3 py-2 text-sm text-[#8a5a00] sm:col-span-4">
+                    <b>Motivo:</b> {caja.motivo}
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
     </div>
   );
 }

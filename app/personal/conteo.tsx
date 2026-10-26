@@ -48,17 +48,25 @@ export type Edicion = { preparado?: string; unidades?: string; merma?: string; m
 /** Del día que prepara el mismo personal: antes de contar dice cuánto preparó */
 export const preparaElPersonal = (p: ProductoConteo) => p.perecible && !p.deCocina;
 
-export const MOTIVOS_MERMA = ["No se vendió", "Se cayó", "Se rompió o malogró", "Se venció", "Otro"];
+export const MOTIVO_DEVUELTO = "Devuelto a cocina";
+export const MOTIVOS_MERMA = ["No se vendió", MOTIVO_DEVUELTO, "Se cayó", "Se rompió o malogró", "Se venció", "Otro"];
 const MOTIVO_POR_DEFECTO = MOTIVOS_MERMA[0];
+
+/** Lo que manda la cocina y se acumula: al contar se puede devolver una parte a la cocina (no pasa al día siguiente) */
+export const devuelveACocina = (p: Pick<ProductoConteo, "perecible" | "deCocina">) => !p.perecible && p.deCocina;
+/** Tiene campo de sobrante: los del día (lo que sobra se retira) y lo de cocina que se acumula (lo devuelto) */
+export const conSobrante = (p: Pick<ProductoConteo, "perecible" | "deCocina">) => p.perecible || devuelveACocina(p);
 
 /** Sobrante: si no lo cambian, es todo lo que queda (los productos del día no pasan al día siguiente) */
 function valorSobrante(e: Edicion, perecible: boolean) {
   return e.merma ?? (perecible ? (e.unidades ?? "") : "");
 }
 
-function leerMerma(e: Edicion, perecible: boolean) {
-  const v = valorSobrante(e, perecible);
+function leerMerma(e: Edicion, p: Pick<ProductoConteo, "perecible" | "deCocina">) {
+  const v = valorSobrante(e, p.perecible);
   const cantidad = v !== "" ? Number(v) : 0;
+  // Lo que se acumula y se devuelve: el motivo siempre es "Devuelto a cocina"
+  if (devuelveACocina(p)) return { cantidad, motivo: MOTIVO_DEVUELTO };
   const motivo = (e.motivo ?? MOTIVO_POR_DEFECTO) === "Otro" ? (e.motivoOtro ?? "").trim() : (e.motivo ?? MOTIVO_POR_DEFECTO);
   return { cantidad, motivo };
 }
@@ -74,11 +82,11 @@ export function evaluar(p: ProductoConteo, e: Edicion) {
   const nuevo = valorUnidades === "" ? null : Number(valorUnidades);
   const invalido = nuevo !== null && (!Number.isInteger(nuevo) || nuevo < 0);
   const vendio = nuevo !== null && !invalido ? habia - nuevo : 0;
-  const merma = leerMerma(e, p.perecible);
+  const merma = leerMerma(e, p);
   const quedan = nuevo ?? habia;
-  const hayMerma = p.perecible && merma.cantidad > 0;
+  const hayMerma = conSobrante(p) && merma.cantidad > 0;
   const mermaInvalida =
-    p.perecible && merma.cantidad !== 0 && (!Number.isInteger(merma.cantidad) || merma.cantidad < 0 || merma.cantidad > quedan);
+    conSobrante(p) && merma.cantidad !== 0 && (!Number.isInteger(merma.cantidad) || merma.cantidad < 0 || merma.cantidad > quedan);
   const faltaMotivo = hayMerma && merma.motivo.length === 0;
   const hayCambio = nuevo !== null || hayMerma || preparado > 0;
   const error = preparadoInvalido
@@ -132,7 +140,7 @@ export function FilaConteo({
       <span className="text-verde-700">
         Quedan {r.quedan}
         {r.vendio > 0 ? ` · vendiste ${r.vendio} (${soles(r.vendio * p.precio)})` : r.vendio < 0 ? " · más de lo que había" : ""}
-        {r.hayMerma ? ` · sobran ${r.merma.cantidad}` : ""}
+        {r.hayMerma ? (p.perecible ? ` · sobran ${r.merma.cantidad}` : ` · devuelves ${r.merma.cantidad}`) : ""}
       </span>
     );
   else if (contado)
@@ -317,7 +325,7 @@ export function HojaConteo({
 
       {/* Litros: quedan y sobrante se escriben en litros (el sistema lo pasa a vasos) */}
       {p.presentacion === "LITRO" && p.unidadesPorPresentacion > 0 ? (
-        <div className={`grid gap-3 ${p.perecible ? "grid-cols-2" : "grid-cols-1"}`}>
+        <div className={`grid gap-3 ${conSobrante(p) ? "grid-cols-2" : "grid-cols-1"}`}>
           <CampoLitros
             etiqueta="¿Cuántos litros quedan?"
             mlPorVaso={p.unidadesPorPresentacion}
@@ -325,21 +333,21 @@ export function HojaConteo({
             cambiar={(v) => editar("unidades", v)}
             autoFocus
           />
-          {p.perecible && (
+          {conSobrante(p) && (
             <CampoLitros
-              etiqueta="Sobrante (litros)"
+              etiqueta={p.perecible ? "Sobrante (litros)" : "Devuelve a cocina (litros)"}
               mlPorVaso={p.unidadesPorPresentacion}
               vasos={valorSobrante(e, p.perecible)}
               cambiar={(v) => editar("merma", v)}
             />
           )}
-          <p className={`text-xs text-suave ${p.perecible ? "col-span-2" : ""}`}>
+          <p className={`text-xs text-suave ${conSobrante(p) ? "col-span-2" : ""}`}>
             1 litro = {Math.round(partesPorEnvase("LITRO", p.unidadesPorPresentacion) * 100) / 100} vasos ({p.unidadesPorPresentacion} ml
             cada uno). El sistema lo pasa a vasos.
           </p>
         </div>
       ) : (
-      <div className={`grid gap-3 ${p.perecible ? "grid-cols-2" : "grid-cols-1"}`}>
+      <div className={`grid gap-3 ${conSobrante(p) ? "grid-cols-2" : "grid-cols-1"}`}>
         <label className="block">
           <span className="label">
             {esEnvase(p.presentacion) ? `¿${ENVASES[p.presentacion].cuantas} quedan?` : "¿Cuántas quedan?"}
@@ -363,9 +371,9 @@ export function HojaConteo({
             aria-label={`Quedan de ${p.nombre}`}
           />
         </label>
-        {p.perecible && (
+        {conSobrante(p) && (
           <label className="block">
-            <span className="label">Sobrante (no se vende)</span>
+            <span className="label">{p.perecible ? "Sobrante (no se vende)" : "Devuelve a cocina"}</span>
             <input
               type="number"
               inputMode="numeric"
@@ -389,12 +397,18 @@ export function HojaConteo({
         </p>
       )}
 
+      {devuelveACocina(p) && (
+        <p className="mt-2 text-xs text-suave">
+          Lo que no devuelvas pasa al día siguiente y se suma con lo que mande la cocina. Si no devuelves nada, déjalo vacío.
+        </p>
+      )}
+
       {/* Motivo del sobrante: botones grandes, sin listas desplegables */}
-      {r.hayMerma && (
+      {r.hayMerma && p.perecible && (
         <div className="mt-3">
           <p className="label">¿Por qué sobró?</p>
           <div className="flex flex-wrap gap-2">
-            {MOTIVOS_MERMA.map((m) => (
+            {MOTIVOS_MERMA.filter((m) => m !== MOTIVO_DEVUELTO || p.deCocina).map((m) => (
               <button
                 key={m}
                 type="button"
@@ -447,7 +461,7 @@ export function HojaConteo({
           {r.hayMerma && (
             <>
               {" "}
-              · <b>{r.merma.cantidad}</b> de sobrante ({r.merma.motivo || "sin motivo"})
+              · <b>{r.merma.cantidad}</b> {p.perecible ? `de sobrante (${r.merma.motivo || "sin motivo"})` : "devueltos a cocina"}
             </>
           )}
         </p>

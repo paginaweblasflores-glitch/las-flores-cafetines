@@ -5,7 +5,7 @@ import { CalendarDays, ClipboardCheck, Pencil, Sun } from "lucide-react";
 import { corregirConteoHoy } from "@/app/actions/personal";
 import { avisar, Inicial, Modal, Vacio } from "@/components/ui";
 import { ENVASES, horaLima, litrosTexto, numero, partesPorEnvase, soles } from "@/lib/format";
-import { CampoLitros } from "./conteo";
+import { CampoLitros, conSobrante, MOTIVO_DEVUELTO } from "./conteo";
 
 export type ContadoHoy = {
   /** producto_colegio */
@@ -28,6 +28,8 @@ export type ProductoBasico = {
   precio: number;
   presentacion: string;
   unidadesPorPresentacion: number;
+  /** Lo manda la cocina (en los que se acumulan se puede devolver una parte) */
+  deCocina: boolean;
 };
 
 /**
@@ -40,7 +42,15 @@ export function LoContadoHoy({ contados, productos }: { contados: ContadoHoy[]; 
   const lista = contados
     .map((c) => ({
       ...c,
-      p: producto.get(c.id) ?? { id: c.id, nombre: "Producto", perecible: true, precio: 0, presentacion: "UNIDAD", unidadesPorPresentacion: 1 },
+      p: producto.get(c.id) ?? {
+        id: c.id,
+        nombre: "Producto",
+        perecible: true,
+        precio: 0,
+        presentacion: "UNIDAD",
+        unidadesPorPresentacion: 1,
+        deCocina: true,
+      },
     }))
     .sort((a, b) => b.hora.localeCompare(a.hora));
   const total = lista.reduce((a, c) => a + c.monto, 0);
@@ -129,8 +139,8 @@ export function HojaCorregir({ c, cerrar }: { c: ContadoHoy & { p: ProductoBasic
     setGuardando(true);
     const r = await corregirConteoHoy(c.id, {
       quedan: n(quedan),
-      sobrante: c.p.perecible ? n(sobrante) : 0,
-      motivo: c.motivo,
+      sobrante: conSobrante(c.p) ? n(sobrante) : 0,
+      motivo: c.p.perecible ? c.motivo : MOTIVO_DEVUELTO,
       preparado: n(preparado),
     });
     setGuardando(false);
@@ -157,14 +167,14 @@ export function HojaCorregir({ c, cerrar }: { c: ContadoHoy & { p: ProductoBasic
           </label>
         )}
         {enLitros ? (
-          <div className={`grid gap-3 ${c.p.perecible ? "grid-cols-2" : "grid-cols-1"}`}>
+          <div className={`grid gap-3 ${conSobrante(c.p) ? "grid-cols-2" : "grid-cols-1"}`}>
             <CampoLitros etiqueta="¿Cuántos litros quedan?" mlPorVaso={c.p.unidadesPorPresentacion} vasos={quedan} cambiar={setQuedan} autoFocus />
-            {c.p.perecible && (
-              <CampoLitros etiqueta="Sobrante (litros)" mlPorVaso={c.p.unidadesPorPresentacion} vasos={sobrante} cambiar={setSobrante} />
+            {conSobrante(c.p) && (
+              <CampoLitros etiqueta={c.p.perecible ? "Sobrante (litros)" : "Devuelve a cocina (litros)"} mlPorVaso={c.p.unidadesPorPresentacion} vasos={sobrante} cambiar={setSobrante} />
             )}
           </div>
         ) : (
-        <div className={`grid gap-3 ${c.p.perecible ? "grid-cols-2" : "grid-cols-1"}`}>
+        <div className={`grid gap-3 ${conSobrante(c.p) ? "grid-cols-2" : "grid-cols-1"}`}>
           <label className="block">
             <span className="label">¿Cuántos {parte} quedan?</span>
             <input
@@ -176,9 +186,9 @@ export function HojaCorregir({ c, cerrar }: { c: ContadoHoy & { p: ProductoBasic
               autoFocus
             />
           </label>
-          {c.p.perecible && (
+          {conSobrante(c.p) && (
             <label className="block">
-              <span className="label">Sobrante (no se vende)</span>
+              <span className="label">{c.p.perecible ? "Sobrante (no se vende)" : "Devuelve a cocina"}</span>
               <input inputMode="numeric" value={sobrante} onChange={(e) => setSobrante(soloDigitos(e.target.value))} onFocus={(e) => e.target.select()} className={campo} />
             </label>
           )}

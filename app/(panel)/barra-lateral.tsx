@@ -18,7 +18,6 @@ import {
   School,
   Settings,
   Sparkles,
-  Sun,
   Tag,
   Truck,
   Users,
@@ -32,7 +31,7 @@ import { PerfilLateral } from "./perfil-lateral";
 export const EVENTO_MENU = "lf-abrir-menu";
 
 /** soloAdmin: logística (Fernanda) no lo ve; su trabajo es comprar y entregar */
-type Enlace = { href: string; texto: string; icono: LucideIcon; soloAdmin?: boolean };
+type Enlace = { href: string; texto: string; icono: LucideIcon; soloAdmin?: boolean; soloLogistica?: boolean };
 type Grupo = { id: string; texto: string; icono: LucideIcon; hijos: Enlace[]; soloAdmin?: boolean };
 type Item = Enlace | Grupo;
 
@@ -42,17 +41,10 @@ type Item = Enlace | Grupo;
  */
 const MENU: Item[] = [
   { href: "/dashboard", texto: "Inicio", icono: LayoutDashboard },
-  {
-    id: "conteos",
-    texto: "Conteos",
-    icono: ClipboardCheck,
-    soloAdmin: true,
-    hijos: [
-      { href: "/conteos?tipo=dia", texto: "Por día", icono: Sun },
-      { href: "/conteos?tipo=semana", texto: "Semanales (antes)", icono: CalendarDays },
-    ],
-  },
-  { href: "/reposiciones", texto: "Reposiciones", icono: ClipboardList },
+  // El colegio se elige con las pestañas de la página (como Stock por cafetín y Ventas del mes)
+  { href: "/conteos", texto: "Conteos", icono: ClipboardCheck, soloAdmin: true },
+  // Revisar, comprar y entregar lo pedido es trabajo de logística
+  { href: "/reposiciones", texto: "Reposiciones", icono: ClipboardList, soloLogistica: true },
   { href: "/ingresos", texto: "Entregas", icono: Truck },
   {
     id: "productos",
@@ -81,7 +73,7 @@ const MENU: Item[] = [
     hijos: [
       { href: "/colegios", texto: "Colegios", icono: School, soloAdmin: true },
       { href: "/usuarios", texto: "Usuarios", icono: Users, soloAdmin: true },
-      { href: "/ia", texto: "API", icono: Sparkles },
+      { href: "/ia", texto: "API", icono: Sparkles, soloLogistica: true },
     ],
   },
 ];
@@ -101,8 +93,10 @@ export function BarraLateral({
   const ruta = usePathname();
   const params = useSearchParams();
   const [abierto, setAbierto] = useState(false);
-  const items = MENU.filter((i) => !(i.soloAdmin && rol !== "ADMIN"))
-    .map((i) => (esGrupo(i) ? { ...i, hijos: i.hijos.filter((h) => !(h.soloAdmin && rol !== "ADMIN")) } : i))
+  const ve = (x: { soloAdmin?: boolean; soloLogistica?: boolean }) =>
+    !(x.soloAdmin && rol !== "ADMIN") && !(x.soloLogistica && rol !== "LOGISTICA");
+  const items = MENU.filter((i) => ve(i as Enlace))
+    .map((i) => (esGrupo(i) ? { ...i, hijos: i.hijos.filter(ve) } : i))
     .filter((i) => !esGrupo(i) || i.hijos.length > 0);
 
   /** ¿El enlace corresponde a la página actual? (con ?tipo= cuando el enlace lo indica) */

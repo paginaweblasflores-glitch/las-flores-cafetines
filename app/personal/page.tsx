@@ -114,6 +114,14 @@ export default async function PaginaPersonal({ searchParams }: PageProps<"/perso
   const precioNormal = new Map(extras.filter((f) => f.precio_normal != null).map((f) => [f.id, Number(f.precio_normal)]));
   const arranque = new Map(extras.map((f) => [f.id, f.arranque_at]));
   const categorias = await obtenerCategorias();
+  // Caja de hoy (si ya la registró)
+  const [cierre] = check(
+    await db().from("cierres_dia").select("monto_fisico, total_ventas, motivo, created_at").eq("colegio_id", colegio.id).eq("fecha", hoy),
+  ) as { monto_fisico: number | null; total_ventas: number; motivo: string | null; created_at: string }[];
+  const cajaHoy =
+    cierre && cierre.monto_fisico != null
+      ? { fisico: Number(cierre.monto_fisico), sistema: Number(cierre.total_ventas), motivo: cierre.motivo, hora: cierre.created_at }
+      : null;
 
   const presentacion = new Map(stock.map((s) => [s.id, s.presentacion]));
   /** "2 cajas de 24 + 5 sueltas" */
@@ -162,6 +170,7 @@ export default async function PaginaPersonal({ searchParams }: PageProps<"/perso
           arranqueAt: arranque.get(s.id) ?? null,
         }))}
         contadosHoy={contadosHoy}
+        cajaHoy={cajaHoy}
         categorias={categorias.map((c) => ({ id: c.id, nombre: c.nombre }))}
         ventasHoy={ventasHoy.map((v) => ({ productoId: v.producto_id, unidades: v.unidades, monto: Number(v.monto) }))}
         porRecibir={[...envios].reverse().map((e) => ({

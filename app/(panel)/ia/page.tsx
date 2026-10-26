@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requerirSesion, ROLES_PANEL } from "@/lib/auth";
+import { requerirSesion } from "@/lib/auth";
 import { claveDe, leerConfiguracion, modeloDe, ocultar, PROVEEDORES, type Proveedor } from "@/lib/ia";
 import { check, db } from "@/lib/supabase";
 import { Encabezado } from "@/components/encabezado";
@@ -8,8 +8,8 @@ import { ConfiguracionIA } from "./configuracion";
 export const metadata: Metadata = { title: "API" };
 
 export default async function PaginaIA() {
-  // Administración y logística (Fernanda) pueden conectar o cambiar la clave
-  await requerirSesion(ROLES_PANEL);
+  // La clave de la IA la maneja logística (es quien llena las entregas con la boleta)
+  await requerirSesion(["LOGISTICA"]);
   const [conf, documentos, equivalencias] = await Promise.all([
     leerConfiguracion(),
     db().from("ia_documentos").select("id, nombre, tipo, tamano, created_at").order("id").then(check),

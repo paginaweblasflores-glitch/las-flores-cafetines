@@ -405,3 +405,27 @@ export async function crearProductoArranque(d: {
     return { ok: false, error: msg.startsWith("Ya existe") ? "Ya existe un producto con ese nombre." : msg };
   }
 }
+
+/** Caja del día: cuánto tiene en físico (efectivo + Yape) frente a la venta de hoy del sistema */
+export async function registrarCaja(
+  fisico: number,
+  motivo: string | null,
+): Promise<{ ok: true; diferencia: number } | { ok: false; error: string }> {
+  try {
+    const sesion = await sesionAccion(["PERSONAL"]);
+    if (!sesion.colegioId) return { ok: false, error: "Tu usuario no tiene colegio asignado." };
+    if (!Number.isFinite(fisico) || fisico < 0 || fisico >= 1000000) return { ok: false, error: "Escribe cuánto tienes en caja." };
+    const r = check(
+      await db().rpc("fn_registrar_caja", {
+        p_colegio_id: sesion.colegioId,
+        p_usuario_id: sesion.uid,
+        p_fisico: Math.round(fisico * 100) / 100,
+        p_motivo: motivo?.trim().slice(0, 300) || null,
+      }),
+    ) as { diferencia: number };
+    refresh();
+    return { ok: true, diferencia: Number(r.diferencia) };
+  } catch (e) {
+    return { ok: false, error: mensajeError(e) };
+  }
+}

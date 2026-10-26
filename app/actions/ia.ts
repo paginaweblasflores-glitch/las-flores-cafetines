@@ -1,7 +1,7 @@
 "use server";
 
 import { refresh } from "next/cache";
-import { sesionAccion, ROLES_PANEL } from "@/lib/auth";
+import { sesionAccion } from "@/lib/auth";
 import { obtenerCategorias, obtenerStock } from "@/lib/data";
 import { mayusculas } from "@/lib/format";
 import {
@@ -30,13 +30,13 @@ const MAX_ARCHIVO = 4 * 1024 * 1024;
 const TIPOS = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
 
 // =====================================================================
-//  Administración → API (administración y logística)
+//  Administración → API (logística)
 // =====================================================================
 
 /** Guarda la clave (cifrada en la base y, en la PC de desarrollo, también en .env) después de probarla */
 export async function guardarClaveIA(p: Proveedor, clave: string): Promise<Resultado> {
   try {
-    const sesion = await sesionAccion(ROLES_PANEL);
+    const sesion = await sesionAccion(["LOGISTICA"]);
     if (!esProveedor(p)) return { ok: false, error: "Proveedor no válido." };
     const limpia = clave.trim().replace(/^["']|["']$/g, "");
     if (limpia.length < 20 || /\s/.test(limpia)) return { ok: false, error: "Esa clave no parece completa. Cópiala de nuevo." };
@@ -61,7 +61,7 @@ export async function guardarClaveIA(p: Proveedor, clave: string): Promise<Resul
 
 export async function quitarClaveIA(p: Proveedor): Promise<Resultado> {
   try {
-    const sesion = await sesionAccion(ROLES_PANEL);
+    const sesion = await sesionAccion(["LOGISTICA"]);
     if (!esProveedor(p)) return { ok: false, error: "Proveedor no válido." };
     await guardarClave(p, null, sesion.uid);
     await escribirEnEnv(PROVEEDORES[p].variable, null);
@@ -75,7 +75,7 @@ export async function quitarClaveIA(p: Proveedor): Promise<Resultado> {
 /** Prueba la clave que está en uso y devuelve los modelos disponibles */
 export async function probarIA(p: Proveedor): Promise<{ ok: true; mensaje: string; modelos: string[] } | { ok: false; error: string }> {
   try {
-    await sesionAccion(ROLES_PANEL);
+    await sesionAccion(["LOGISTICA"]);
     if (!esProveedor(p)) return { ok: false, error: "Proveedor no válido." };
     const { clave } = claveDe(await leerConfiguracion(), p);
     if (!clave) return { ok: false, error: "Todavía no hay clave." };
@@ -88,7 +88,7 @@ export async function probarIA(p: Proveedor): Promise<{ ok: true; mensaje: strin
 
 export async function guardarModeloIA(p: Proveedor, modelo: string): Promise<Resultado> {
   try {
-    const sesion = await sesionAccion(ROLES_PANEL);
+    const sesion = await sesionAccion(["LOGISTICA"]);
     if (!esProveedor(p) || !/^[\w.\-]{3,80}$/.test(modelo)) return { ok: false, error: "Modelo no válido." };
     await guardarModelo(p, modelo, sesion.uid);
     refresh();
@@ -101,7 +101,7 @@ export async function guardarModeloIA(p: Proveedor, modelo: string): Promise<Res
 /** Sube un documento de referencia (PDF o foto) a la memoria de la IA */
 export async function subirDocumentoIA(fd: FormData): Promise<Resultado> {
   try {
-    const sesion = await sesionAccion(ROLES_PANEL);
+    const sesion = await sesionAccion(["LOGISTICA"]);
     const archivo = fd.get("archivo");
     if (!(archivo instanceof File) || archivo.size === 0) return { ok: false, error: "Elige un archivo." };
     if (!TIPOS.includes(archivo.type)) return { ok: false, error: "Solo PDF o fotos (JPG, PNG, WEBP)." };
@@ -131,7 +131,7 @@ export async function subirDocumentoIA(fd: FormData): Promise<Resultado> {
 
 export async function borrarDocumentoIA(id: number): Promise<Resultado> {
   try {
-    await sesionAccion(ROLES_PANEL);
+    await sesionAccion(["LOGISTICA"]);
     check(await db().from("ia_documentos").delete().eq("id", id));
     refresh();
     return { ok: true, mensaje: "Documento quitado de la memoria." };
@@ -142,7 +142,7 @@ export async function borrarDocumentoIA(id: number): Promise<Resultado> {
 
 export async function borrarEquivalenciaIA(id: number): Promise<Resultado> {
   try {
-    await sesionAccion(ROLES_PANEL);
+    await sesionAccion(["LOGISTICA"]);
     check(await db().from("ia_equivalencias").delete().eq("id", id));
     refresh();
     return { ok: true, mensaje: "Equivalencia olvidada." };

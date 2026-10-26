@@ -7,6 +7,7 @@ import {
   CalendarDays,
   ClipboardList,
   PackageCheck,
+  Wallet,
   CheckCircle2,
   ChevronRight,
   House,
@@ -28,12 +29,13 @@ import { MisProductos } from "./productos";
 import { ModalPrecio } from "./modal-precio";
 import { HojaCorregir, LoContadoHoy, type ContadoHoy } from "./contado-hoy";
 import { InventarioArranque } from "./arranque";
+import { CajaDelDia, type CajaHoy } from "./caja";
 import { evaluar, FilaConteo, HojaConteo, type Edicion, type ProductoConteo } from "./conteo";
 import type { ItemNuevo } from "@/app/actions/reposiciones";
 
 type Producto = ProductoConteo;
 
-type Seccion = "inicio" | "recibir" | "dia" | "semanal" | "reposicion" | "productos" | "menu" | "vendido" | "arranque";
+type Seccion = "inicio" | "recibir" | "dia" | "semanal" | "reposicion" | "productos" | "menu" | "vendido" | "arranque" | "caja";
 /** Secciones que se abren desde el menú (☰) */
 const DEL_MENU: Seccion[] = ["semanal", "reposicion", "productos", "menu", "arranque"];
 
@@ -45,6 +47,7 @@ export function RegistroPersonal({
   esPersonal,
   productos,
   contadosHoy,
+  cajaHoy,
   categorias,
   ventasHoy,
   porRecibir,
@@ -58,6 +61,8 @@ export function RegistroPersonal({
   productos: Producto[];
   /** Lo contado hoy (para verlo y corregirlo desde "Vendido hoy") */
   contadosHoy: ContadoHoy[];
+  /** Caja de hoy (si ya la registró) */
+  cajaHoy: CajaHoy;
   /** Para crear un producto en el inventario de arranque */
   categorias: { id: number; nombre: string }[];
   ventasHoy: { productoId: number; unidades: number; monto: number }[];
@@ -263,6 +268,7 @@ export function RegistroPersonal({
     menu: "Menú",
     vendido: "Lo contado hoy",
     arranque: "Inventario de arranque",
+    caja: "Caja de hoy",
   };
   const conBuscador = seccion === "dia" || seccion === "semanal";
 
@@ -302,6 +308,15 @@ export function RegistroPersonal({
           : "Cuenta cuando quieras (no es obligatorio)",
       listo: true,
     },
+    {
+      id: "caja",
+      icono: Wallet,
+      titulo: "Caja de hoy",
+      detalle: cajaHoy
+        ? `Registrada: ${soles(cajaHoy.fisico)}${Math.round((cajaHoy.fisico - totalHoy) * 100) === 0 ? " · cuadra" : " · con diferencia"}`
+        : "Al cerrar, anota cuánto tienes en caja",
+      listo: !!cajaHoy && Math.round((cajaHoy.fisico - totalHoy) * 100) === 0,
+    },
   ];
 
   return (
@@ -318,7 +333,7 @@ export function RegistroPersonal({
             alVolver={
               seccion === "semanal" || seccion === "reposicion" || seccion === "productos" || seccion === "arranque"
                 ? () => irA("menu")
-                : seccion === "vendido"
+                : seccion === "vendido" || seccion === "caja"
                   ? () => irA("inicio")
                   : undefined
             }
@@ -547,6 +562,9 @@ export function RegistroPersonal({
           />
         )}
 
+        {/* ------- Caja de hoy: lo que hay en físico frente al sistema ------- */}
+        {seccion === "caja" && <CajaDelDia ventaSistema={totalHoy} registrada={cajaHoy} />}
+
         {/* ------- Inventario de arranque: lo que hay en el almacén ------- */}
         {seccion === "arranque" && <InventarioArranque productos={faltanArranque} total={paraArranque.length} categorias={categorias} />}
 
@@ -554,7 +572,7 @@ export function RegistroPersonal({
         {seccion === "vendido" && (
           <LoContadoHoy
             contados={contadosHoy}
-            productos={productos.map((p) => ({ id: p.id, nombre: p.nombre, perecible: p.perecible, precio: p.precio, presentacion: p.presentacion, unidadesPorPresentacion: p.unidadesPorPresentacion }))}
+            productos={productos.map((p) => ({ id: p.id, nombre: p.nombre, perecible: p.perecible, precio: p.precio, presentacion: p.presentacion, unidadesPorPresentacion: p.unidadesPorPresentacion, deCocina: p.deCocina }))}
           />
         )}
 
@@ -664,7 +682,7 @@ export function RegistroPersonal({
           return p ? (
             <HojaCorregir
               key={corrigiendo.id}
-              c={{ ...corrigiendo, p: { id: p.id, nombre: p.nombre, perecible: p.perecible, precio: p.precio, presentacion: p.presentacion, unidadesPorPresentacion: p.unidadesPorPresentacion } }}
+              c={{ ...corrigiendo, p: { id: p.id, nombre: p.nombre, perecible: p.perecible, precio: p.precio, presentacion: p.presentacion, unidadesPorPresentacion: p.unidadesPorPresentacion, deCocina: p.deCocina } }}
               cerrar={() => setCorrigiendo(null)}
             />
           ) : null;

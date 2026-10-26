@@ -77,6 +77,7 @@ export default async function Dashboard() {
     reposiciones,
     gastosMes,
     arranques,
+    cajasHoy,
     movimientosHoy,
     observadosSemana,
   ] = await Promise.all([
@@ -96,6 +97,10 @@ export default async function Dashboard() {
     // Inventario de arranque: qué productos ya registró cada colegio y cuándo
     db().from("producto_colegio").select("colegio_id, arranque_at").not("arranque_at", "is", null).then(check) as Promise<
       { colegio_id: number; arranque_at: string }[]
+    >,
+    // Caja de hoy de cada colegio
+    db().from("cierres_dia").select("colegio_id, total_ventas, monto_fisico, motivo").eq("fecha", hoy).then(check) as Promise<
+      { colegio_id: number; total_ventas: number; monto_fisico: number | null; motivo: string | null }[]
     >,
     // Ajustes de cantidad que hizo hoy el personal (no son venta)
     obtenerMovimientos({ desde: hoy, hasta: hoy, colegioId, limite: 500 }),
@@ -235,19 +240,6 @@ export default async function Dashboard() {
 
   // ---------------- Para hoy: lo que le toca a administración ----------------
   const tareas: Tarea[] = [];
-  const porAprobar = reposiciones.filter((r) => r.estado === "POR_APROBAR");
-  if (porAprobar.length) {
-    tareas.push({
-      texto: `${porAprobar.length} pedido${porAprobar.length === 1 ? "" : "s"} de reposición por aprobar`,
-      detalle: porAprobar
-        .slice(0, 3)
-        .map((r) => `${r.codigo} · ${corto(nombreColegio.get(r.colegio_id) ?? "")}`)
-        .join(" · "),
-      href: "/reposiciones",
-      accion: "Revisar",
-      tono: "atencion",
-    });
-  }
   for (const l of agruparLotes(observadosSemana)) {
     tareas.push({
       texto: `${l.origen === "COCINA" ? "Envío de cocina" : "Entrega"} del ${fechaCorta(l.fecha)} llegó con observación a ${corto(nombreColegio.get(l.colegioId) ?? "")}`,
@@ -298,6 +290,19 @@ export default async function Dashboard() {
       href: "/movimientos?tipo=personal",
       accion: "Ver",
       tono: "info",
+    });
+  }
+  // Caja de hoy que no cuadra
+  for (const cj of cajasHoy) {
+    if (cj.monto_fisico == null || (colegioId && cj.colegio_id !== colegioId)) continue;
+    const dif = Math.round((Number(cj.monto_fisico) - Number(cj.total_ventas)) * 100) / 100;
+    if (dif === 0) continue;
+    tareas.push({
+      texto: `Caja de ${corto(nombreColegio.get(cj.colegio_id) ?? "")}: ${dif > 0 ? "sobran" : "faltan"} ${soles(Math.abs(dif))}`,
+      detalle: cj.motivo ? `Motivo: ${cj.motivo}` : "Sin motivo",
+      href: `/conteos?colegio=${cj.colegio_id}`,
+      accion: "Ver",
+      tono: "atencion",
     });
   }
   // Ajustes del personal hoy (por colegio): discreto, en azul

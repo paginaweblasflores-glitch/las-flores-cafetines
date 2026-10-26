@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { requerirSesion, ROLES_PANEL } from "@/lib/auth";
+import { requerirSesion } from "@/lib/auth";
 import { obtenerColegios, obtenerReposiciones, obtenerStock, obtenerUsuariosMapa } from "@/lib/data";
 import { DetalleReposicion } from "./detalle";
 
@@ -10,7 +10,7 @@ export async function generateMetadata({ params }: PageProps<"/reposiciones/[id]
 }
 
 export default async function PaginaReposicion({ params }: PageProps<"/reposiciones/[id]">) {
-  const sesion = await requerirSesion(ROLES_PANEL);
+  const sesion = await requerirSesion(["LOGISTICA"]);
   const id = Number((await params).id);
   if (!Number.isInteger(id) || id <= 0) notFound();
 

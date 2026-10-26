@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requerirSesion, ROLES_PANEL } from "@/lib/auth";
+import { requerirSesion } from "@/lib/auth";
 import { obtenerColegios, obtenerReposiciones, obtenerUsuariosMapa } from "@/lib/data";
 import { Encabezado } from "@/components/encabezado";
 import { ListaReposiciones } from "./lista";
@@ -7,7 +7,7 @@ import { ListaReposiciones } from "./lista";
 export const metadata: Metadata = { title: "Reposiciones" };
 
 export default async function PaginaReposiciones() {
-  const sesion = await requerirSesion(ROLES_PANEL);
+  const sesion = await requerirSesion(["LOGISTICA"]);
   const [reposiciones, colegios, usuarios] = await Promise.all([
     obtenerReposiciones({ limite: 1000 }),
     obtenerColegios(false),

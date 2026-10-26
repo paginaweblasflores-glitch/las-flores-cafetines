@@ -19,6 +19,8 @@ export type FilaConteo = {
   sobrante: number;
   registro: string;
   ultimo: string;
+  /** Caja del día que anotó el personal (null = no la registró) */
+  caja: { fisico: number; sistema: number; motivo: string | null } | null;
 };
 
 export function ListaConteos({
@@ -68,13 +70,13 @@ export function ListaConteos({
               <th className="text-right">Vendido</th>
               <th className="text-right">Venta</th>
               <th className="text-right">Sobrante</th>
+              <th>Caja</th>
               <th>Registró</th>
               <th />
             </tr>
           </thead>
         }
         filas={visibles.map((f) => {
-          const completo = f.contados >= f.total;
           return (
             <tr key={f.id} onClick={() => router.push(`/conteos/${f.id}`)} className="cursor-pointer">
               <td className="whitespace-nowrap">
@@ -84,13 +86,25 @@ export function ListaConteos({
               </td>
               {porColegio && <td>{f.colegio}</td>}
               <td>
-                <span className={`chip ${completo ? "chip-exito" : "chip-atencion"}`}>
-                  {f.contados} de {f.total}
+                <span className="chip chip-neutro">
+                  {f.contados} producto{f.contados === 1 ? "" : "s"}
                 </span>
               </td>
               <td className="text-right tabular-nums">{numero(f.unidades)} unid.</td>
               <td className="text-right font-medium tabular-nums">{soles(f.venta)}</td>
               <td className="text-right tabular-nums">{f.sobrante > 0 ? `${numero(f.sobrante)} unid.` : "—"}</td>
+              <td>
+                {!f.caja ? (
+                  <span className="text-xs text-suave">Sin registrar</span>
+                ) : Math.round((f.caja.fisico - f.caja.sistema) * 100) === 0 ? (
+                  <span className="chip chip-exito">{soles(f.caja.fisico)} · cuadra</span>
+                ) : (
+                  <span className="chip chip-atencion" title={f.caja.motivo ?? ""}>
+                    {soles(f.caja.fisico)} · {f.caja.fisico > f.caja.sistema ? "+" : "−"}
+                    {soles(Math.abs(f.caja.fisico - f.caja.sistema))}
+                  </span>
+                )}
+              </td>
               <td className="text-suave">
                 {f.registro || "—"}
                 <span className="block text-xs">{horaLima(f.ultimo)}</span>
