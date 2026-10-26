@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronRight, Package, Search, Sun, TriangleAlert } from "lucide-react";
+import { ChevronRight, Package, Pencil, Search, Sun, TriangleAlert } from "lucide-react";
+import { ModalPrecio } from "./modal-precio";
 import { cambiarMinimo } from "@/app/actions/personal";
 import { avisar, Inicial, Modal } from "@/components/ui";
 import { buscarPorNombre, descPresentacion, fechaCorta, fechaISOLima, numero, soles } from "@/lib/format";
@@ -26,6 +27,7 @@ export function MisProductos({ productos }: { productos: MiProducto[] }) {
   const [busqueda, setBusqueda] = useState("");
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const [editando, setEditando] = useState<MiProducto | null>(null);
+  const [precioDe, setPrecioDe] = useState<MiProducto | null>(null);
 
   const seAcaba = (p: MiProducto) => !p.perecible && p.stock <= p.stockMinimo;
   const lista = buscarPorNombre(
@@ -104,13 +106,24 @@ export function MisProductos({ productos }: { productos: MiProducto[] }) {
         </ul>
       )}
 
-      {editando && <ModalMinimo p={editando} cerrar={() => setEditando(null)} />}
+      {editando && (
+        <ModalMinimo
+          key={editando.id}
+          p={editando}
+          cerrar={() => setEditando(null)}
+          cambiarPrecio={() => {
+            setPrecioDe(editando);
+            setEditando(null);
+          }}
+        />
+      )}
+      {precioDe && <ModalPrecio key={precioDe.id} p={precioDe} cerrar={() => setPrecioDe(null)} />}
     </div>
   );
 }
 
 /** Detalle del producto; en los semanales se ajusta el mínimo (cuándo avisar que se está acabando) */
-function ModalMinimo({ p, cerrar }: { p: MiProducto; cerrar: () => void }) {
+function ModalMinimo({ p, cerrar, cambiarPrecio }: { p: MiProducto; cerrar: () => void; cambiarPrecio: () => void }) {
   const [valor, setValor] = useState(String(p.stockMinimo));
   const [guardando, setGuardando] = useState(false);
   const n = valor.trim() === "" ? NaN : Number(valor);
@@ -141,12 +154,30 @@ function ModalMinimo({ p, cerrar }: { p: MiProducto; cerrar: () => void }) {
   return (
     <Modal abierto onCerrar={cerrar} titulo={p.nombre} subtitulo={p.categoria}>
       <div className="grid grid-cols-2 gap-2">
-        {datos.map((d) => (
-          <div key={d.t} className="rounded-xl bg-fondo px-3 py-2.5">
-            <p className="text-[11px] text-suave">{d.t}</p>
-            <p className="font-semibold">{d.v}</p>
-          </div>
-        ))}
+        {datos.map((d) =>
+          d.t === "Precio" ? (
+            // El precio se cambia aquí mismo (abre la ventana de cambiar precio)
+            <button
+              key={d.t}
+              type="button"
+              onClick={cambiarPrecio}
+              className="rounded-xl border border-verde/40 bg-verde-50/60 px-3 py-2.5 text-left transition-colors hover:bg-verde-50"
+            >
+              <p className="flex items-center justify-between text-[11px] text-suave">
+                {d.t}
+                <span className="flex items-center gap-1 font-medium text-verde-700">
+                  <Pencil className="h-3 w-3" /> cambiar
+                </span>
+              </p>
+              <p className="font-semibold">{d.v}</p>
+            </button>
+          ) : (
+            <div key={d.t} className="rounded-xl bg-fondo px-3 py-2.5">
+              <p className="text-[11px] text-suave">{d.t}</p>
+              <p className="font-semibold">{d.v}</p>
+            </div>
+          ),
+        )}
       </div>
 
       {acaba && (
