@@ -53,11 +53,11 @@ export default async function PaginaConteos({ searchParams }: PageProps<"/conteo
   return (
     <div className="mx-auto max-w-[1400px]">
       <Encabezado
-        titulo={tipo === "DIA" ? "Conteos del día" : "Conteos semanales"}
+        titulo={tipo === "DIA" ? "Conteos por día" : "Conteos semanales (antes)"}
         descripcion={
           tipo === "DIA"
-            ? "Lo que contó el personal cada día (productos del día). Haz clic en uno para ver producto por producto."
-            : "Lo que contó el personal cada semana (productos semanales). Haz clic en uno para ver producto por producto."
+            ? "Lo que contó el personal cada día: los del día y los demás que contaron ese día. Haz clic en uno para ver producto por producto."
+            : "Los conteos semanales de antes del conteo flexible. Desde ahora todo lo que se cuenta queda en el conteo de ese día."
         }
       />
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">

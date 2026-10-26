@@ -20,7 +20,7 @@ import { guardarRegistro } from "@/app/actions/personal";
 import { avisar } from "@/components/ui";
 import { bajoDeBarra, NavegacionInferior, useTecladoAbierto, type ItemNavegacion } from "@/components/navegacion-inferior";
 import { BarraSuperiorMovil, PerfilMovil } from "@/components/movil";
-import { buscarPorNombre, ESTADO_REPOSICION, fechaISOLima, fechaLarga, lunesDeSemana, soles } from "@/lib/format";
+import { buscarPorNombre, ESTADO_REPOSICION, fechaISOLima, fechaLarga, soles } from "@/lib/format";
 import { RecepcionEnvios, type EnvioPorRecibir } from "./recepcion";
 import { Reposicion, type ReposicionEnviada } from "./reposicion";
 import { MisProductos } from "./productos";
@@ -102,24 +102,29 @@ export function RegistroPersonal({
   const totalHoy = ventasHoy.reduce((s, v) => s + v.monto, 0);
   const unidadesHoy = ventasHoy.reduce((s, v) => s + v.unidades, 0);
 
-  const lunes = lunesDeSemana(hoy);
   const contadoHoy = (p: Producto) => recienGuardados.has(p.id) || (!!p.ultimoConteo && fechaISOLima(p.ultimoConteo) === hoy);
-  const contadoSemana = (p: Producto) => recienGuardados.has(p.id) || (!!p.ultimoConteo && fechaISOLima(p.ultimoConteo) >= lunes);
   const delDia = productos.filter((p) => p.perecible);
   const semanales = productos.filter((p) => !p.perecible);
-  const contadoEnSeccion = (p: Producto) => (p.perecible ? contadoHoy(p) : contadoSemana(p));
+  // Conteo flexible: todo se puede contar cualquier día; "contado" = contado HOY
+  const contadoEnSeccion = contadoHoy;
   // Flexible: solo se pide contar lo que HAY (llegó o sobró). Lo que no llegó hoy (stock 0) no queda pendiente.
   const aplica = (p: Producto) => p.stock > 0 || contadoEnSeccion(p);
   const delDiaAplican = delDia.filter(aplica);
   const delDiaContados = delDiaAplican.filter(contadoHoy).length;
-  const porContarSemana = semanales.filter((p) => p.stock > 0 && !contadoSemana(p)).length;
+  // Los que se guardan no son obligatorios: se cuentan cuando quieran (aquí solo cuántos se contaron hoy)
+  const otrosContadosHoy = semanales.filter(contadoHoy).length;
   const deSeccion = seccion === "dia" ? delDia : semanales;
   // Al buscar, primero los que EMPIEZAN con lo escrito
   const lista = buscarPorNombre(deSeccion, busqueda, (p) => p.nombre);
   // Tres grupos: por contar (hay stock) · ya contados · sin stock hoy (no llegó: no es obligatorio)
   const grupos = [
-    { id: "contar", titulo: "Por contar", items: lista.filter((p) => !contadoEnSeccion(p) && p.stock > 0) },
-    { id: "listos", titulo: "Ya contados", items: lista.filter((p) => contadoEnSeccion(p)) },
+    {
+      id: "contar",
+      titulo: seccion === "dia" ? "Por contar" : "Con stock",
+      nota: seccion === "dia" ? undefined : "Cuenta los que quieras, el día que quieras: lo que queda pasa al día siguiente.",
+      items: lista.filter((p) => !contadoEnSeccion(p) && p.stock > 0),
+    },
+    { id: "listos", titulo: seccion === "dia" ? "Ya contados" : "Contados hoy", items: lista.filter((p) => contadoEnSeccion(p)) },
     {
       id: "sinStock",
       titulo: seccion === "dia" ? "Sin stock hoy (no llegó)" : "Sin stock",
@@ -231,7 +236,7 @@ export function RegistroPersonal({
       alerta: true,
     },
     { id: "dia", texto: "Del día", icono: Sun, marca: faltanDelDia > 0 ? String(faltanDelDia) : null, alerta: true },
-    { id: "menu", texto: "Menú", icono: Menu, marca: porContarSemana > 0 ? String(porContarSemana) : null },
+    { id: "menu", texto: "Menú", icono: Menu, marca: null },
   ];
   const activoEnMenu: Seccion = DEL_MENU.includes(seccion) ? "menu" : seccion;
   const porAprobar = reposiciones.filter((r) => r.estado === "POR_APROBAR").length;
@@ -241,7 +246,7 @@ export function RegistroPersonal({
     inicio: colegio.nombre,
     recibir: "Recibir",
     dia: "Productos del día",
-    semanal: "Conteo semanal",
+    semanal: "Contar los demás",
     reposicion: "Reposición",
     productos: "Mis productos",
     menu: "Menú",
@@ -277,13 +282,13 @@ export function RegistroPersonal({
     {
       id: "semanal",
       icono: CalendarDays,
-      titulo: "Conteo semanal",
+      titulo: "Contar los demás",
       detalle: !semanales.length
-        ? "Aún no hay productos semanales"
-        : porContarSemana > 0
-          ? `${porContarSemana} por contar esta semana`
-          : "Todo contado esta semana",
-      listo: porContarSemana === 0,
+        ? "Aún no hay productos que se guarden"
+        : otrosContadosHoy > 0
+          ? `${otrosContadosHoy} contados hoy · cuenta cuando quieras`
+          : "Cuenta cuando quieras (no es obligatorio)",
+      listo: true,
     },
   ];
 
@@ -308,8 +313,8 @@ export function RegistroPersonal({
             derecha={
               seccion === "dia"
                 ? `${delDiaContados}/${delDiaAplican.length}`
-                : seccion === "semanal" && porContarSemana > 0
-                  ? `${porContarSemana} por contar`
+                : seccion === "semanal" && otrosContadosHoy > 0
+                  ? `${otrosContadosHoy} hoy`
                   : null
             }
           />
@@ -428,13 +433,13 @@ export function RegistroPersonal({
                 {
                   id: "semanal" as const,
                   icono: CalendarDays,
-                  titulo: "Conteo semanal",
+                  titulo: "Contar los demás",
                   detalle: !semanales.length
-                    ? "Aún no hay productos semanales"
-                    : porContarSemana > 0
-                      ? `${porContarSemana} por contar esta semana`
-                      : "Todo contado esta semana",
-                  marca: porContarSemana,
+                    ? "Aún no hay productos que se guarden"
+                    : otrosContadosHoy > 0
+                      ? `${otrosContadosHoy} contados hoy · cuenta cuando quieras`
+                      : "Golosinas, bebidas y lo que se guarda: cuenta cuando quieras",
+                  marca: 0,
                 },
                 {
                   id: "productos" as const,
@@ -537,7 +542,7 @@ export function RegistroPersonal({
 
         {(seccion === "dia" || seccion === "semanal") && (
           <ul className="space-y-3">
-            {todoContado && !busqueda && (
+            {todoContado && !busqueda && seccion === "dia" && (
               <li className="flex items-center gap-3 rounded-2xl bg-verde-50 px-4 py-4 text-verde-700">
                 <CheckCircle2 className="h-8 w-8 shrink-0" />
                 <span>
@@ -545,7 +550,7 @@ export function RegistroPersonal({
                   <span className="block text-sm">
                     {seccion === "dia"
                       ? `Contaste los ${deSeccionAplican.length} productos que tenías hoy.`
-                      : `Contaste los ${deSeccionAplican.length} productos de esta semana.`}{" "}
+                      : `Contaste hoy los ${deSeccionAplican.length} productos que tienes.`}{" "}
                     Si te equivocaste, toca &quot;Corregir&quot;.
                   </span>
                 </span>
@@ -579,7 +584,7 @@ export function RegistroPersonal({
                   ? `No hay productos con "${busqueda}".`
                   : seccion === "dia"
                     ? "Aún no hay productos del día. Administración los agrega en el Catálogo."
-                    : "Aún no hay productos semanales. Administración los agrega en el Catálogo."}
+                    : "Aún no hay productos que se guarden. Administración los agrega en el Catálogo."}
               </p>
             )}
           </ul>

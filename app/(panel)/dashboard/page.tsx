@@ -22,7 +22,6 @@ import {
   fechaISOLima,
   hoyISO,
   horaLima,
-  lunesDeSemana,
   mesAnterior,
   nombreMes,
   numero,
@@ -133,11 +132,9 @@ export default async function Dashboard() {
     const contados = delDia.filter(contadoHoy).length;
     return { contados, total: delDia.length };
   };
-  const lunes = lunesDeSemana(hoy);
-  const semanalPorContar = (cid: number) =>
-    semanales.filter(
-      (s) => s.colegio_id === cid && s.total_unidades > 0 && !(s.ultimo_conteo && fechaISOLima(s.ultimo_conteo) >= lunes),
-    ).length;
+  // Los que se guardan se cuentan cuando quieran: solo se muestra cuántos se contaron hoy
+  const otrosContadosHoy = (cid: number) =>
+    semanales.filter((s) => s.colegio_id === cid && !!s.ultimo_conteo && fechaISOLima(s.ultimo_conteo) === hoy).length;
   const porRecibirDe = (cid: number) => {
     const p = porRecibirTodo.filter((e) => e.colegio_id === cid);
     return { cocina: p.filter((e) => e.origen === "COCINA").length, logistica: p.filter((e) => e.origen === "LOGISTICA").length };
@@ -398,7 +395,7 @@ export default async function Dashboard() {
             {colegios.map((c) => {
               const avance = avanceDelDia(c.id);
               const recibir = porRecibirDe(c.id);
-              const semanal = semanalPorContar(c.id);
+              const otros = otrosContadosHoy(c.id);
               const completo = avance.total > 0 && avance.contados === avance.total && recibir.cocina + recibir.logistica === 0;
               const ultimo = actividad.get(c.id);
               const monto = suma(
@@ -431,7 +428,7 @@ export default async function Dashboard() {
                           .join(" · ")}
                       </p>
                     )}
-                    {semanal > 0 && <p className="text-xs text-suave">Semanal: {semanal} por contar esta semana</p>}
+                    {otros > 0 && <p className="text-xs text-suave">Los demás: {otros} contados hoy</p>}
                   </div>
                   <span className="text-right">
                     <span className="block text-sm font-semibold tabular-nums">{soles(monto)}</span>

@@ -133,7 +133,7 @@ export function FilaConteo({
     detalle = (
       <span>
         <CheckCircle2 className="mr-1 inline h-3.5 w-3.5 align-[-3px] text-verde-700" />
-        <span className="text-verde-700">{p.perecible ? "Contado hoy" : "Contado"}</span> · quedan {p.stock}
+        <span className="text-verde-700">Contado hoy</span> · quedan {p.stock}
       </span>
     );
   else
@@ -143,6 +143,7 @@ export function FilaConteo({
           ? "Lo preparas tú"
           : `Hay ${p.stock}${esEnvase(p.presentacion) ? ` ${ENVASES[p.presentacion].partes}` : ""}`}{" "}
         · {soles(p.precio)}
+        {!p.perecible && p.ultimoConteo ? ` · contado el ${fechaCorta(fechaISOLima(p.ultimoConteo))}` : ""}
       </span>
     );
 
@@ -165,7 +166,7 @@ export function FilaConteo({
             <Check className="h-4 w-4" />
           </span>
         ) : !contado && !error ? (
-          p.stock > 0 ? (
+          p.stock > 0 && p.perecible ? (
             <span className="chip shrink-0 chip-atencion">Contar</span>
           ) : (
             <ChevronRight className="h-4 w-4 shrink-0 text-suave" />

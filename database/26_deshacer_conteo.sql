@@ -89,11 +89,17 @@ begin
      set stock_unidades = v_stock, ultimo_conteo = null, updated_at = now(), updated_by = p_usuario_id
    where id = r.id;
 
-  -- Se quita del conteo (del día: se borra; semanal: se resta lo de hoy)
-  select id into v_conteo from conteos
-   where colegio_id = r.colegio_id
-     and tipo = case when v_perec then 'DIA' else 'SEMANA' end
-     and fecha = case when v_perec then fn_hoy() else date_trunc('week', fn_hoy())::date end;
+  -- Se quita del conteo: el de hoy (se borra la línea); si no está, el semanal de antes (se resta lo de hoy)
+  select c.id into v_conteo from conteos c
+   where c.colegio_id = r.colegio_id and c.tipo = 'DIA' and c.fecha = fn_hoy()
+     and exists (select 1 from conteo_items i where i.conteo_id = c.id and i.producto_colegio_id = r.id);
+  if v_conteo is not null then
+    v_perec := true;  -- se borra la línea del conteo de hoy
+  else
+    select id into v_conteo from conteos
+     where colegio_id = r.colegio_id and tipo = 'SEMANA' and fecha = date_trunc('week', fn_hoy())::date;
+    v_perec := false;
+  end if;
   if v_conteo is not null then
     if v_perec then
       delete from conteo_items where conteo_id = v_conteo and producto_colegio_id = r.id;
