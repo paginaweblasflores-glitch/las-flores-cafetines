@@ -243,7 +243,7 @@ export default async function Dashboard() {
   for (const l of agruparLotes(observadosSemana)) {
     tareas.push({
       texto: `${l.origen === "COCINA" ? "Envío de cocina" : "Entrega"} del ${fechaCorta(l.fecha)} llegó con observación a ${corto(nombreColegio.get(l.colegioId) ?? "")}`,
-      detalle: `${l.observados} producto${l.observados === 1 ? "" : "s"} incompleto${l.observados === 1 ? "" : "s"} o dañado${l.observados === 1 ? "" : "s"}`,
+      detalle: `${l.observados} producto${l.observados === 1 ? "" : "s"} con diferencia (faltó, llegó de más o dañado)`,
       href: `/ingresos/${l.clave}`,
       accion: "Ver",
       tono: "critico",

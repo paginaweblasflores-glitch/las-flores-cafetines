@@ -113,7 +113,8 @@ function porMotivoEnvio(observados: { cantidad_enviada: number; cantidad_recibid
   for (const e of observados) {
     const motivo = (e.motivo ?? "").trim() || "Sin motivo";
     const a = m.get(motivo) ?? { motivo, unidades: 0, productos: 0 };
-    a.unidades += e.cantidad_enviada - (e.cantidad_recibida ?? 0);
+    // Solo lo que faltó (si llegó de más, no es pérdida)
+    a.unidades += Math.max(0, e.cantidad_enviada - (e.cantidad_recibida ?? 0));
     a.productos++;
     m.set(motivo, a);
   }

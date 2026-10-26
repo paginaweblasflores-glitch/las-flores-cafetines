@@ -22,7 +22,9 @@ export type EnvioPorRecibir = {
   nota: string | null;
 };
 
-const MOTIVOS = ["No llegó completo", "Llegó aplastado o dañado", "Otro"];
+/** Si llegó menos: faltó o se dañó · si llegó más: la cocina/logística anotó menos de lo que mandó */
+const MOTIVOS = ["No llegó completo", "Llegó aplastado o dañado", "Llegaron de más", "Otro"];
+const DE_MAS = "Llegaron de más";
 
 /** Lo que llegó al cafetín: envíos de cocina (del día) y entregas de logística (semanal) */
 export function RecepcionEnvios({ envios }: { envios: EnvioPorRecibir[] }) {
@@ -139,28 +141,35 @@ function HojaObservacion({ envio: e, cerrar }: { envio: EnvioPorRecibir; cerrar:
 
   const cantidad = llegaron.trim() === "" ? NaN : Number(llegaron);
   const textoMotivo = motivo === "Otro" ? otro.trim() : motivo;
-  const cantidadValida = Number.isInteger(cantidad) && cantidad >= 0 && cantidad < e.cantidad;
+  const cantidadValida = Number.isInteger(cantidad) && cantidad >= 0 && cantidad !== e.cantidad && cantidad < 100000;
+  const deMas = cantidadValida && cantidad > e.cantidad;
 
   async function guardar() {
     setGuardando(true);
     const r = await recibirEnvio(e.id, cantidad, textoMotivo);
     setGuardando(false);
     if (!r.ok) return avisar(r.error, "error");
-    avisar(`${e.producto}: recibidas ${r.recibido} de ${e.cantidad} (queda registrado)`);
+    avisar(`${e.producto}: recibidas ${r.recibido} (enviaron ${e.cantidad}) · queda registrado`);
     cerrar();
   }
 
   return (
     <Modal abierto onCerrar={cerrar} titulo={e.producto} subtitulo={`Enviaron ${numero(e.cantidad)} unid.${e.detalle ? ` · ${e.detalle}` : ""}`}>
       <label className="block">
-        <span className="label">¿Cuántas llegaron bien?</span>
+        <span className="label">¿Cuántas llegaron de verdad?</span>
         <input
           type="number"
           inputMode="numeric"
           min="0"
-          max={e.cantidad - 1}
           value={llegaron}
-          onChange={(ev) => setLlegaron(ev.target.value)}
+          onChange={(ev) => {
+            const v = ev.target.value;
+            setLlegaron(v);
+            // Si escribe más de lo enviado, el motivo pasa solo a "Llegaron de más" (y al revés)
+            const n = Number(v);
+            if (v !== "" && n > e.cantidad && motivo !== DE_MAS && motivo !== "Otro") setMotivo(DE_MAS);
+            if (v !== "" && n < e.cantidad && motivo === DE_MAS) setMotivo(MOTIVOS[0]);
+          }}
           placeholder={`de ${e.cantidad}`}
           className="input h-16 text-center text-3xl font-semibold placeholder:text-base placeholder:font-normal"
           autoFocus
@@ -186,12 +195,15 @@ function HojaObservacion({ envio: e, cerrar }: { envio: EnvioPorRecibir; cerrar:
 
       {llegaron !== "" && !cantidadValida && (
         <p className="mt-3 rounded-xl bg-rojo-50 px-3 py-2 text-sm text-rojo">
-          Escribe un número de 0 a {e.cantidad - 1}. Si llegó todo, usa &quot;Llegó conforme&quot;.
+          Escribe cuántas llegaron de verdad (menos o más de {e.cantidad}). Si llegó exacto, usa &quot;Llegó conforme&quot;.
         </p>
       )}
       {cantidadValida && (
         <p className="mt-3 rounded-xl bg-ambar-50 px-3 py-2 text-sm text-[#8a5a00]">
-          Entran {cantidad} al cafetín. Faltan {e.cantidad - cantidad} ({textoMotivo || "sin motivo"}).
+          Entran {cantidad} al cafetín.{" "}
+          {deMas
+            ? `Llegaron ${cantidad - e.cantidad} más de lo enviado (${textoMotivo || "sin motivo"}).`
+            : `Faltan ${e.cantidad - cantidad} (${textoMotivo || "sin motivo"}).`}
         </p>
       )}
 

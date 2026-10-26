@@ -89,7 +89,7 @@ export async function InicioLogistica({ sesion, colegioId }: { sesion: Sesion; c
     if (l.observados > 0 && l.fecha >= hace7) {
       tareas.push({
         texto: `Entrega del ${fechaCorta(l.fecha)} llegó con observación a ${donde}`,
-        detalle: `${l.observados} producto${l.observados === 1 ? "" : "s"} incompleto${l.observados === 1 ? "" : "s"} o dañado${l.observados === 1 ? "" : "s"}`,
+        detalle: `${l.observados} producto${l.observados === 1 ? "" : "s"} con diferencia (faltó, llegó de más o dañado)`,
         href: `/ingresos/${l.clave}`,
         accion: "Corregir",
         tono: "critico",

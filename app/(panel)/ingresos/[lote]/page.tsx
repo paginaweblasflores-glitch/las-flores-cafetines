@@ -121,7 +121,11 @@ export default async function PaginaEntrega({ params }: PageProps<"/ingresos/[lo
                       <span className={`chip ${ESTADO_ENVIO[e.estado].clase}`}>{ESTADO_ENVIO[e.estado].texto}</span>
                       {e.motivo && (
                         <span className="block text-xs text-[#8a5a00]">
-                          {e.cantidad_recibida != null ? `${numero(e.cantidad_enviada - e.cantidad_recibida)} ` : ""}
+                          {e.cantidad_recibida != null
+                            ? e.cantidad_recibida > e.cantidad_enviada
+                              ? `+${numero(e.cantidad_recibida - e.cantidad_enviada)} `
+                              : `${numero(e.cantidad_enviada - e.cantidad_recibida)} `
+                            : ""}
                           {e.motivo}
                         </span>
                       )}

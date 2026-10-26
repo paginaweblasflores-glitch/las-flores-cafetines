@@ -67,5 +67,9 @@ export const ESTADO_ENVIO = {
  * Agrega cuántas unidades faltaron al motivo (vale también para los registros ya guardados).
  */
 export function textoObservacion(obs: string) {
-  return obs.replace(/enviaron (\d+), llegaron (\d+) \((?!\d)/, (t, env: string, lleg: string) => `${t}${Number(env) - Number(lleg)} `);
+  return obs.replace(/enviaron (\d+), llegaron (\d+) \((?![+\d])/, (t, env: string, lleg: string) => {
+    const dif = Number(env) - Number(lleg);
+    // Faltaron: "(3 No llegó completo)" · llegaron de más: "(+3 Llegaron de más)"
+    return `${t}${dif >= 0 ? dif : `+${-dif}`} `;
+  });
 }

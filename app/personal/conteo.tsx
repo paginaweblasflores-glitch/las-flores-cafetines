@@ -273,11 +273,6 @@ export function HojaConteo({
         </label>
       )}
 
-      {/* Litros: el personal escribe cuántos litros quedan (el sistema lo pasa a vasos) */}
-      {p.presentacion === "LITRO" && p.unidadesPorPresentacion > 0 && (
-        <LitrosQuedan key={p.id} mlPorVaso={p.unidadesPorPresentacion} vasos={e.unidades} cambiar={(v) => editar("unidades", v)} />
-      )}
-
       {/* Balde o taper: se toca cuánto queda en el envase (el sistema lo pasa a vasos o porciones) */}
       {esEnvase(p.presentacion) && p.presentacion !== "LITRO" && p.unidadesPorPresentacion > 0 && (
         <div className="mb-3">
@@ -311,6 +306,30 @@ export function HojaConteo({
         </div>
       )}
 
+      {/* Litros: quedan y sobrante se escriben en litros (el sistema lo pasa a vasos) */}
+      {p.presentacion === "LITRO" && p.unidadesPorPresentacion > 0 ? (
+        <div className={`grid gap-3 ${p.perecible ? "grid-cols-2" : "grid-cols-1"}`}>
+          <CampoLitros
+            etiqueta="¿Cuántos litros quedan?"
+            mlPorVaso={p.unidadesPorPresentacion}
+            vasos={e.unidades ?? ""}
+            cambiar={(v) => editar("unidades", v)}
+            autoFocus
+          />
+          {p.perecible && (
+            <CampoLitros
+              etiqueta="Sobrante (litros)"
+              mlPorVaso={p.unidadesPorPresentacion}
+              vasos={valorSobrante(e, p.perecible)}
+              cambiar={(v) => editar("merma", v)}
+            />
+          )}
+          <p className={`text-xs text-suave ${p.perecible ? "col-span-2" : ""}`}>
+            1 litro = {Math.round(partesPorEnvase("LITRO", p.unidadesPorPresentacion) * 100) / 100} vasos ({p.unidadesPorPresentacion} ml
+            cada uno). El sistema lo pasa a vasos.
+          </p>
+        </div>
+      ) : (
       <div className={`grid gap-3 ${p.perecible ? "grid-cols-2" : "grid-cols-1"}`}>
         <label className="block">
           <span className="label">
@@ -351,6 +370,7 @@ export function HojaConteo({
           </label>
         )}
       </div>
+      )}
 
       {!p.perecible && p.unidadesPorPresentacion > 1 && (
         <p className="mt-2 flex items-center gap-1.5 text-xs text-suave">
@@ -456,31 +476,55 @@ export function HojaConteo({
   );
 }
 
-/** "¿Cuántos litros quedan?": se escribe en litros (con decimales) y se guarda en vasos */
-function LitrosQuedan({ mlPorVaso, vasos, cambiar }: { mlPorVaso: number; vasos: string | undefined; cambiar: (vasos: string) => void }) {
+/**
+ * Campo en litros (con decimales) que guarda vasos. Si los vasos cambian desde afuera
+ * (por ejemplo, el sobrante sigue a lo que queda), el número en litros se actualiza.
+ */
+export function CampoLitros({
+  etiqueta,
+  mlPorVaso,
+  vasos,
+  cambiar,
+  autoFocus,
+}: {
+  etiqueta: string;
+  mlPorVaso: number;
+  vasos: string;
+  cambiar: (vasos: string) => void;
+  autoFocus?: boolean;
+}) {
   const porLitro = partesPorEnvase("LITRO", mlPorVaso);
-  // Al abrir: los vasos que ya se escribieron, pasados a litros
-  const [litros, setLitros] = useState(vasos && vasos !== "" ? litrosTexto(Number(vasos) / porLitro) : "");
+  const aLitros = (v: string) => (v === "" ? "" : litrosTexto(Number(v) / porLitro));
+  const [texto, setTexto] = useState(aLitros(vasos));
+  const [vistos, setVistos] = useState(vasos);
+  // Cambio desde afuera: se muestra en litros
+  if (vasos !== vistos) {
+    setVistos(vasos);
+    setTexto(aLitros(vasos));
+  }
+  const enVasos = texto === "" ? null : Math.round(Number(texto) * porLitro);
   return (
-    <label className="mb-3 block">
-      <span className="label">¿Cuántos litros quedan?</span>
+    <label className="block">
+      <span className="label">{etiqueta}</span>
       <input
         inputMode="decimal"
-        value={litros}
+        value={texto}
         placeholder="0"
+        autoFocus={autoFocus}
+        onFocus={(ev) => ev.target.select()}
         onChange={(ev) => {
           const limpio = ev.target.value.replace(",", ".").replace(/[^\d.]/g, "");
           const [ent, ...dec] = limpio.split(".");
           const valor = dec.length ? `${ent}.${dec.join("").slice(0, 2)}` : ent;
-          setLitros(valor);
-          cambiar(valor === "" ? "" : String(Math.round(Number(valor) * porLitro)));
+          const v = valor === "" ? "" : String(Math.round(Number(valor) * porLitro));
+          setTexto(valor);
+          setVistos(v);
+          cambiar(v);
         }}
         className="input h-16 text-center text-3xl font-semibold placeholder:text-suave/40"
-        aria-label="Litros que quedan"
+        aria-label={etiqueta}
       />
-      <span className="mt-1 block text-xs text-suave">
-        1 litro = {Math.round(porLitro * 100) / 100} vasos ({mlPorVaso} ml cada uno). Abajo sale en vasos.
-      </span>
+      <span className="mt-1 block text-center text-xs text-suave">{enVasos === null ? "\u00a0" : `= ${enVasos} vasos`}</span>
     </label>
   );
 }

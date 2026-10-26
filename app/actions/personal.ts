@@ -185,3 +185,33 @@ export async function cambiarMinimo(productoColegioId: number, minimo: number): 
     return { ok: false, error: mensajeError(e) };
   }
 }
+
+/**
+ * Corrige en un paso lo que se contó hoy de un producto: se deshace lo de hoy y se guarda con
+ * los números nuevos (cuántos quedan, sobrante y lo preparado), como si se hubiera contado bien.
+ */
+export async function corregirConteoHoy(
+  productoColegioId: number,
+  d: { quedan: number; sobrante: number; motivo: string | null; preparado: number },
+): Promise<RespuestaRegistro> {
+  try {
+    const sesion = await sesionAccion(["PERSONAL"]);
+    const entero = (n: number) => Number.isInteger(n) && n >= 0 && n < 100000;
+    if (!Number.isInteger(productoColegioId) || !entero(d.quedan) || !entero(d.sobrante) || !entero(d.preparado)) {
+      return { ok: false, error: "Revisa los números (enteros, 0 o más)." };
+    }
+    if (d.sobrante > d.quedan) return { ok: false, error: "El sobrante no puede ser mayor a lo que queda." };
+    await validarColegio(sesion, [productoColegioId]);
+    check(await db().rpc("fn_deshacer_conteo_hoy", { p_producto_colegio_id: productoColegioId, p_usuario_id: sesion.uid }));
+    return await guardarRegistro([
+      {
+        id: productoColegioId,
+        unidades: d.quedan,
+        ...(d.preparado > 0 ? { preparado: d.preparado } : {}),
+        ...(d.sobrante > 0 ? { merma: { cantidad: d.sobrante, motivo: d.motivo?.trim() || "No se vendió" } } : {}),
+      },
+    ]);
+  } catch (e) {
+    return { ok: false, error: mensajeError(e) };
+  }
+}

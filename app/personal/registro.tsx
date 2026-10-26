@@ -25,12 +25,13 @@ import { RecepcionEnvios, type EnvioPorRecibir } from "./recepcion";
 import { Reposicion, type ReposicionEnviada } from "./reposicion";
 import { MisProductos } from "./productos";
 import { ModalPrecio } from "./modal-precio";
+import { HojaCorregir, LoContadoHoy, type ContadoHoy } from "./contado-hoy";
 import { evaluar, FilaConteo, HojaConteo, type Edicion, type ProductoConteo } from "./conteo";
 import type { ItemNuevo } from "@/app/actions/reposiciones";
 
 type Producto = ProductoConteo;
 
-type Seccion = "inicio" | "recibir" | "dia" | "semanal" | "reposicion" | "productos" | "menu";
+type Seccion = "inicio" | "recibir" | "dia" | "semanal" | "reposicion" | "productos" | "menu" | "vendido";
 /** Secciones que se abren desde el menú (☰) */
 const DEL_MENU: Seccion[] = ["semanal", "reposicion", "productos", "menu"];
 
@@ -41,6 +42,7 @@ export function RegistroPersonal({
   colegios,
   esPersonal,
   productos,
+  contadosHoy,
   ventasHoy,
   porRecibir,
   reposiciones,
@@ -51,6 +53,8 @@ export function RegistroPersonal({
   colegios: { id: number; nombre: string }[];
   esPersonal: boolean;
   productos: Producto[];
+  /** Lo contado hoy (para verlo y corregirlo desde "Vendido hoy") */
+  contadosHoy: ContadoHoy[];
   ventasHoy: { productoId: number; unidades: number; monto: number }[];
   porRecibir: EnvioPorRecibir[];
   reposiciones: ReposicionEnviada[];
@@ -65,6 +69,8 @@ export function RegistroPersonal({
   const [precioDe, setPrecioDe] = useState<Producto | null>(null);
   // Producto abierto en la hoja de conteo
   const [abiertoId, setAbiertoId] = useState<number | null>(null);
+  // Producto ya contado hoy que se está corrigiendo (con sus números)
+  const [corrigiendo, setCorrigiendo] = useState<ContadoHoy | null>(null);
   const [precarga, setPrecarga] = useState<ItemNuevo[]>([]);
   const [verTodosAcaban, setVerTodosAcaban] = useState(false);
   const [recienGuardados, setRecienGuardados] = useState<Set<number>>(() => new Set());
@@ -137,6 +143,13 @@ export function RegistroPersonal({
   const listos = escritos.filter((x) => x.r.cambio);
   const conError = escritos.length - listos.length;
   const ventaEscrita = listos.reduce((a, x) => a + Math.max(x.r.vendio, 0) * x.p.precio, 0);
+
+  /** Lo ya contado hoy se abre para corregir (con sus números); lo demás, para contar */
+  function abrirProducto(p: Producto) {
+    const hecho = contadoEnSeccion(p) ? contadosHoy.find((c) => c.id === p.id) : undefined;
+    if (hecho) setCorrigiendo(hecho);
+    else setAbiertoId(p.id);
+  }
 
   function editar(id: number, campo: keyof Edicion, valor: string) {
     setEdiciones((prev) => ({ ...prev, [id]: { ...prev[id], [campo]: valor } }));
@@ -232,6 +245,7 @@ export function RegistroPersonal({
     reposicion: "Reposición",
     productos: "Mis productos",
     menu: "Menú",
+    vendido: "Lo contado hoy",
   };
   const conBuscador = seccion === "dia" || seccion === "semanal";
 
@@ -285,7 +299,11 @@ export function RegistroPersonal({
             titulo={titulos[seccion]}
             volverAlPanel={!esPersonal}
             alVolver={
-              seccion === "semanal" || seccion === "reposicion" || seccion === "productos" ? () => irA("menu") : undefined
+              seccion === "semanal" || seccion === "reposicion" || seccion === "productos"
+                ? () => irA("menu")
+                : seccion === "vendido"
+                  ? () => irA("inicio")
+                  : undefined
             }
             derecha={
               seccion === "dia"
@@ -314,11 +332,20 @@ export function RegistroPersonal({
             <p className="text-lg font-semibold">Hola, {nombreUsuario}</p>
             <p className="text-sm text-suave first-letter:uppercase">{fechaLarga(hoy)}</p>
 
-            <div className="mt-4 rounded-2xl bg-gradient-to-br from-verde-700 to-verde-oscuro p-5 text-white">
-              <p className="text-xs text-verde-100">Vendido hoy</p>
-              <p className="text-3xl font-semibold tracking-tight">{soles(totalHoy)}</p>
-              <p className="text-xs text-verde-100">{unidadesHoy} unidades</p>
-            </div>
+            {/* Al tocarlo: lo contado hoy, con la opción de corregir */}
+            <button
+              onClick={() => irA("vendido")}
+              className="mt-4 flex w-full items-center justify-between gap-3 rounded-2xl bg-gradient-to-br from-verde-700 to-verde-oscuro p-5 text-left text-white active:opacity-90"
+            >
+              <span>
+                <span className="block text-xs text-verde-100">Vendido hoy</span>
+                <span className="block text-3xl font-semibold tracking-tight">{soles(totalHoy)}</span>
+                <span className="block text-xs text-verde-100">{unidadesHoy} unidades</span>
+              </span>
+              <span className="flex shrink-0 items-center gap-1 rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium">
+                Ver lo contado <ChevronRight className="h-4 w-4" />
+              </span>
+            </button>
 
             <h2 className="mt-6 mb-2 text-sm font-semibold">Por hacer</h2>
             <ul className="space-y-2">
@@ -494,6 +521,14 @@ export function RegistroPersonal({
           />
         )}
 
+        {/* ------- Lo contado hoy: ver y corregir ------- */}
+        {seccion === "vendido" && (
+          <LoContadoHoy
+            contados={contadosHoy}
+            productos={productos.map((p) => ({ id: p.id, nombre: p.nombre, perecible: p.perecible, precio: p.precio, presentacion: p.presentacion, unidadesPorPresentacion: p.unidadesPorPresentacion }))}
+          />
+        )}
+
         {seccion === "recibir" && (
           <div className="pt-1">
             <RecepcionEnvios envios={porRecibir} />
@@ -531,7 +566,7 @@ export function RegistroPersonal({
                         e={ediciones[p.id] ?? {}}
                         contado={contadoEnSeccion(p)}
                         errorServidor={errores[p.id] ?? null}
-                        abrir={() => setAbiertoId(p.id)}
+                        abrir={() => abrirProducto(p)}
                       />
                     ))}
                   </ul>
@@ -594,6 +629,17 @@ export function RegistroPersonal({
           cerrar={() => setAbiertoId(null)}
         />
       )}
+      {corrigiendo &&
+        (() => {
+          const p = productos.find((x) => x.id === corrigiendo.id);
+          return p ? (
+            <HojaCorregir
+              key={corrigiendo.id}
+              c={{ ...corrigiendo, p: { id: p.id, nombre: p.nombre, perecible: p.perecible, precio: p.precio, presentacion: p.presentacion, unidadesPorPresentacion: p.unidadesPorPresentacion } }}
+              cerrar={() => setCorrigiendo(null)}
+            />
+          ) : null;
+        })()}
       {precioDe && <ModalPrecio key={precioDe.id} p={precioDe} cerrar={() => setPrecioDe(null)} />}
 
       <NavegacionInferior items={menu} activo={activoEnMenu} cambiar={irA} />

@@ -9,7 +9,8 @@ import {
   obtenerUsuariosMapa,
   obtenerVentas,
 } from "@/lib/data";
-import { enEnvases, ENVASES, hoyISO, NOMBRE_PRESENTACION } from "@/lib/format";
+import { enEnvases, ENVASES, fechaISOLima, hoyISO, lunesDeSemana, NOMBRE_PRESENTACION } from "@/lib/format";
+import { check, db } from "@/lib/supabase";
 import { Avisos, Vacio } from "@/components/ui";
 import { RegistroPersonal } from "./registro";
 
@@ -48,6 +49,63 @@ export default async function PaginaPersonal({ searchParams }: PageProps<"/perso
     obtenerProductosMapa(),
     obtenerUsuariosMapa(),
   ]);
+  // Lo contado hoy (del día y semanal): para verlo y corregirlo desde "Vendido hoy"
+  const conteos = check(
+    await db()
+      .from("conteos")
+      .select("id, tipo")
+      .eq("colegio_id", colegio.id)
+      .or(`and(tipo.eq.DIA,fecha.eq.${hoy}),and(tipo.eq.SEMANA,fecha.eq.${lunesDeSemana(hoy)})`),
+  ) as { id: number; tipo: "DIA" | "SEMANA" }[];
+  const items = conteos.length
+    ? (check(
+        await db()
+          .from("conteo_items")
+          .select("conteo_id, producto_colegio_id, habia, quedan, vendido, monto, sobrante, motivo, updated_at")
+          .in("conteo_id", conteos.map((c) => c.id)),
+      ) as {
+        conteo_id: number;
+        producto_colegio_id: number;
+        habia: number;
+        quedan: number;
+        vendido: number;
+        monto: number;
+        sobrante: number;
+        motivo: string | null;
+        updated_at: string;
+      }[])
+    : [];
+  // Lo "preparado en el cafetín" hoy (se muestra al corregir para poder cambiarlo también)
+  const preparadoHoy = new Map<number, number>();
+  if (items.length) {
+    const prep = check(
+      await db()
+        .from("movimientos")
+        .select("producto_id, cantidad")
+        .eq("colegio_id", colegio.id)
+        .eq("fecha", hoy)
+        .eq("tipo", "INGRESO")
+        .eq("observacion", "Preparado en el cafetín"),
+    ) as { producto_id: number; cantidad: number }[];
+    for (const m of prep) preparadoHoy.set(m.producto_id, (preparadoHoy.get(m.producto_id) ?? 0) + m.cantidad);
+  }
+  const productoDePc = new Map(stock.map((s) => [s.id, s.producto_id]));
+  const tipoConteo = new Map(conteos.map((c) => [c.id, c.tipo]));
+  const contadosHoy = items
+    // Del semanal, solo lo que se contó hoy
+    .filter((i) => tipoConteo.get(i.conteo_id) === "DIA" || fechaISOLima(i.updated_at) === hoy)
+    .map((i) => ({
+      id: i.producto_colegio_id,
+      habia: i.habia,
+      quedan: i.quedan,
+      vendido: i.vendido,
+      monto: Number(i.monto),
+      sobrante: i.sobrante,
+      motivo: i.motivo,
+      preparado: preparadoHoy.get(productoDePc.get(i.producto_colegio_id) ?? 0) ?? 0,
+      hora: i.updated_at,
+    }));
+
   const presentacion = new Map(stock.map((s) => [s.id, s.presentacion]));
   /** "2 cajas de 24 + 5 sueltas" */
   const comoViene = (cajas: number, porCaja: number | null, sueltas: number, pcId: number) => {
@@ -91,6 +149,7 @@ export default async function PaginaPersonal({ searchParams }: PageProps<"/perso
           ultimoConteo: s.ultimo_conteo,
           precio: Number(s.precio_venta),
         }))}
+        contadosHoy={contadosHoy}
         ventasHoy={ventasHoy.map((v) => ({ productoId: v.producto_id, unidades: v.unidades, monto: Number(v.monto) }))}
         porRecibir={[...envios].reverse().map((e) => ({
           id: e.id,
