@@ -126,7 +126,9 @@ create table productos (
   created_at    timestamptz not null default now(),
   -- Acompañante (salsas): la cocina lo manda y el colegio lo recibe solo para el registro.
   -- No se vende, no lleva precio ni stock y no se cuenta; sí se puede pedir en Reposición.
-  acompanante   boolean not null default false
+  acompanante   boolean not null default false,
+  -- Lo creó el personal (inventario de arranque): administración debe completar costo y cómo se compra
+  por_revisar   boolean not null default false
 );
 create unique index productos_nombre_unico on productos (lower(nombre));
 
@@ -145,6 +147,7 @@ create table producto_colegio (
   unidades_por_presentacion  int not null default 1 check (unidades_por_presentacion > 0),
   stock_unidades             int not null default 0 check (stock_unidades >= 0),
   ultimo_conteo              timestamptz,   -- última vez que el personal contó este producto
+  arranque_at                timestamptz,   -- cuándo se registró en el inventario de arranque (null = falta)
   costo_presentacion         numeric(10,2) not null default 0 check (costo_presentacion >= 0),
   precio_venta               numeric(10,2) not null default 0 check (precio_venta >= 0),
   -- En descuento: el precio de siempre (para volver a él). null = precio normal

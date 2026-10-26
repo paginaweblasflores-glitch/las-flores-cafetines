@@ -33,7 +33,7 @@ export const FILTROS: Record<string, { texto: string; db: TipoMovimiento | null;
     texto: "Ajuste del personal",
     db: null,
     precios: false,
-    incluye: (f) => f.etiqueta === "Ajuste (personal)" || f.etiqueta === "Merma (personal)",
+    incluye: (f) => f.etiqueta === "Ajuste (personal)" || f.etiqueta === "Merma (personal)" || f.etiqueta === "Inventario de arranque",
   },
   merma: { texto: "Merma", db: "MERMA", precios: false, incluye: (f) => f.tipo === "MERMA" },
   precio: { texto: "Cambio de precio", db: null, precios: true, incluye: (f) => f.tipo === "PRECIO" },
@@ -80,7 +80,10 @@ export function armarFilas(movs: Movimiento[], precios: CambioPrecio[], producto
       const deLogistica = m.tipo === "INGRESO" && m.observacion?.startsWith("Entrega de logística");
       const preparado = m.tipo === "INGRESO" && m.observacion?.startsWith("Preparado en el cafetín");
       const ajustePersonal = m.observacion?.startsWith("Ajuste del personal: ");
-      const etiqueta = ajustePersonal
+      const arranque = m.tipo === "AJUSTE" && m.observacion?.startsWith("Inventario de arranque");
+      const etiqueta = arranque
+        ? "Inventario de arranque"
+        : ajustePersonal
         ? m.tipo === "MERMA"
           ? "Merma (personal)"
           : "Ajuste (personal)"

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { requerirSesion } from "@/lib/auth";
 import {
+  obtenerCategorias,
   obtenerColegios,
   obtenerEnvios,
   obtenerProductosMapa,
@@ -106,14 +107,13 @@ export default async function PaginaPersonal({ searchParams }: PageProps<"/perso
       hora: i.updated_at,
     }));
 
-  // Productos en descuento: su precio normal (para volver a él y marcarlo en pantalla)
-  const precioNormal = new Map(
-    (
-      check(
-        await db().from("producto_colegio").select("id, precio_normal").eq("colegio_id", colegio.id).not("precio_normal", "is", null),
-      ) as { id: number; precio_normal: number }[]
-    ).map((f) => [f.id, Number(f.precio_normal)]),
-  );
+  // Precio normal (productos en descuento) y si ya entró en el inventario de arranque
+  const extras = check(
+    await db().from("producto_colegio").select("id, precio_normal, arranque_at").eq("colegio_id", colegio.id),
+  ) as { id: number; precio_normal: number | null; arranque_at: string | null }[];
+  const precioNormal = new Map(extras.filter((f) => f.precio_normal != null).map((f) => [f.id, Number(f.precio_normal)]));
+  const arranque = new Map(extras.map((f) => [f.id, f.arranque_at]));
+  const categorias = await obtenerCategorias();
 
   const presentacion = new Map(stock.map((s) => [s.id, s.presentacion]));
   /** "2 cajas de 24 + 5 sueltas" */
@@ -159,8 +159,10 @@ export default async function PaginaPersonal({ searchParams }: PageProps<"/perso
           precio: Number(s.precio_venta),
           precioNormal: precioNormal.get(s.id) ?? null,
           acompanante: productosMapa.get(s.producto_id)?.acompanante === true,
+          arranqueAt: arranque.get(s.id) ?? null,
         }))}
         contadosHoy={contadosHoy}
+        categorias={categorias.map((c) => ({ id: c.id, nombre: c.nombre }))}
         ventasHoy={ventasHoy.map((v) => ({ productoId: v.producto_id, unidades: v.unidades, monto: Number(v.monto) }))}
         porRecibir={[...envios].reverse().map((e) => ({
           id: e.id,

@@ -3,6 +3,7 @@ import { after } from "next/server";
 import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight, CheckCircle2, Clock, AlertTriangle, ArrowRight, Minus } from "lucide-react";
 import { requerirSesion, ROLES_PANEL } from "@/lib/auth";
+import { check, db } from "@/lib/supabase";
 import {
   colegioSeleccionado,
   obtenerActividadDia,
@@ -75,6 +76,7 @@ export default async function Dashboard() {
     porRecibirTodo,
     reposiciones,
     gastosMes,
+    arranques,
     movimientosHoy,
     observadosSemana,
   ] = await Promise.all([
@@ -91,6 +93,10 @@ export default async function Dashboard() {
     obtenerEnvios({ estado: "PENDIENTE", colegioId }),
     obtenerReposiciones({ colegioId, limite: 200 }),
     obtenerOtrosGastos(rMes.desde, hoy, colegioId),
+    // Inventario de arranque: qué productos ya registró cada colegio y cuándo
+    db().from("producto_colegio").select("colegio_id, arranque_at").not("arranque_at", "is", null).then(check) as Promise<
+      { colegio_id: number; arranque_at: string }[]
+    >,
     // Ajustes de cantidad que hizo hoy el personal (no son venta)
     obtenerMovimientos({ desde: hoy, hasta: hoy, colegioId, limite: 500 }),
     // Lo que llegó a un colegio incompleto o dañado en los últimos 7 días
@@ -266,6 +272,33 @@ export default async function Dashboard() {
         });
       }
     }
+  }
+  // Productos que creó el personal (inventario de arranque): falta costo y cómo se compra
+  const porCompletar = [...productos.values()].filter((p) => p.por_revisar && p.activo);
+  if (porCompletar.length) {
+    tareas.push({
+      texto: `${porCompletar.length} producto${porCompletar.length === 1 ? "" : "s"} nuevo${porCompletar.length === 1 ? "" : "s"} del personal por completar`,
+      detalle: `Pon el costo y cómo se compra: ${porCompletar
+        .slice(0, 4)
+        .map((p) => p.nombre)
+        .join(", ")}`,
+      href: "/productos",
+      accion: "Completar",
+      tono: "atencion",
+    });
+  }
+  // Inventario de arranque registrado hoy (por colegio)
+  const arranqueHoy = new Map<number, number>();
+  for (const a of arranques) if (fechaISOLima(a.arranque_at) === hoy) arranqueHoy.set(a.colegio_id, (arranqueHoy.get(a.colegio_id) ?? 0) + 1);
+  for (const [cid, n] of arranqueHoy) {
+    if (colegioId && cid !== colegioId) continue;
+    tareas.push({
+      texto: `${corto(nombreColegio.get(cid) ?? "")} registró ${n} producto${n === 1 ? "" : "s"} en su inventario de arranque hoy`,
+      detalle: "Lo que tienen en su almacén (no es venta)",
+      href: "/movimientos?tipo=personal",
+      accion: "Ver",
+      tono: "info",
+    });
   }
   // Ajustes del personal hoy (por colegio): discreto, en azul
   const ajustesHoy = new Map<number, number>();

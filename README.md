@@ -46,6 +46,7 @@ Reemplaza los Excel `INVENTARIO.xlsx` (Administración), `CONTROL BOSCO.xlsx` y 
 > Y luego `database/28_conteo_flexible.sql` (conteo flexible: cualquier producto, cualquier día).
 > Y luego `database/29_descuentos.sql` (descuentos: precio normal guardado y reporte).
 > Y luego `database/30_acompanantes.sql` (salsas: acompañantes sin precio ni stock).
+> Y luego `database/31_inventario_arranque.sql` (inventario de arranque del personal).
 >
 > **Empezar en limpio:** (después del 11) `database/10_vaciar_datos_prueba.sql` borra para siempre productos, stock, ventas, historial,
 > envíos y reposiciones. Conserva colegios, usuarios y categorías. Después los productos se crean desde el Catálogo.

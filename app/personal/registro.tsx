@@ -6,6 +6,7 @@ import {
   Boxes,
   CalendarDays,
   ClipboardList,
+  PackageCheck,
   CheckCircle2,
   ChevronRight,
   House,
@@ -26,14 +27,15 @@ import { Reposicion, type ReposicionEnviada } from "./reposicion";
 import { MisProductos } from "./productos";
 import { ModalPrecio } from "./modal-precio";
 import { HojaCorregir, LoContadoHoy, type ContadoHoy } from "./contado-hoy";
+import { InventarioArranque } from "./arranque";
 import { evaluar, FilaConteo, HojaConteo, type Edicion, type ProductoConteo } from "./conteo";
 import type { ItemNuevo } from "@/app/actions/reposiciones";
 
 type Producto = ProductoConteo;
 
-type Seccion = "inicio" | "recibir" | "dia" | "semanal" | "reposicion" | "productos" | "menu" | "vendido";
+type Seccion = "inicio" | "recibir" | "dia" | "semanal" | "reposicion" | "productos" | "menu" | "vendido" | "arranque";
 /** Secciones que se abren desde el menú (☰) */
-const DEL_MENU: Seccion[] = ["semanal", "reposicion", "productos", "menu"];
+const DEL_MENU: Seccion[] = ["semanal", "reposicion", "productos", "menu", "arranque"];
 
 export function RegistroPersonal({
   hoy,
@@ -43,6 +45,7 @@ export function RegistroPersonal({
   esPersonal,
   productos,
   contadosHoy,
+  categorias,
   ventasHoy,
   porRecibir,
   reposiciones,
@@ -55,6 +58,8 @@ export function RegistroPersonal({
   productos: Producto[];
   /** Lo contado hoy (para verlo y corregirlo desde "Vendido hoy") */
   contadosHoy: ContadoHoy[];
+  /** Para crear un producto en el inventario de arranque */
+  categorias: { id: number; nombre: string }[];
   ventasHoy: { productoId: number; unidades: number; monto: number }[];
   porRecibir: EnvioPorRecibir[];
   reposiciones: ReposicionEnviada[];
@@ -108,6 +113,9 @@ export function RegistroPersonal({
   const acompanantes = productos.filter((p) => p.acompanante);
   const delDia = vendibles.filter((p) => p.perecible);
   const semanales = vendibles.filter((p) => !p.perecible);
+  // Inventario de arranque: los que se guardan (no los del día); faltan los que aún no se registraron
+  const paraArranque = semanales;
+  const faltanArranque = semanales.filter((p) => !p.arranqueAt);
   // Conteo flexible: todo se puede contar cualquier día; "contado" = contado HOY
   const contadoEnSeccion = contadoHoy;
   // Flexible: solo se pide contar lo que HAY (llegó o sobró). Lo que no llegó hoy (stock 0) no queda pendiente.
@@ -254,6 +262,7 @@ export function RegistroPersonal({
     productos: "Mis productos",
     menu: "Menú",
     vendido: "Lo contado hoy",
+    arranque: "Inventario de arranque",
   };
   const conBuscador = seccion === "dia" || seccion === "semanal";
 
@@ -307,7 +316,7 @@ export function RegistroPersonal({
             titulo={titulos[seccion]}
             volverAlPanel={!esPersonal}
             alVolver={
-              seccion === "semanal" || seccion === "reposicion" || seccion === "productos"
+              seccion === "semanal" || seccion === "reposicion" || seccion === "productos" || seccion === "arranque"
                 ? () => irA("menu")
                 : seccion === "vendido"
                   ? () => irA("inicio")
@@ -445,6 +454,15 @@ export function RegistroPersonal({
                   marca: 0,
                 },
                 {
+                  id: "arranque" as const,
+                  icono: PackageCheck,
+                  titulo: "Inventario de arranque",
+                  detalle: faltanArranque.length
+                    ? `Faltan ${faltanArranque.length} de ${paraArranque.length}: registra lo que tienes en tu almacén`
+                    : `Completo · ${paraArranque.length} productos registrados`,
+                  marca: faltanArranque.length,
+                },
+                {
                   id: "productos" as const,
                   icono: Boxes,
                   titulo: "Mis productos",
@@ -528,6 +546,9 @@ export function RegistroPersonal({
             alPrecargar={() => setPrecarga([])}
           />
         )}
+
+        {/* ------- Inventario de arranque: lo que hay en el almacén ------- */}
+        {seccion === "arranque" && <InventarioArranque productos={faltanArranque} total={paraArranque.length} categorias={categorias} />}
 
         {/* ------- Lo contado hoy: ver y corregir ------- */}
         {seccion === "vendido" && (

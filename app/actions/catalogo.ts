@@ -56,7 +56,7 @@ export async function editarProducto(
     check(
       await db()
         .from("productos")
-        .update({ nombre, categoria_id: d.categoriaId, activo: d.activo, perecible: d.perecible, de_cocina: d.deCocina ?? true, ...(d.acompanante !== undefined ? { acompanante: d.acompanante } : {}) })
+        .update({ nombre, categoria_id: d.categoriaId, activo: d.activo, perecible: d.perecible, de_cocina: d.deCocina ?? true, por_revisar: false, ...(d.acompanante !== undefined ? { acompanante: d.acompanante } : {}) })
         .eq("id", id),
     );
 

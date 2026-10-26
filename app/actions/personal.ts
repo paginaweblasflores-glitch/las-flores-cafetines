@@ -1,6 +1,7 @@
 "use server";
 
 import { refresh } from "next/cache";
+import { mayusculas } from "@/lib/format";
 import { sesionAccion } from "@/lib/auth";
 import { check, db, mensajeError } from "@/lib/supabase";
 import { enParalelo } from "@/lib/paralelo";
@@ -283,5 +284,124 @@ export async function ajustarCantidad(
     return { ok: true };
   } catch (e) {
     return { ok: false, error: mensajeError(e) };
+  }
+}
+
+const NOTA_ARRANQUE = "Inventario de arranque";
+
+/**
+ * Inventario de arranque: el personal registra cuántas hay de verdad de cada producto (los que se guardan).
+ * Se puede hacer por partes: lo registrado queda marcado y sale de la lista. No es venta.
+ */
+export async function registrarArranque(items: { id: number; unidades: number }[]): Promise<{ ok: true; guardados: number } | { ok: false; error: string }> {
+  try {
+    const sesion = await sesionAccion(["PERSONAL"]);
+    const validos = items.filter((i) => Number.isInteger(i.id) && Number.isInteger(i.unidades) && i.unidades >= 0 && i.unidades < 100000);
+    if (validos.length === 0 || validos.length !== items.length) return { ok: false, error: "Revisa las cantidades (números enteros, 0 o más)." };
+    await validarColegio(sesion, validos.map((i) => i.id));
+    const ahora = new Date().toISOString();
+    await enParalelo(validos, 6, async (i) => {
+      check(
+        await db().rpc("fn_ajustar_stock", {
+          p_producto_colegio_id: i.id,
+          p_unidades: i.unidades,
+          p_tipo: "AJUSTE",
+          p_usuario_id: sesion.uid,
+          p_observacion: NOTA_ARRANQUE,
+        }),
+      );
+      check(await db().from("producto_colegio").update({ arranque_at: ahora, ultimo_conteo: ahora }).eq("id", i.id));
+    });
+    refresh();
+    return { ok: true, guardados: validos.length };
+  } catch (e) {
+    return { ok: false, error: mensajeError(e) };
+  }
+}
+
+/**
+ * Producto que el cafetín tiene y no está en el sistema: se crea solo para este colegio con su precio
+ * y lo que hay. Queda "por revisar" para que administración complete el costo y cómo se compra.
+ * Si ya existe en otro colegio, se agrega a este (no se duplica).
+ */
+export async function crearProductoArranque(d: {
+  nombre: string;
+  categoriaId: number | null;
+  unidades: number;
+  precio: number;
+}): Promise<{ ok: true; mensaje: string } | { ok: false; error: string }> {
+  try {
+    const sesion = await sesionAccion(["PERSONAL"]);
+    const colegioId = sesion.colegioId;
+    if (!colegioId) return { ok: false, error: "Tu usuario no tiene colegio asignado." };
+    const nombre = mayusculas(d.nombre);
+    if (nombre.length < 2) return { ok: false, error: "Escribe el nombre del producto." };
+    if (!Number.isInteger(d.unidades) || d.unidades < 0 || d.unidades >= 100000) return { ok: false, error: "Escribe cuántas hay (0 o más)." };
+    if (!Number.isFinite(d.precio) || d.precio <= 0 || d.precio >= 10000) return { ok: false, error: "Escribe el precio de venta." };
+
+    // ¿Ya existe? (mismo nombre, sin importar mayúsculas)
+    const ya = check(
+      await db().from("productos").select("id, nombre").ilike("nombre", nombre.replace(/[%_\\]/g, "\\$&")).limit(1),
+    ) as { id: number; nombre: string }[];
+    let productoId = ya[0]?.id ?? null;
+    if (productoId) {
+      const aqui = check(
+        await db().from("producto_colegio").select("id, activo").eq("producto_id", productoId).eq("colegio_id", colegioId),
+      ) as { id: number; activo: boolean }[];
+      if (aqui.length && aqui[0].activo) return { ok: false, error: `"${ya[0].nombre}" ya está en tu lista: búscalo y escribe cuántas hay.` };
+      if (aqui.length) {
+        // Estaba retirado de este cafetín: se vuelve a poner
+        check(await db().from("producto_colegio").update({ activo: true, updated_by: sesion.uid }).eq("id", aqui[0].id));
+        await registrarArranque([{ id: aqui[0].id, unidades: d.unidades }]);
+        return { ok: true, mensaje: `"${ya[0].nombre}" vuelve a tu lista con ${d.unidades}.` };
+      }
+    } else {
+      const p = check(
+        await db()
+          .from("productos")
+          .insert({ nombre, categoria_id: d.categoriaId, perecible: false, de_cocina: false, por_revisar: true })
+          .select("id")
+          .single(),
+      ) as { id: number };
+      productoId = p.id;
+    }
+    const pc = check(
+      await db()
+        .from("producto_colegio")
+        .insert({
+          colegio_id: colegioId,
+          producto_id: productoId,
+          presentacion: "UNIDAD",
+          unidades_por_presentacion: 1,
+          costo_presentacion: 0,
+          precio_venta: Math.round(d.precio * 100) / 100,
+          stock_minimo: 0,
+          stock_unidades: 0,
+          activo: true,
+          updated_by: sesion.uid,
+        })
+        .select("id")
+        .single(),
+    ) as { id: number };
+    // Que administración lo revise (costo, cómo se compra, mínimo)
+    check(await db().from("productos").update({ por_revisar: true }).eq("id", productoId));
+    if (d.unidades > 0) {
+      check(
+        await db().rpc("fn_ajustar_stock", {
+          p_producto_colegio_id: pc.id,
+          p_unidades: d.unidades,
+          p_tipo: "AJUSTE",
+          p_usuario_id: sesion.uid,
+          p_observacion: `${NOTA_ARRANQUE} (producto nuevo)`,
+        }),
+      );
+    }
+    const ahora = new Date().toISOString();
+    check(await db().from("producto_colegio").update({ arranque_at: ahora, ultimo_conteo: ahora }).eq("id", pc.id));
+    refresh();
+    return { ok: true, mensaje: `"${nombre}" creado con ${d.unidades}. Administración completará el costo.` };
+  } catch (e) {
+    const msg = mensajeError(e);
+    return { ok: false, error: msg.startsWith("Ya existe") ? "Ya existe un producto con ese nombre." : msg };
   }
 }

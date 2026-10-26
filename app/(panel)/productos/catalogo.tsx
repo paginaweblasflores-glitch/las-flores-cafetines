@@ -18,6 +18,8 @@ type Producto = {
   de_cocina: boolean;
   /** Acompañante (salsas): no se vende, no se cuenta ni lleva stock */
   acompanante: boolean;
+  /** Lo creó el personal: falta costo y cómo se compra (se quita al guardar en Editar) */
+  por_revisar: boolean;
 };
 /** En qué colegio se vende cada producto, si está activo allí y a qué precio (cada colegio tiene el suyo) */
 type Presencia = {
@@ -152,6 +154,7 @@ export function Catalogo({
                           {p.perecible && <span className="chip chip-atencion">Del día</span>}
                           {p.de_cocina && <span className="chip chip-info">Cocina</span>}
                           {p.acompanante && <span className="chip chip-neutro">Acompañante</span>}
+                          {p.por_revisar && <span className="chip chip-atencion">Por completar · lo creó el personal</span>}
                         </p>
                       </div>
                     </td>
