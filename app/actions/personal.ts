@@ -28,6 +28,8 @@ export type CambioRegistro = {
   preparado?: number;
   unidades?: number;
   precio?: number;
+  /** El precio nuevo es un descuento (se guarda el precio normal para volver) */
+  descuento?: boolean;
   merma?: { cantidad: number; motivo: string };
 };
 
@@ -84,6 +86,8 @@ export async function guardarRegistro(cambios: CambioRegistro[]): Promise<Respue
             p_producto_colegio_id: c.id,
             p_precio: c.precio,
               p_usuario_id: sesion.uid,
+              // Solo se manda si es descuento (un cambio normal quita el descuento: es el valor por defecto)
+              ...(c.descuento ? { p_descuento: true } : {}),
             }),
           );
         }

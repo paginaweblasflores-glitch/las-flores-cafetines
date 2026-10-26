@@ -106,6 +106,15 @@ export default async function PaginaPersonal({ searchParams }: PageProps<"/perso
       hora: i.updated_at,
     }));
 
+  // Productos en descuento: su precio normal (para volver a él y marcarlo en pantalla)
+  const precioNormal = new Map(
+    (
+      check(
+        await db().from("producto_colegio").select("id, precio_normal").eq("colegio_id", colegio.id).not("precio_normal", "is", null),
+      ) as { id: number; precio_normal: number }[]
+    ).map((f) => [f.id, Number(f.precio_normal)]),
+  );
+
   const presentacion = new Map(stock.map((s) => [s.id, s.presentacion]));
   /** "2 cajas de 24 + 5 sueltas" */
   const comoViene = (cajas: number, porCaja: number | null, sueltas: number, pcId: number) => {
@@ -148,6 +157,7 @@ export default async function PaginaPersonal({ searchParams }: PageProps<"/perso
           categoria: s.categoria ?? "Otros",
           ultimoConteo: s.ultimo_conteo,
           precio: Number(s.precio_venta),
+          precioNormal: precioNormal.get(s.id) ?? null,
         }))}
         contadosHoy={contadosHoy}
         ventasHoy={ventasHoy.map((v) => ({ productoId: v.producto_id, unidades: v.unidades, monto: Number(v.monto) }))}

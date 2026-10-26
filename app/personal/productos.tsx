@@ -15,6 +15,8 @@ export type MiProducto = {
   unidadesPorPresentacion: number;
   stock: number;
   precio: number;
+  /** En descuento: el precio de siempre */
+  precioNormal?: number | null;
   perecible: boolean;
   ultimoConteo: string | null;
   stockMinimo: number;
@@ -143,7 +145,7 @@ function ModalMinimo({ p, cerrar, cambiarPrecio }: { p: MiProducto; cerrar: () =
 
   const datos = [
     { t: "Hay", v: `${numero(p.stock)} unid.` },
-    { t: "Precio", v: soles(p.precio) },
+    { t: "Precio", v: p.precioNormal != null ? `${soles(p.precio)} (normal ${soles(p.precioNormal)})` : soles(p.precio) },
     { t: "Último conteo", v: p.ultimoConteo ? fechaCorta(fechaISOLima(p.ultimoConteo)) : "—" },
     {
       t: "Cómo viene",

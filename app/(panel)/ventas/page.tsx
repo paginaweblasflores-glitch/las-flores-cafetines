@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Download } from "lucide-react";
+import { BadgePercent, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { requerirSesion } from "@/lib/auth";
-import { obtenerColegios } from "@/lib/data";
+import { obtenerColegios, obtenerProductosMapa } from "@/lib/data";
+import { check, db } from "@/lib/supabase";
 import { reporteMensual } from "@/lib/reportes";
-import { mesActual, mesAnterior, mesSiguiente, nombreMes, numero, soles } from "@/lib/format";
+import { mesActual, mesAnterior, mesSiguiente, nombreMes, numero, rangoMes, soles } from "@/lib/format";
 import { Encabezado } from "@/components/encabezado";
 import { Vacio } from "@/components/ui";
 import { TablaPaginada } from "@/components/paginacion";
@@ -22,7 +23,36 @@ export default async function PaginaVentas({ searchParams }: PageProps<"/ventas"
   const colegio = colegios.find((c) => c.id === pedido) ?? colegios[0];
   if (!colegio) return <Vacio titulo="No hay colegios activos" />;
 
-  const { filas, columnas, montoPorDia } = await reporteMensual(colegio.id, mes);
+  const { desde, hasta } = rangoMes(mes);
+  const [{ filas, columnas, montoPorDia }, productos, ventasDescuento] = await Promise.all([
+    reporteMensual(colegio.id, mes),
+    obtenerProductosMapa(),
+    // Ventas hechas con descuento (el personal marcó "Es un descuento" al cambiar el precio)
+    db()
+      .from("movimientos")
+      .select("producto_id, fecha, cantidad, monto, precio_unitario, precio_normal")
+      .eq("colegio_id", colegio.id)
+      .eq("tipo", "VENTA")
+      .not("precio_normal", "is", null)
+      .gte("fecha", desde)
+      .lte("fecha", hasta)
+      .then(check) as Promise<{ producto_id: number; fecha: string; cantidad: number; monto: number; precio_unitario: number; precio_normal: number }[]>,
+  ]);
+  // Por producto: cuánto se vendió con descuento, qué días y cuánto se dejó de cobrar
+  const porProducto = new Map<number, { unidades: number; cobrado: number; normal: number; dias: Set<string>; precios: Set<number> }>();
+  for (const v of ventasDescuento) {
+    const d = porProducto.get(v.producto_id) ?? { unidades: 0, cobrado: 0, normal: 0, dias: new Set(), precios: new Set() };
+    d.unidades += v.cantidad;
+    d.cobrado += Number(v.monto);
+    d.normal += v.cantidad * Number(v.precio_normal);
+    d.dias.add(v.fecha);
+    d.precios.add(Number(v.precio_unitario));
+    porProducto.set(v.producto_id, d);
+  }
+  const descuentos = [...porProducto.entries()]
+    .map(([id, d]) => ({ id, nombre: productos.get(id)?.nombre ?? "Producto", ...d, dejo: d.normal - d.cobrado }))
+    .filter((d) => d.unidades !== 0)
+    .sort((a, b) => b.dejo - a.dejo);
   const total = filas.reduce((a, f) => a + f.monto, 0);
   const ganancia = filas.reduce((a, f) => a + f.ganancia, 0);
   const unidades = filas.reduce((a, f) => a + f.vendido, 0);
@@ -160,6 +190,54 @@ export default async function PaginaVentas({ searchParams }: PageProps<"/ventas"
       <p className="mt-3 text-xs text-suave">
         Los números en rojo son correcciones (el personal volvió a contar y había más de lo registrado).
       </p>
+
+      {/* Descuentos del mes: solo aparece si el personal marcó algún descuento */}
+      {descuentos.length > 0 && (
+        <div className="card mt-6 overflow-hidden">
+          <div className="border-b border-borde px-5 py-4">
+            <h2 className="flex items-center gap-2 font-medium">
+              <BadgePercent className="h-4 w-4 text-azul" /> Descuentos del mes
+            </h2>
+            <p className="text-xs text-suave">
+              Lo que el personal vendió con descuento para que no se pierda · se cobró {soles(descuentos.reduce((a, d) => a + d.cobrado, 0))} y
+              a precio normal hubiera sido {soles(descuentos.reduce((a, d) => a + d.normal, 0))}
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="tabla">
+              <thead>
+                <tr>
+                  <th>Producto</th>
+                  <th>Días</th>
+                  <th className="text-right">Unidades</th>
+                  <th className="text-right">Precio con descuento</th>
+                  <th className="text-right">Se cobró</th>
+                  <th className="text-right">A precio normal</th>
+                  <th className="text-right">Descuento dado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {descuentos.map((d) => (
+                  <tr key={d.id}>
+                    <td className="font-medium">{d.nombre}</td>
+                    <td className="text-suave">
+                      {[...d.dias]
+                        .sort()
+                        .map((f) => Number(f.slice(8, 10)))
+                        .join(", ")}
+                    </td>
+                    <td className="text-right">{numero(d.unidades)}</td>
+                    <td className="text-right text-suave">{[...d.precios].sort((a, b) => b - a).map((p) => soles(p)).join(" · ")}</td>
+                    <td className="text-right font-medium">{soles(d.cobrado)}</td>
+                    <td className="text-right text-suave">{soles(d.normal)}</td>
+                    <td className="text-right font-medium text-azul">{soles(d.dejo)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

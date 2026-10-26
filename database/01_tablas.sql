@@ -18,6 +18,7 @@ create extension if not exists pgcrypto with schema extensions;
 -- ---------------------------------------------------------------------
 drop view if exists v_ventas_diarias cascade;
 drop function if exists fn_abrir_caja(bigint, int, bigint);
+drop function if exists fn_cambiar_precio(bigint, numeric, bigint);
 drop function if exists fn_registrar_conteo(bigint, int, bigint, text);
 drop function if exists fn_registrar_ingreso(bigint, int, int, numeric, bigint, date, text);
 drop function if exists fn_registrar_ingreso(bigint, int, int, int, numeric, bigint, date, text);
@@ -143,6 +144,8 @@ create table producto_colegio (
   ultimo_conteo              timestamptz,   -- última vez que el personal contó este producto
   costo_presentacion         numeric(10,2) not null default 0 check (costo_presentacion >= 0),
   precio_venta               numeric(10,2) not null default 0 check (precio_venta >= 0),
+  -- En descuento: el precio de siempre (para volver a él). null = precio normal
+  precio_normal              numeric(10,2) check (precio_normal >= 0),
   stock_minimo               int not null default 5 check (stock_minimo >= 0),
   activo                     boolean not null default true,
   observacion                text,
@@ -168,6 +171,8 @@ create table movimientos (
   unidades_por_caja int,                        -- unidades que traía cada caja entregada
   efecto_stock     int not null default 0,
   precio_unitario  numeric(10,2) not null default 0,
+  -- Venta con descuento: el precio normal de ese momento (null = vendido a precio normal)
+  precio_normal    numeric(10,2),
   costo_unitario   numeric(12,4) not null default 0,
   monto            numeric(12,2) not null default 0,
   stock_resultante int,
@@ -187,6 +192,8 @@ create table historial_precios (
   producto_colegio_id  bigint not null references producto_colegio(id) on delete cascade,
   precio_anterior      numeric(10,2) not null,
   precio_nuevo         numeric(10,2) not null,
+  -- true = fue un descuento (por unos días); false = cambio de precio normal
+  descuento            boolean not null default false,
   usuario_id           bigint references usuarios(id) on delete set null,
   created_at           timestamptz not null default now()
 );
@@ -439,9 +446,9 @@ begin
    where id = r.id;
 
   if v_dif > 0 then
-    insert into movimientos (colegio_id, producto_id, tipo, cantidad, efecto_stock, precio_unitario,
+    insert into movimientos (colegio_id, producto_id, tipo, cantidad, efecto_stock, precio_unitario, precio_normal,
                              costo_unitario, monto, stock_resultante, usuario_id, observacion)
-    values (r.colegio_id, r.producto_id, 'VENTA', v_dif, -v_dif, r.precio_venta,
+    values (r.colegio_id, r.producto_id, 'VENTA', v_dif, -v_dif, r.precio_venta, r.precio_normal,
             v_costo, v_dif * r.precio_venta, p_unidades, p_usuario_id, p_observacion);
     return jsonb_build_object('vendido', v_dif, 'ajuste', 0);
   end if;
@@ -456,9 +463,9 @@ begin
   v_resto   := -v_dif - v_corrige;
 
   if v_corrige > 0 then
-    insert into movimientos (colegio_id, producto_id, tipo, cantidad, efecto_stock, precio_unitario,
+    insert into movimientos (colegio_id, producto_id, tipo, cantidad, efecto_stock, precio_unitario, precio_normal,
                              costo_unitario, monto, stock_resultante, usuario_id, observacion)
-    values (r.colegio_id, r.producto_id, 'VENTA', -v_corrige, v_corrige, r.precio_venta,
+    values (r.colegio_id, r.producto_id, 'VENTA', -v_corrige, v_corrige, r.precio_venta, r.precio_normal,
             v_costo, -v_corrige * r.precio_venta, p_unidades, p_usuario_id,
             coalesce(p_observacion, 'Corrección de conteo'));
   end if;
@@ -479,24 +486,35 @@ end $$;
 create or replace function fn_cambiar_precio(
   p_producto_colegio_id bigint,
   p_precio              numeric,
-  p_usuario_id          bigint
+  p_usuario_id          bigint,
+  p_descuento           boolean default false
 ) returns void
 language plpgsql set search_path = public as $$
 declare
-  v_anterior numeric(10,2);
+  r producto_colegio;
+  v_normal numeric(10,2);
 begin
   if p_precio is null or p_precio < 0 then raise exception 'Precio inválido'; end if;
 
-  select precio_venta into v_anterior from producto_colegio where id = p_producto_colegio_id for update;
+  select * into r from producto_colegio where id = p_producto_colegio_id for update;
   if not found then raise exception 'Producto no encontrado'; end if;
-  if v_anterior = round(p_precio, 2) then return; end if;
+
+  -- Descuento: se guarda el precio de siempre (si ya estaba en descuento, se mantiene el normal de antes).
+  -- Precio normal: se quita la marca de descuento.
+  v_normal := case when coalesce(p_descuento, false) then coalesce(r.precio_normal, r.precio_venta) else null end;
+  -- Un "descuento" igual o mayor al precio normal no es descuento
+  if v_normal is not null and round(p_precio, 2) >= v_normal then v_normal := null; end if;
+
+  if r.precio_venta = round(p_precio, 2) and r.precio_normal is not distinct from v_normal then return; end if;
 
   update producto_colegio
-     set precio_venta = round(p_precio, 2), updated_at = now(), updated_by = p_usuario_id
+     set precio_venta = round(p_precio, 2), precio_normal = v_normal, updated_at = now(), updated_by = p_usuario_id
    where id = p_producto_colegio_id;
 
-  insert into historial_precios (producto_colegio_id, precio_anterior, precio_nuevo, usuario_id)
-  values (p_producto_colegio_id, v_anterior, round(p_precio, 2), p_usuario_id);
+  if r.precio_venta <> round(p_precio, 2) then
+    insert into historial_precios (producto_colegio_id, precio_anterior, precio_nuevo, descuento, usuario_id)
+    values (p_producto_colegio_id, r.precio_venta, round(p_precio, 2), v_normal is not null, p_usuario_id);
+  end if;
 end $$;
 
 -- ---------------------------------------------------------------------

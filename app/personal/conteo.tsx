@@ -26,6 +26,8 @@ export type ProductoConteo = {
   /** Unidades en total en el cafetín */
   stock: number;
   precio: number;
+  /** En descuento: el precio de siempre (null = precio normal) */
+  precioNormal: number | null;
   /** Producto del día: se cuenta a diario y lo que sobra es merma */
   perecible: boolean;
   /** Del día que manda la cocina (false = lo prepara el mismo personal: al contar dice cuánto preparó) */
@@ -143,6 +145,7 @@ export function FilaConteo({
           ? "Lo preparas tú"
           : `Hay ${p.stock}${esEnvase(p.presentacion) ? ` ${ENVASES[p.presentacion].partes}` : ""}`}{" "}
         · {soles(p.precio)}
+        {p.precioNormal != null ? " (descuento)" : ""}
         {!p.perecible && p.ultimoConteo ? ` · contado el ${fechaCorta(fechaISOLima(p.ultimoConteo))}` : ""}
       </span>
     );
@@ -232,6 +235,7 @@ export function HojaConteo({
         <span>
           Había <b className="text-tinta">{p.stock}</b>
           {esEnvase(p.presentacion) ? ` ${ENVASES[p.presentacion].partes}` : ""} · {soles(p.precio)}
+          {p.precioNormal != null && <span className="chip chip-info ml-1.5 align-middle">descuento</span>}
           <button
             type="button"
             onClick={cambiarPrecio}
