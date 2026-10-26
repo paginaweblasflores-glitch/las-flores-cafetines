@@ -29,6 +29,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { Rol } from "@/lib/types";
+import { PerfilLateral } from "./perfil-lateral";
 
 /** Evento que dispara el botón de menú de la barra superior (en celular) */
 export const EVENTO_MENU = "lf-abrir-menu";
@@ -76,16 +77,6 @@ const MENU: Item[] = [
     ],
   },
   {
-    id: "pantallas",
-    texto: "Cafetín",
-    icono: MonitorSmartphone,
-    soloAdmin: true,
-    hijos: [
-      { href: "/personal", texto: "Personal", icono: ClipboardPen },
-      { href: "/cocina", texto: "Cocina", icono: ChefHat },
-    ],
-  },
-  {
     id: "admin",
     texto: "Administración",
     icono: Settings,
@@ -101,7 +92,15 @@ const MENU: Item[] = [
 const esGrupo = (i: Item): i is Grupo => "hijos" in i;
 
 /** avisos: número de pendientes por ruta (se muestra junto al enlace) */
-export function BarraLateral({ rol, avisos = {} }: { rol: Rol; avisos?: Record<string, number> }) {
+export function BarraLateral({
+  rol,
+  avisos = {},
+  perfil,
+}: {
+  rol: Rol;
+  avisos?: Record<string, number>;
+  perfil: { nombre: string; usuario: string; nombreRol: string };
+}) {
   const ruta = usePathname();
   const params = useSearchParams();
   const [abierto, setAbierto] = useState(false);
@@ -196,7 +195,7 @@ export function BarraLateral({ rol, avisos = {} }: { rol: Rol; avisos?: Record<s
               <Image src="/logo.png" alt="Las Flores" width={40} height={40} className="h-9 w-9" />
             </span>
             <span className="leading-tight">
-              <span className="block text-[15px] font-semibold tracking-wide text-white">LAS FLORES</span>
+              <span className="block font-marca text-[15px] font-semibold tracking-wide text-white">LAS FLORES</span>
               <span className="block text-[11px] text-panel-text">Cafetines</span>
             </span>
           </Link>
@@ -209,6 +208,9 @@ export function BarraLateral({ rol, avisos = {} }: { rol: Rol; avisos?: Record<s
         <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto [scrollbar-color:var(--color-panel-3)_transparent] [scrollbar-width:thin]">
           {items.map((i) => (esGrupo(i) ? grupo(i) : enlace(i)))}
         </nav>
+
+        {/* Perfil y cerrar sesión, al final del menú */}
+        <PerfilLateral {...perfil} />
       </aside>
     </>
   );

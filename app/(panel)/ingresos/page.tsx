@@ -108,10 +108,16 @@ export default async function PaginaIngresos({ searchParams }: PageProps<"/ingre
     <div className="mx-auto max-w-[1400px]">
       <Encabezado
         titulo="Entregas a colegios"
-        descripcion="Registra la mercadería que logística lleva a cada cafetín. El stock sube cuando el personal del colegio la recibe."
+        descripcion={
+          sesion.rol === "LOGISTICA"
+            ? "Registra la mercadería que llevas a cada cafetín. El stock sube cuando el personal del colegio la recibe."
+            : "La mercadería que logística llevó a cada cafetín y lo que envió la cocina. El stock sube cuando el colegio la recibe."
+        }
       />
 
       <div className="grid gap-6">
+        {/* Solo logística registra entregas; administración ve directo el historial */}
+        {sesion.rol === "LOGISTICA" && (
         <div>
           <FormularioEntrega
             categorias={categorias.map((c) => ({ id: c.id, nombre: c.nombre }))}
@@ -131,13 +137,14 @@ export default async function PaginaIngresos({ searchParams }: PageProps<"/ingre
             }))}
           />
         </div>
+        )}
 
         {/* Ver todo o solo lo que llegó con observación */}
         <div className="flex flex-wrap items-center gap-2">
           <Link href={enlaceObs(false)} className={`chip px-3 py-1.5 ${!soloObs ? "bg-panel text-white" : "bg-white text-suave ring-1 ring-borde"}`}>
             Todo
           </Link>
-          <Link href={enlaceObs(true)} className={`chip px-3 py-1.5 ${soloObs ? "bg-[#8a5a00] text-white" : "bg-ambar-50 text-[#8a5a00]"}`}>
+          <Link href={enlaceObs(true)} className={`chip px-3 py-1.5 ${soloObs ? "bg-[#8a5a00] text-white" : "chip-atencion"}`}>
             Con observación ({totalObs})
           </Link>
           {soloObs && <span className="text-xs text-suave">Solo lo que llegó incompleto o dañado. Toca una fila para ver el motivo.</span>}
@@ -162,7 +169,17 @@ export default async function PaginaIngresos({ searchParams }: PageProps<"/ingre
             </form>
           </div>
           {entregas.length === 0 ? (
-            <Vacio icono={<Truck className="h-6 w-6" />} titulo={soloObs ? "Ninguna entrega con observación este mes" : "Sin entregas este mes"} />
+            <Vacio
+              icono={<Truck className="h-6 w-6" />}
+              titulo={soloObs ? "Ninguna entrega con observación este mes" : "Sin entregas este mes"}
+              texto={
+                soloObs
+                  ? "Todo lo que llegó a los colegios llegó completo y en buen estado."
+                  : sesion.rol === "LOGISTICA"
+                    ? "Registra la primera arriba: elige el colegio y los productos, o usa «Llenar con IA» con la foto de la boleta."
+                    : "Cuando logística registre una entrega, aparece aquí con su estado."
+              }
+            />
           ) : (
             <TablaPaginada
               etiqueta="entregas"
@@ -197,7 +214,11 @@ export default async function PaginaIngresos({ searchParams }: PageProps<"/ingre
           </p>
         </div>
         {deCocina.length === 0 ? (
-          <Vacio icono={<ChefHat className="h-6 w-6" />} titulo={soloObs ? "Ningún envío de cocina con observación este mes" : "Sin envíos de cocina este mes"} />
+          <Vacio
+            icono={<ChefHat className="h-6 w-6" />}
+            titulo={soloObs ? "Ningún envío de cocina con observación este mes" : "Sin envíos de cocina este mes"}
+            texto={soloObs ? undefined : "Lo que la cocina mande desde su panel aparece aquí, con lo que recibió cada colegio."}
+          />
         ) : (
           <TablaPaginada
             etiqueta="envíos"

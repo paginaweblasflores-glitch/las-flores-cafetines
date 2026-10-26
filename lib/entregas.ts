@@ -48,17 +48,17 @@ export function agruparLotes(envios: Envio[]): Lote[] {
 
 /** Estado de toda la entrega para la tabla */
 export function estadoLote(l: Pick<Lote, "items" | "porRecibir" | "observados">) {
-  if (l.porRecibir === l.items.length) return { texto: "Por recibir", clase: "bg-fondo text-suave" };
-  if (l.porRecibir > 0) return { texto: `Faltan ${l.porRecibir} por recibir`, clase: "bg-fondo text-suave" };
-  if (l.observados > 0) return { texto: "Con observación", clase: "bg-ambar-50 text-[#8a5a00]" };
-  return { texto: "Conforme", clase: "bg-verde-50 text-verde-700" };
+  if (l.porRecibir === l.items.length) return { texto: "Por recibir", clase: "chip-neutro" };
+  if (l.porRecibir > 0) return { texto: `Faltan ${l.porRecibir} por recibir`, clase: "chip-neutro" };
+  if (l.observados > 0) return { texto: "Con observación", clase: "chip-atencion" };
+  return { texto: "Conforme", clase: "chip-exito" };
 }
 
 export const ESTADO_ENVIO = {
-  PENDIENTE: { texto: "Por recibir", clase: "bg-fondo text-suave" },
-  CONFORME: { texto: "Conforme", clase: "bg-verde-50 text-verde-700" },
-  OBSERVADO: { texto: "Con observación", clase: "bg-ambar-50 text-[#8a5a00]" },
-  ANULADO: { texto: "Anulado", clase: "bg-fondo text-suave" },
+  PENDIENTE: { texto: "Por recibir", clase: "chip-neutro" },
+  CONFORME: { texto: "Conforme", clase: "chip-exito" },
+  OBSERVADO: { texto: "Con observación", clase: "chip-atencion" },
+  ANULADO: { texto: "Anulado", clase: "chip-neutro" },
 } as const;
 
 /**

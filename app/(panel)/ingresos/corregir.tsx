@@ -106,7 +106,7 @@ function HojaCorregir({ e, cerrar }: { e: Entrega; cerrar: () => void }) {
       )}
 
       {nuevo !== e.enviada && (
-        <p className={`mt-3 rounded-xl px-3 py-2 text-sm ${menorQueLlego ? "bg-rojo-50 text-rojo" : recibida ? "bg-ambar-50 text-[#8a5a00]" : "bg-fondo text-suave"}`}>
+        <p className={`mt-3 rounded-xl px-3 py-2 text-sm ${menorQueLlego ? "chip-critico" : recibida ? "chip-atencion" : "chip-neutro"}`}>
           {efecto}
         </p>
       )}

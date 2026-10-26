@@ -482,11 +482,11 @@ export function FormularioEntrega({
                                 <span className="font-medium">{i.producto}</span>
                                 {x.nuevo &&
                                   (x.nuevo.productoId ? (
-                                    <span className="chip bg-[#e8f0fb] text-[#2b5ea7]">Se agrega a este colegio</span>
+                                    <span className="chip chip-info">Se agrega a este colegio</span>
                                   ) : (
                                     <span className="chip bg-[#f1ebfa] text-[#6a3fb0]">Nuevo</span>
                                   ))}
-                                {x.ia && x.ia.confianza !== "ALTA" && <span className="chip bg-ambar-50 text-[#8a5a00]">Revisar</span>}
+                                {x.ia && x.ia.confianza !== "ALTA" && <span className="chip chip-atencion">Revisar</span>}
                               </span>
                               {x.ia && (
                                 <span className="block text-xs text-suave">

@@ -230,7 +230,7 @@ export function PanelCocina({
 
             {todoEnviado ? (
               <div className="card mt-4 flex flex-col items-center px-6 py-10 text-center">
-                <span className="grid h-14 w-14 place-items-center rounded-full bg-verde-50 text-verde-700">
+                <span className="grid h-14 w-14 place-items-center rounded-full chip-exito">
                   <CheckCircle2 className="h-8 w-8" />
                 </span>
                 <p className="mt-3 text-lg font-semibold">Ya enviaste todos los productos de hoy</p>
@@ -384,7 +384,7 @@ export function PanelCocina({
                               <div className="flex shrink-0 flex-col items-end gap-1.5">
                                 {e.estado === "PENDIENTE" && (
                                   <>
-                                    <span className="chip bg-fondo text-suave">
+                                    <span className="chip chip-neutro">
                                       <Clock className="h-3 w-3" /> Por recibir
                                     </span>
                                     <button
@@ -396,12 +396,12 @@ export function PanelCocina({
                                   </>
                                 )}
                                 {e.estado === "CONFORME" && (
-                                  <span className="chip bg-verde-50 text-verde-700">
+                                  <span className="chip chip-exito">
                                     <CheckCircle2 className="h-3 w-3" /> Recibido
                                   </span>
                                 )}
                                 {e.estado === "OBSERVADO" && (
-                                  <span className="chip bg-ambar-50 text-[#8a5a00]">
+                                  <span className="chip chip-atencion">
                                     <TriangleAlert className="h-3 w-3" /> Con observación
                                   </span>
                                 )}

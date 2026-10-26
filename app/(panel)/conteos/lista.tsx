@@ -84,7 +84,7 @@ export function ListaConteos({
               </td>
               {porColegio && <td>{f.colegio}</td>}
               <td>
-                <span className={`chip ${completo ? "bg-verde-50 text-verde-700" : "bg-ambar-50 text-[#8a5a00]"}`}>
+                <span className={`chip ${completo ? "chip-exito" : "chip-atencion"}`}>
                   {f.contados} de {f.total}
                 </span>
               </td>

@@ -307,7 +307,7 @@ function Agregar({ catalogo, agregar }: { catalogo: ProductoCatalogo[]; agregar:
                 setUnidad(m.id === "catalogo" && elegido ? unidadDe(elegido) : "UNIDAD");
               }}
               className={`flex items-center justify-center gap-1.5 rounded-xl border py-2.5 text-sm font-medium ${
-                modo === m.id ? "border-verde bg-verde-50 text-verde-700" : "border-borde text-suave"
+                modo === m.id ? "border-verde chip-exito" : "border-borde text-suave"
               }`}
             >
               <Icono className="h-4 w-4" /> {m.texto}

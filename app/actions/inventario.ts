@@ -26,7 +26,8 @@ export async function registrarIngresos(
   observacion: string,
 ): Promise<Resultado> {
   try {
-    const sesion = await sesionAccion(ROLES_PANEL);
+    // Las entregas las registra logística; administración las ve en el historial
+    const sesion = await sesionAccion(["LOGISTICA"]);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return { ok: false, error: "Fecha no válida." };
     const validas = lineas.filter((l) => l.cajas > 0 || l.sueltas > 0);
     if (validas.length === 0) return { ok: false, error: "Agrega al menos un producto con cantidad." };

@@ -18,10 +18,13 @@ export function TablaStock({
   filas,
   categorias,
   verGanancia = true,
+  puedeEntregar = false,
 }: {
   filas: StockRow[];
   categorias: Categoria[];
   verGanancia?: boolean;
+  /** Solo logística registra entregas */
+  puedeEntregar?: boolean;
 }) {
   const [busqueda, setBusqueda] = useState("");
   const [cat, setCat] = useState<string>("");
@@ -105,7 +108,11 @@ export function TablaStock({
         </div>
 
         {visibles.length === 0 ? (
-          <Vacio icono={<Boxes className="h-6 w-6" />} titulo="No hay productos para mostrar" />
+          <Vacio
+            icono={<Boxes className="h-6 w-6" />}
+            titulo="No hay productos para mostrar"
+            texto="Quita la búsqueda o los filtros. Los productos nuevos se crean en Catálogo."
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="tabla">
@@ -145,10 +152,10 @@ export function TablaStock({
                       <span
                         className={`chip ${
                           f.total_unidades === 0
-                            ? "bg-rojo-50 text-rojo"
+                            ? "chip-critico"
                             : f.stock_bajo
-                              ? "bg-ambar-50 text-[#8a5a00]"
-                              : "bg-verde-50 text-verde-700"
+                              ? "chip-atencion"
+                              : "chip-exito"
                         }`}
                       >
                         {numero(f.total_unidades)}
@@ -181,10 +188,12 @@ export function TablaStock({
                     )}
                     <td className="text-right">{soles(f.valor_venta_stock)}</td>
                     <td>
-                      <div className="flex justify-end gap-1">
-                        <button onClick={() => setModal({ tipo: "ingreso", fila: f })} className="btn-fantasma" title="Registrar entrega">
-                          <Truck className="h-4 w-4" />
-                        </button>
+                      <div className="acciones-fila flex justify-end gap-1">
+                        {puedeEntregar && (
+                          <button onClick={() => setModal({ tipo: "ingreso", fila: f })} className="btn-fantasma" title="Registrar entrega">
+                            <Truck className="h-4 w-4" />
+                          </button>
+                        )}
                         <button onClick={() => setModal({ tipo: "ajuste", fila: f })} className="btn-fantasma" title="Ajustar stock / merma">
                           <SlidersHorizontal className="h-4 w-4" />
                         </button>
@@ -358,7 +367,7 @@ function ModalAjuste({ fila, onCerrar }: { fila: StockRow; onCerrar: () => void 
         </label>
       </div>
       <p
-        className={`mt-4 rounded-xl px-3 py-2 text-sm ${dif === 0 ? "bg-fondo text-suave" : dif > 0 ? "bg-verde-50 text-verde-700" : "bg-rojo-50 text-rojo"}`}
+        className={`mt-4 rounded-xl px-3 py-2 text-sm ${dif === 0 ? "chip-neutro" : dif > 0 ? "chip-exito" : "chip-critico"}`}
       >
         Antes {numero(fila.total_unidades)} → ahora {numero(nuevo)} unidades ({dif > 0 ? "+" : ""}
         {numero(dif)})

@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { Pencil, Search, FolderPlus, Plus, Trash2 } from "lucide-react";
 import { crearCategoria, crearProducto, editarProducto, eliminarProducto } from "@/app/actions/catalogo";
 import { avisar, Inicial, Modal } from "@/components/ui";
+import { Encabezado } from "@/components/encabezado";
 import { BarraPaginacion, usePaginacion } from "@/components/paginacion";
 import { buscarPorNombre, ENVASES, envasesDeCategoria, ML_POR_VASO, NOMBRE_PRESENTACION, pct, soles, stockEnCompra } from "@/lib/format";
 import type { Categoria, Presentacion } from "@/lib/types";
@@ -79,6 +80,21 @@ export function Catalogo({
 
   return (
     <>
+      {/* La acción principal de la página va arriba a la derecha */}
+      <Encabezado
+        titulo="Catálogo"
+        descripcion="La lista general de productos: nombre, categoría y en qué colegios se vende."
+        acciones={
+          <>
+            <button onClick={() => setNuevaCat(true)} className="btn-secundario">
+              <FolderPlus className="h-4 w-4" /> Nueva categoría
+            </button>
+            <button onClick={() => setNuevo(true)} className="btn-primario">
+              <Plus className="h-4 w-4" /> Nuevo producto
+            </button>
+          </>
+        }
+      />
       <div className="card overflow-hidden">
         <div className="flex flex-wrap gap-3 border-b border-borde p-4">
           <div className="relative min-w-[220px] flex-1">
@@ -107,12 +123,6 @@ export function Catalogo({
             <option value="activos">Activos</option>
             <option value="inactivos">Inactivos</option>
           </select>
-          <button onClick={() => setNuevaCat(true)} className="btn-secundario">
-            <FolderPlus className="h-4 w-4" /> Nueva categoría
-          </button>
-          <button onClick={() => setNuevo(true)} className="btn-primario">
-            <Plus className="h-4 w-4" /> Nuevo producto
-          </button>
         </div>
         <div className="overflow-x-auto">
           <table className="tabla">
@@ -137,8 +147,8 @@ export function Catalogo({
                         <Inicial nombre={p.nombre} />
                         <p className="flex items-center gap-2 font-medium">
                           {p.nombre}
-                          {p.perecible && <span className="chip bg-ambar-50 text-[#8a5a00]">Del día</span>}
-                          {p.de_cocina && <span className="chip bg-[#e8f0fb] text-[#2b5ea7]">Cocina</span>}
+                          {p.perecible && <span className="chip chip-atencion">Del día</span>}
+                          {p.de_cocina && <span className="chip chip-info">Cocina</span>}
                         </p>
                       </div>
                     </td>
@@ -151,7 +161,7 @@ export function Catalogo({
                           {donde.map(({ c, pr }) => (
                             <span
                               key={c.id}
-                              className={`chip ${pr!.activo ? "bg-fondo text-tinta" : "bg-fondo text-suave line-through"}`}
+                              className={`chip ${pr!.activo ? "bg-fondo text-tinta" : "chip-neutro line-through"}`}
                               title={pr!.activo ? "Activo en este colegio" : "Desactivado en este colegio"}
                             >
                               {corto(c.nombre)} · {soles(pr!.precio)}
@@ -161,11 +171,11 @@ export function Catalogo({
                       )}
                     </td>
                     <td>
-                      <span className={`chip ${p.activo ? "bg-verde-50 text-verde-700" : "bg-fondo text-suave"}`}>
+                      <span className={`chip ${p.activo ? "chip-exito" : "chip-neutro"}`}>
                         {p.activo ? "Activo" : "Inactivo"}
                       </span>
                     </td>
-                    <td className="text-right whitespace-nowrap">
+                    <td className="acciones-fila text-right whitespace-nowrap">
                       <button onClick={() => setEditando(p)} className="btn-fantasma" title="Editar" aria-label={`Editar ${p.nombre}`}>
                         <Pencil className="h-4 w-4" />
                       </button>

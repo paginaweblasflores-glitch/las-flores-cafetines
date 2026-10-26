@@ -57,6 +57,7 @@ export default async function PaginaStock({ searchParams }: PageProps<"/stock">)
         filas={sesion.rol === "ADMIN" ? stock : stock.map((f) => ({ ...f, ganancia_unitaria: 0, margen_pct: null }))}
         categorias={categorias}
         verGanancia={sesion.rol === "ADMIN"}
+        puedeEntregar={sesion.rol === "LOGISTICA"}
       />
     </div>
   );

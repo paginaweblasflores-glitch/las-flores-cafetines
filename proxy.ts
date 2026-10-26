@@ -56,6 +56,10 @@ export async function proxy(request: NextRequest) {
   if (rol === "COCINA" && !en(["/cocina"])) {
     return ir("/cocina");
   }
+  // Administración controla desde el panel: las pantallas del personal y de la cocina son de ellos
+  if (rol === "ADMIN" && en(["/personal", "/cocina"])) {
+    return ir("/dashboard");
+  }
   if (rol === "LOGISTICA" && (en(SOLO_ADMIN) || en(NO_LOGISTICA))) {
     return ir("/dashboard");
   }

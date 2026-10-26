@@ -54,7 +54,7 @@ export default async function PaginaLogin() {
               className="h-full w-full"
             />
           </span>
-          <h1 className="relative mt-3 text-2xl font-semibold tracking-tight text-white">Control de Cafetines</h1>
+          <h1 className="relative mt-3 font-marca text-2xl font-semibold tracking-tight text-white">Control de Cafetines</h1>
           <p className="relative mt-1 text-sm text-panel-text">Selecciona tu usuario e ingresa tu contraseña.</p>
         </div>
 

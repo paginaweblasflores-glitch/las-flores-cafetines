@@ -7,7 +7,7 @@ export default function ErrorPagina({ error, reset }: { error: Error & { digest?
   return (
     <main className="grid min-h-[70vh] place-items-center p-6">
       <div className="card max-w-md p-8 text-center">
-        <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-rojo-50 text-rojo">
+        <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl chip-critico">
           <CircleAlert className="h-6 w-6" />
         </span>
         <h1 className="mt-3 text-lg font-semibold">Algo salió mal</h1>

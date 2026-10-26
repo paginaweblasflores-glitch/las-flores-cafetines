@@ -263,12 +263,12 @@ export function cantidadConUnidad(n: number, unidad: string) {
 
 /** Cómo se ve cada estado de una reposición */
 export const ESTADO_REPOSICION: Record<string, { texto: string; clase: string }> = {
-  POR_APROBAR: { texto: "Por aprobar", clase: "bg-ambar-50 text-[#8a5a00]" },
-  APROBADA: { texto: "Aprobada", clase: "bg-verde-50 text-verde-700" },
-  EN_COMPRA: { texto: "En compra", clase: "bg-[#e8f0fb] text-[#2b5ea7]" },
-  COMPRADA: { texto: "Comprada", clase: "bg-verde-50 text-verde-700" },
-  RECHAZADA: { texto: "No aprobada", clase: "bg-rojo-50 text-rojo" },
-  ANULADA: { texto: "Anulada", clase: "bg-fondo text-suave" },
+  POR_APROBAR: { texto: "Por aprobar", clase: "chip-atencion" },
+  APROBADA: { texto: "Aprobada", clase: "chip-exito" },
+  EN_COMPRA: { texto: "En compra", clase: "chip-info" },
+  COMPRADA: { texto: "Comprada", clase: "chip-exito" },
+  RECHAZADA: { texto: "No aprobada", clase: "chip-critico" },
+  ANULADA: { texto: "Anulada", clase: "chip-neutro" },
 };
 
 /** Nombre de un conteo: "jueves 8 de octubre" o "Semana del lunes 5 de octubre" */

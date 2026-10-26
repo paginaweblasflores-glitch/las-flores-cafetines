@@ -47,7 +47,7 @@ export type RespuestaRegistro =
 /** Guarda de una sola vez todo lo que el personal cambió en su pantalla (cada producto por separado) */
 export async function guardarRegistro(cambios: CambioRegistro[]): Promise<RespuestaRegistro> {
   try {
-    const sesion = await sesionAccion(["PERSONAL", "ADMIN", "LOGISTICA"]);
+    const sesion = await sesionAccion(["PERSONAL"]);
     const validos = cambios.filter(
       (c) =>
         Number.isInteger(c.id) &&
@@ -170,7 +170,7 @@ export async function guardarRegistro(cambios: CambioRegistro[]): Promise<Respue
 /** El personal ajusta el stock mínimo de un producto de su colegio (cuándo avisar que se está acabando) */
 export async function cambiarMinimo(productoColegioId: number, minimo: number): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    const sesion = await sesionAccion(["PERSONAL", "ADMIN", "LOGISTICA"]);
+    const sesion = await sesionAccion(["PERSONAL"]);
     if (!Number.isInteger(minimo) || minimo < 0 || minimo > 100000) return { ok: false, error: "Escribe un número entero (0 o más)." };
     await validarColegio(sesion, [productoColegioId]);
     check(

@@ -279,7 +279,7 @@ Cómo trabaja logística en Las Flores (tenlo siempre en cuenta):
 export async function leerBoleta(fd: FormData): Promise<BoletaLeida | { ok: false; error: string }> {
   const inicio = Date.now();
   try {
-    const sesionUid = (await sesionAccion(ROLES_PANEL)).uid;
+    const sesionUid = (await sesionAccion(["LOGISTICA"])).uid;
     const colegioId = Number(fd.get("colegioId"));
     if (!Number.isInteger(colegioId) || colegioId <= 0) return { ok: false, error: "Elige el colegio." };
     const archivos = fd.getAll("archivos").filter((a): a is File => a instanceof File && a.size > 0);
@@ -461,7 +461,7 @@ export async function prepararProductosIA(
   items: PorCrear[],
 ): Promise<{ ok: true; creados: ItemCreado[]; nuevos: number; agregados: number } | { ok: false; error: string }> {
   try {
-    const sesion = await sesionAccion(ROLES_PANEL);
+    const sesion = await sesionAccion(["LOGISTICA"]);
     if (!Number.isInteger(colegioId) || colegioId <= 0) return { ok: false, error: "Colegio no válido." };
     const creados: ItemCreado[] = [];
     let nuevos = 0;
@@ -539,7 +539,7 @@ export async function prepararProductosIA(
 /** Después de registrar: guarda cómo sale cada producto en la boleta, para reconocerlo solo la próxima vez */
 export async function aprenderEquivalenciasIA(pares: { texto: string; productoColegioId: number }[]): Promise<Resultado> {
   try {
-    await sesionAccion(ROLES_PANEL);
+    await sesionAccion(["LOGISTICA"]);
     const validos = pares.map((p) => ({ texto: normalizar(p.texto).slice(0, 200), pc: p.productoColegioId })).filter((p) => p.texto.length >= 2);
     if (validos.length === 0) return { ok: true };
     const filas = check(await db().from("producto_colegio").select("id, producto_id").in("id", validos.map((v) => v.pc))) as {

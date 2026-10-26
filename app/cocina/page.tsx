@@ -8,7 +8,7 @@ import { PanelCocina } from "./panel";
 export const metadata: Metadata = { title: "Envíos de cocina" };
 
 export default async function PaginaCocina() {
-  const sesion = await requerirSesion(["COCINA", "ADMIN"]);
+  const sesion = await requerirSesion(["COCINA"]);
   const hoy = hoyISO();
   const [colegios, stock, envios, productos, usuarios] = await Promise.all([
     obtenerColegios(),

@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { ArrowRight, ClipboardList, PackageSearch, ShoppingCart, Truck, Wallet } from "lucide-react";
+import { ArrowRight, ClipboardList, PackageSearch, Plus, ShoppingCart, Truck, Wallet } from "lucide-react";
+import { ParaHoy, type Tarea } from "@/components/para-hoy";
+import { SelectorColegio } from "../selector-colegio";
 import { obtenerColegios, obtenerEnvios, obtenerOtrosGastos, obtenerReposiciones, obtenerStock } from "@/lib/data";
 import { agruparLotes, estadoLote } from "@/lib/entregas";
 import { ESTADO_REPOSICION, fechaCorta, fechaISOLima, hoyISO, horaLima, nombreMes, numero, rangoMes, soles } from "@/lib/format";
@@ -56,6 +58,60 @@ export async function InicioLogistica({ sesion, colegioId }: { sesion: Sesion; c
   const otrosGastos = gastosMes.reduce((a, g) => a + g.costo, 0);
   const comprasMes = envios.filter((e) => e.fecha >= desde && e.estado !== "ANULADO").reduce((a, e) => a + costo(e), 0) + otrosGastos;
 
+  // ---------------- Para hoy: lo que le toca a logística ----------------
+  const corto = (n: string) => n.replace(/^Colegio\s+/i, "");
+  const tareas: Tarea[] = [];
+  if (porComprar.length) {
+    tareas.push({
+      texto: `${porComprar.length} pedido${porComprar.length === 1 ? "" : "s"} aprobado${porComprar.length === 1 ? "" : "s"} por comprar`,
+      detalle: porComprar.slice(0, 3).map((r) => `${r.codigo} · ${corto(nombreColegio.get(r.colegio_id) ?? "")}`).join(" · "),
+      href: "/reposiciones",
+      accion: "Comprar",
+      tono: "atencion",
+    });
+  }
+  if (porRevisar.length) {
+    tareas.push({
+      texto: `${porRevisar.length} pedido${porRevisar.length === 1 ? "" : "s"} nuevo${porRevisar.length === 1 ? "" : "s"} del personal`,
+      detalle: "Esperan la aprobación de administración",
+      href: "/reposiciones",
+      accion: "Ver",
+      tono: "info",
+    });
+  }
+  const hace7 = new Date(Date.parse(hoy) - 7 * 86400000).toISOString().slice(0, 10);
+  for (const l of lotes) {
+    const donde = corto(nombreColegio.get(l.colegioId) ?? "");
+    // Lo de hoy es normal que siga por recibir; lo de días anteriores ya debería estar recibido
+    if (l.porRecibir > 0 && l.fecha < hoy) {
+      tareas.push({ texto: `Entrega del ${fechaCorta(l.fecha)} sin recibir en ${donde}`, detalle: "Avisa al personal que la acepte en «Recibir»", href: `/ingresos/${l.clave}`, accion: "Ver", tono: "atencion" });
+    }
+    if (l.observados > 0 && l.fecha >= hace7) {
+      tareas.push({
+        texto: `Entrega del ${fechaCorta(l.fecha)} llegó con observación a ${donde}`,
+        detalle: `${l.observados} producto${l.observados === 1 ? "" : "s"} incompleto${l.observados === 1 ? "" : "s"} o dañado${l.observados === 1 ? "" : "s"}`,
+        href: `/ingresos/${l.clave}`,
+        accion: "Corregir",
+        tono: "critico",
+      });
+    }
+  }
+  const bajosPorColegio = new Map<number, number>();
+  for (const b of bajos) bajosPorColegio.set(b.colegio_id, (bajosPorColegio.get(b.colegio_id) ?? 0) + 1);
+  for (const [cid, n] of bajosPorColegio) {
+    tareas.push({
+      texto: `Por reponer en ${corto(nombreColegio.get(cid) ?? "")}: ${n} producto${n === 1 ? "" : "s"}`,
+      detalle: bajos
+        .filter((b) => b.colegio_id === cid)
+        .slice(0, 4)
+        .map((b) => b.producto)
+        .join(", "),
+      href: "/stock",
+      accion: "Ver",
+      tono: "info",
+    });
+  }
+
   const fichas = [
     { t: "Por revisar", v: numero(porRevisar.length), nota: "reposiciones que pidió el personal", href: "/reposiciones", icono: ClipboardList, alerta: porRevisar.length > 0 },
     {
@@ -80,14 +136,26 @@ export async function InicioLogistica({ sesion, colegioId }: { sesion: Sesion; c
 
   return (
     <div className="mx-auto max-w-[1400px]">
-      <div className="mb-6">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
         <h1 className="text-2xl font-normal tracking-tight">
           Hola de nuevo, <b className="font-semibold">{sesion.nombre}</b>
         </h1>
         <p className="mt-1 text-sm text-suave">
           Compras y entregas · {colegioId ? nombreColegio.get(colegioId) : "Todos los colegios"} · {nombreMes(mes)}
         </p>
+        </div>
+        <SelectorColegio colegios={colegios.map((c) => ({ id: c.id, nombre: c.nombre }))} colegioId={colegioId} />
       </div>
+
+      <ParaHoy
+        tareas={tareas}
+        accion={
+          <Link href="/ingresos" className="btn-primario">
+            <Plus className="h-4 w-4" /> Nueva entrega
+          </Link>
+        }
+      />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {fichas.map((f) => {
@@ -190,7 +258,7 @@ export async function InicioLogistica({ sesion, colegioId }: { sesion: Sesion; c
                       </p>
                     </div>
                     <span className="flex shrink-0 flex-col items-end gap-1">
-                      <span className={`chip ${s.total_unidades === 0 ? "bg-rojo-50 text-rojo" : "bg-ambar-50 text-[#8a5a00]"}`}>
+                      <span className={`chip ${s.total_unidades === 0 ? "chip-critico" : "chip-atencion"}`}>
                         {s.total_unidades === 0 ? "Agotado" : `Quedan ${s.total_unidades}`}
                       </span>
                       {p ? <span className="text-[11px] text-[#2b5ea7]">Pedido {p}</span> : <span className="text-[11px] text-suave">Nadie lo pidió</span>}

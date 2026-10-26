@@ -8,10 +8,10 @@ import type { Movimiento, TipoMovimiento } from "@/lib/types";
 export type Tipo = TipoMovimiento | "PRECIO";
 
 export const TIPOS: Record<Tipo, { texto: string; clase: string }> = {
-  VENTA: { texto: "Venta", clase: "bg-verde-50 text-verde-700" },
-  INGRESO: { texto: "Entrega", clase: "bg-[#e8f0fb] text-[#2b5ea7]" },
-  AJUSTE: { texto: "Ajuste", clase: "bg-ambar-50 text-[#8a5a00]" },
-  MERMA: { texto: "Merma", clase: "bg-rojo-50 text-rojo" },
+  VENTA: { texto: "Venta", clase: "chip-exito" },
+  INGRESO: { texto: "Entrega", clase: "chip-info" },
+  AJUSTE: { texto: "Ajuste", clase: "chip-atencion" },
+  MERMA: { texto: "Merma", clase: "chip-critico" },
   PRECIO: { texto: "Cambio de precio", clase: "bg-[#f1ebfa] text-[#6a3fb0]" },
 };
 

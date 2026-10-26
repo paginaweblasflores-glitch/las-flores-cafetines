@@ -328,7 +328,7 @@ export function RegistroPersonal({
                     <button onClick={() => irA(t.id)} className="card flex w-full items-center gap-3 p-3.5 text-left">
                       <span
                         className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${
-                          t.listo ? "bg-verde-50 text-verde-700" : "bg-ambar-50 text-[#8a5a00]"
+                          t.listo ? "chip-exito" : "chip-atencion"
                         }`}
                       >
                         {t.listo ? <CheckCircle2 className="h-5 w-5" /> : <Icono className="h-5 w-5" />}
@@ -361,7 +361,7 @@ export function RegistroPersonal({
                               {p.stock === 0 ? "Agotado" : `Quedan ${p.stock}`} · mínimo {p.stockMinimo}
                             </span>
                           </span>
-                          {pedido && <span className="chip shrink-0 bg-[#e8f0fb] text-[#2b5ea7]">Pedido {pedido}</span>}
+                          {pedido && <span className="chip shrink-0 chip-info">Pedido {pedido}</span>}
                         </li>
                       );
                     })}
@@ -431,7 +431,7 @@ export function RegistroPersonal({
                 return (
                   <li key={o.id}>
                     <button onClick={() => irA(o.id)} className="flex w-full items-center gap-3 p-4 text-left hover:bg-fondo">
-                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-verde-50 text-verde-700">
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl chip-exito">
                         <Icono className="h-5 w-5" />
                       </span>
                       <span className="min-w-0 flex-1">

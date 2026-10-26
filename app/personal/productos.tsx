@@ -91,7 +91,7 @@ export function MisProductos({ productos }: { productos: MiProducto[] }) {
                   </span>
                   <span
                     className={`chip shrink-0 ${
-                      p.stock === 0 && !p.perecible ? "bg-rojo-50 text-rojo" : acaba ? "bg-ambar-50 text-[#8a5a00]" : "bg-fondo text-tinta"
+                      p.stock === 0 && !p.perecible ? "chip-critico" : acaba ? "chip-atencion" : "bg-fondo text-tinta"
                     }`}
                   >
                     Hay {numero(p.stock)}

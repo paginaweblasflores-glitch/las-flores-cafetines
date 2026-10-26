@@ -93,7 +93,11 @@ export default async function PaginaMovimientos({ searchParams }: PageProps<"/mo
 
       <div className="card overflow-hidden">
         {grupos.length === 0 ? (
-          <Vacio icono={<History className="h-6 w-6" />} titulo="No hay registros con esos filtros" />
+          <Vacio
+            icono={<History className="h-6 w-6" />}
+            titulo="No hay registros con esos filtros"
+            texto="Prueba con otras fechas, otro colegio u otro tipo de movimiento."
+          />
         ) : (
           <TablaPaginada
             etiqueta="registros"

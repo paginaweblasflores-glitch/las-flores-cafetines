@@ -1,14 +1,13 @@
 import type { Metadata, Viewport } from "next";
-import { Poppins } from "next/font/google";
+import { Inter, Poppins } from "next/font/google";
 import "./globals.css";
 import { SeleccionarNumeros } from "@/components/seleccionar-numeros";
 import { RegistrarAplicativo } from "@/components/aplicativo";
 
-const poppins = Poppins({
-  variable: "--font-poppins",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
+// Inter: letra de trabajo (tablas, formularios, números) — la que usan los sistemas como Stripe o Linear
+const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
+// Poppins: solo para la marca (LAS FLORES, títulos del login)
+const poppins = Poppins({ variable: "--font-poppins", subsets: ["latin"], weight: ["600", "700"] });
 
 // Dominio para los links completos (imagen al compartir). En Vercel lo da la plataforma.
 const dominio = process.env.VERCEL_PROJECT_PRODUCTION_URL
@@ -50,7 +49,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="es" className={`${poppins.variable} h-full antialiased`}>
+    <html lang="es" className={`${inter.variable} ${poppins.variable} h-full antialiased`}>
       <body className="min-h-full">
         <SeleccionarNumeros />
         <RegistrarAplicativo />

@@ -54,7 +54,7 @@ export default async function PaginaReporteMensual() {
       {/* Mes en curso: vista preliminar */}
       <div className="card mb-6 flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-4">
-          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-ambar-50 text-[#8a5a00]">
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl chip-atencion">
             <FileText className="h-6 w-6" />
           </span>
           <div>

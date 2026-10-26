@@ -7,8 +7,9 @@ import { enParalelo } from "@/lib/paralelo";
 import type { Resultado } from "@/lib/types";
 import { hoyISO } from "@/lib/format";
 
-const QUIEN_ENVIA = ["COCINA", "ADMIN", "LOGISTICA"] as const;
-const QUIEN_RECIBE = ["PERSONAL", "ADMIN", "LOGISTICA"] as const;
+// Cada uno hace lo suyo: la cocina envía y el personal recibe (administración controla desde el panel)
+const QUIEN_ENVIA = ["COCINA"] as const;
+const QUIEN_RECIBE = ["PERSONAL"] as const;
 
 /** La cocina registra lo que manda a un colegio (solo productos del día). No suma stock hasta que se recibe. */
 export async function crearEnvio(

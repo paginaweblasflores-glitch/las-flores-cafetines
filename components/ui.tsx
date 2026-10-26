@@ -146,12 +146,14 @@ export function Anillo({
 /* ------------------------------------------------------------------ */
 /* Estado vacío                                                        */
 /* ------------------------------------------------------------------ */
-export function Vacio({ titulo, texto, icono }: { titulo: string; texto?: string; icono?: ReactNode }) {
+/** Estado vacío que guía: qué pasa, qué hacer y (si hay) el botón para hacerlo */
+export function Vacio({ titulo, texto, icono, accion }: { titulo: string; texto?: string; icono?: ReactNode; accion?: ReactNode }) {
   return (
     <div className="flex flex-col items-center justify-center px-6 py-14 text-center">
-      {icono && <div className="mb-3 grid h-12 w-12 place-items-center rounded-2xl bg-verde-50 text-verde">{icono}</div>}
+      {icono && <div className="mb-3 grid h-12 w-12 place-items-center rounded-xl bg-verde-50 text-verde-700">{icono}</div>}
       <p className="font-medium">{titulo}</p>
       {texto && <p className="mt-1 max-w-sm text-sm text-suave">{texto}</p>}
+      {accion && <div className="mt-4">{accion}</div>}
     </div>
   );
 }

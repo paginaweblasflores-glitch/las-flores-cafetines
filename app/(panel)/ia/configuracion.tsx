@@ -99,11 +99,11 @@ function TarjetaProveedor({ p }: { p: InfoProveedor }) {
           {p.nombre}
         </h2>
         {conectada ? (
-          <span className="chip bg-verde-50 text-verde-700">
+          <span className="chip chip-exito">
             <CheckCircle2 className="h-3.5 w-3.5" /> Conectada
           </span>
         ) : (
-          <span className="chip bg-fondo text-suave">Sin conectar</span>
+          <span className="chip chip-neutro">Sin conectar</span>
         )}
       </div>
 

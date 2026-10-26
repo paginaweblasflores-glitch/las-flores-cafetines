@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { requerirSesion, ROLES_PANEL } from "@/lib/auth";
 import { obtenerCategorias, obtenerColegios, obtenerStock } from "@/lib/data";
 import { check, db } from "@/lib/supabase";
-import { Encabezado } from "@/components/encabezado";
 import { Catalogo } from "./catalogo";
 
 export const metadata: Metadata = { title: "Catálogo" };
@@ -18,10 +17,6 @@ export default async function PaginaCatalogo() {
 
   return (
     <div className="mx-auto max-w-[1400px]">
-      <Encabezado
-        titulo="Catálogo"
-        descripcion="La lista general de productos: nombre, categoría y en qué colegios se vende."
-      />
       <Catalogo
         colegios={colegios.map((c) => ({ id: c.id, nombre: c.nombre }))}
         categorias={categorias}

@@ -179,7 +179,7 @@ export function DetalleReposicion({ rol, r }: { rol: Rol; r: Datos }) {
                       <td className="text-suave tabular-nums">{n + 1}</td>
                       <td>
                         <span className={q ? "line-through" : "font-medium"}>{i.nombre}</span>
-                        {!i.enCatalogo && <span className="chip ml-2 bg-fondo text-suave">Fuera de catálogo</span>}
+                        {!i.enCatalogo && <span className="chip ml-2 chip-neutro">Fuera de catálogo</span>}
                       </td>
                       <td className="text-right tabular-nums">
                         {i.stock != null ? `${numero(i.stock)} unid.` : <span className="text-suave">—</span>}
@@ -200,7 +200,7 @@ export function DetalleReposicion({ rol, r }: { rol: Rol; r: Datos }) {
                             <span className="text-suave">{UNIDADES_REPOSICION[i.unidad]?.[Number(cantidades[i.id]) === 1 ? 0 : 1] ?? i.unidad}</span>
                           </span>
                         ) : q ? (
-                          <span className="chip bg-rojo-50 text-rojo">Quitado</span>
+                          <span className="chip chip-critico">Quitado</span>
                         ) : r.estado === "POR_APROBAR" ? (
                           <span className="text-suave">Por revisar</span>
                         ) : r.estado === "APROBADA" || r.estado === "EN_COMPRA" || r.estado === "COMPRADA" ? (

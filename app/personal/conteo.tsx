@@ -166,7 +166,7 @@ export function FilaConteo({
           </span>
         ) : !contado && !error ? (
           p.stock > 0 ? (
-            <span className="chip shrink-0 bg-ambar-50 text-[#8a5a00]">Contar</span>
+            <span className="chip shrink-0 chip-atencion">Contar</span>
           ) : (
             <ChevronRight className="h-4 w-4 shrink-0 text-suave" />
           )

@@ -18,6 +18,7 @@ import {
   obtenerVentas,
 } from "@/lib/data";
 import {
+  fechaCorta,
   fechaISOLima,
   hoyISO,
   horaLima,
@@ -35,6 +36,9 @@ import { ListaPaginada, TablaPaginada } from "@/components/paginacion";
 import { MiniTendencia, Medidor } from "@/components/minigrafico";
 import { GraficoAcumulado, GraficoDiario, GRIS_CONTEXTO, Leyenda } from "./grafico";
 import { InicioLogistica } from "./logistica";
+import { ParaHoy, type Tarea } from "@/components/para-hoy";
+import { SelectorColegio } from "../selector-colegio";
+import { agruparLotes } from "@/lib/entregas";
 
 export const metadata: Metadata = { title: "Inicio" };
 
@@ -72,6 +76,7 @@ export default async function Dashboard() {
     porRecibirTodo,
     reposiciones,
     gastosMes,
+    observadosSemana,
   ] = await Promise.all([
     obtenerColegios(),
     obtenerStock({ colegioId }),
@@ -86,6 +91,8 @@ export default async function Dashboard() {
     obtenerEnvios({ estado: "PENDIENTE", colegioId }),
     obtenerReposiciones({ colegioId, limite: 200 }),
     obtenerOtrosGastos(rMes.desde, hoy, colegioId),
+    // Lo que llegó a un colegio incompleto o dañado en los últimos 7 días
+    obtenerEnvios({ estado: "OBSERVADO", desde: new Date(Date.parse(hoy) - 7 * 86400000).toISOString().slice(0, 10), hasta: hoy, colegioId }),
   ]);
   const colegios = colegioId ? colegiosTodos.filter((c) => c.id === colegioId) : colegiosTodos;
   const nombreColegio = new Map(colegiosTodos.map((c) => [c.id, c.nombre]));
@@ -218,16 +225,72 @@ export default async function Dashboard() {
   const maxTop = top[0]?.monto ?? 0;
   const stockDe = (c: number, p: number) => stock.find((s) => s.colegio_id === c && s.producto_id === p);
 
+  // ---------------- Para hoy: lo que le toca a administración ----------------
+  const tareas: Tarea[] = [];
+  const porAprobar = reposiciones.filter((r) => r.estado === "POR_APROBAR");
+  if (porAprobar.length) {
+    tareas.push({
+      texto: `${porAprobar.length} pedido${porAprobar.length === 1 ? "" : "s"} de reposición por aprobar`,
+      detalle: porAprobar
+        .slice(0, 3)
+        .map((r) => `${r.codigo} · ${corto(nombreColegio.get(r.colegio_id) ?? "")}`)
+        .join(" · "),
+      href: "/reposiciones",
+      accion: "Revisar",
+      tono: "atencion",
+    });
+  }
+  for (const l of agruparLotes(observadosSemana)) {
+    tareas.push({
+      texto: `${l.origen === "COCINA" ? "Envío de cocina" : "Entrega"} del ${fechaCorta(l.fecha)} llegó con observación a ${corto(nombreColegio.get(l.colegioId) ?? "")}`,
+      detalle: `${l.observados} producto${l.observados === 1 ? "" : "s"} incompleto${l.observados === 1 ? "" : "s"} o dañado${l.observados === 1 ? "" : "s"}`,
+      href: `/ingresos/${l.clave}`,
+      accion: "Ver",
+      tono: "critico",
+    });
+  }
+  // Conteo del día: recién se pide desde la 1 p. m. (en la mañana todavía están vendiendo)
+  const horaAhora = Number(new Intl.DateTimeFormat("es-PE", { timeZone: "America/Lima", hour: "numeric", hour12: false }).format(new Date()));
+  if (horaAhora >= 13) {
+    for (const c of colegios) {
+      const a = avanceDelDia(c.id);
+      if (a.total > 0 && a.contados < a.total) {
+        tareas.push({
+          texto: `${corto(c.nombre)} aún no termina su conteo de hoy`,
+          detalle: `${a.contados} de ${a.total} productos del día contados`,
+          href: "/conteos?tipo=dia",
+          accion: "Ver",
+          tono: "atencion",
+        });
+      }
+    }
+  }
+  const sinPrecio = new Set(stock.filter((s) => s.activo && Number(s.precio_venta) === 0).map((s) => s.producto));
+  if (sinPrecio.size) {
+    tareas.push({
+      texto: `${sinPrecio.size} producto${sinPrecio.size === 1 ? "" : "s"} con precio de venta S/ 0`,
+      detalle: [...sinPrecio].slice(0, 4).join(", "),
+      href: "/productos",
+      accion: "Poner precio",
+      tono: "critico",
+    });
+  }
+
   return (
     <div className="mx-auto max-w-[1400px]">
-      <div className="mb-6">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
         <h1 className="text-2xl font-normal tracking-tight">
           Hola de nuevo, <b className="font-semibold">{sesion.nombre}</b>
         </h1>
         <p className="mt-1 text-sm text-suave">
           {colegioId ? nombreColegio.get(colegioId) : "Todos los colegios"} · resumen de {nombreMes(mes)}
         </p>
+        </div>
+        <SelectorColegio colegios={colegiosTodos.map((c) => ({ id: c.id, nombre: c.nombre }))} colegioId={colegioId} />
       </div>
+
+      <ParaHoy tareas={tareas} />
 
       {/* ---------- Indicadores: el número es la respuesta ---------- */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
@@ -539,7 +602,7 @@ export default async function Dashboard() {
                     <p className="truncate text-xs text-suave">{s.colegio}</p>
                   </div>
                   <span className="flex shrink-0 flex-col items-end gap-1">
-                    <span className={`chip ${s.total_unidades === 0 ? "bg-rojo-50 text-rojo" : "bg-ambar-50 text-[#8a5a00]"}`}>
+                    <span className={`chip ${s.total_unidades === 0 ? "chip-critico" : "chip-atencion"}`}>
                       {s.total_unidades === 0 ? "Agotado" : `Quedan ${s.total_unidades}`}
                     </span>
                     {pedidoEnCurso.get(`${s.colegio_id}-${s.producto_id}`) && (

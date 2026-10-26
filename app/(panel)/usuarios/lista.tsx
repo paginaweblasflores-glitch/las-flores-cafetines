@@ -20,9 +20,9 @@ type Usuario = {
 
 const ROLES: Record<Rol, { texto: string; desc: string; clase: string }> = {
   ADMIN: { texto: "Administración", desc: "Control total del sistema", clase: "bg-panel text-white" },
-  LOGISTICA: { texto: "Logística", desc: "Stock, entregas, productos y reportes", clase: "bg-[#e8f0fb] text-[#2b5ea7]" },
-  PERSONAL: { texto: "Personal", desc: "Solo registra el stock y precios de su colegio", clase: "bg-verde-50 text-verde-700" },
-  COCINA: { texto: "Cocina", desc: "Registra los productos del día que se envían a cada colegio", clase: "bg-ambar-50 text-[#8a5a00]" },
+  LOGISTICA: { texto: "Logística", desc: "Stock, entregas, productos y reportes", clase: "chip-info" },
+  PERSONAL: { texto: "Personal", desc: "Solo registra el stock y precios de su colegio", clase: "chip-exito" },
+  COCINA: { texto: "Cocina", desc: "Registra los productos del día que se envían a cada colegio", clase: "chip-atencion" },
 };
 
 export function ListaUsuarios({
@@ -74,11 +74,11 @@ export function ListaUsuarios({
                 <td className="text-suave">{u.rol === "PERSONAL" ? colegio(u.colegio_id) : "Todos"}</td>
                 <td className="text-suave">{u.ultimo_acceso ? fechaHoraLima(u.ultimo_acceso) : "Nunca"}</td>
                 <td>
-                  <span className={`chip ${u.activo ? "bg-verde-50 text-verde-700" : "bg-fondo text-suave"}`}>
+                  <span className={`chip ${u.activo ? "chip-exito" : "chip-neutro"}`}>
                     {u.activo ? "Activo" : "Inactivo"}
                   </span>
                 </td>
-                <td className="text-right">
+                <td className="acciones-fila text-right">
                   <button onClick={() => setEditando(u)} className="btn-fantasma" title="Editar">
                     <Pencil className="h-4 w-4" />
                   </button>

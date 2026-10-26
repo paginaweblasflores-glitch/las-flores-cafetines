@@ -19,7 +19,7 @@ export default async function PaginaPersonal({ searchParams }: PageProps<"/perso
   // Lo que no depende del usuario se pide a la vez que se revisa la sesión
   const precarga = [obtenerColegios(), obtenerProductosMapa(), obtenerUsuariosMapa()] as const;
   for (const p of precarga) p.catch(() => {}); // si la sesión no es válida se redirige
-  const sesion = await requerirSesion(["PERSONAL", "ADMIN"]);
+  const sesion = await requerirSesion(["PERSONAL"]);
   const sp = await searchParams;
   const colegios = await precarga[0];
 
