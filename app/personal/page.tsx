@@ -158,6 +158,7 @@ export default async function PaginaPersonal({ searchParams }: PageProps<"/perso
           ultimoConteo: s.ultimo_conteo,
           precio: Number(s.precio_venta),
           precioNormal: precioNormal.get(s.id) ?? null,
+          acompanante: productosMapa.get(s.producto_id)?.acompanante === true,
         }))}
         contadosHoy={contadosHoy}
         ventasHoy={ventasHoy.map((v) => ({ productoId: v.producto_id, unidades: v.unidades, monto: Number(v.monto) }))}

@@ -28,6 +28,8 @@ export type ProductoConteo = {
   precio: number;
   /** En descuento: el precio de siempre (null = precio normal) */
   precioNormal: number | null;
+  /** Acompañante (salsas): no se cuenta ni se vende; sí se pide en Reposición */
+  acompanante: boolean;
   /** Producto del día: se cuenta a diario y lo que sobra es merma */
   perecible: boolean;
   /** Del día que manda la cocina (false = lo prepara el mismo personal: al contar dice cuánto preparó) */

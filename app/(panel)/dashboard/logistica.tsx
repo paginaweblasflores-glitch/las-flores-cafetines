@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowRight, ClipboardList, PackageSearch, Plus, ShoppingCart, Truck, Wallet } from "lucide-react";
 import { ParaHoy, type Tarea } from "@/components/para-hoy";
 import { SelectorColegio } from "../selector-colegio";
-import { obtenerColegios, obtenerEnvios, obtenerOtrosGastos, obtenerReposiciones, obtenerStock } from "@/lib/data";
+import { obtenerColegios, obtenerEnvios, obtenerOtrosGastos, obtenerProductosMapa, obtenerReposiciones, obtenerStock } from "@/lib/data";
 import { agruparLotes, estadoLote } from "@/lib/entregas";
 import { ESTADO_REPOSICION, fechaCorta, fechaISOLima, hoyISO, horaLima, nombreMes, numero, rangoMes, soles } from "@/lib/format";
 import { Inicial } from "@/components/ui";
@@ -22,13 +22,16 @@ export async function InicioLogistica({ sesion, colegioId }: { sesion: Sesion; c
   const { desde } = rangoMes(mes);
   const hace30 = new Date(Date.parse(hoy) - 30 * 86400000).toISOString().slice(0, 10);
 
-  const [colegios, stock, reposiciones, envios, gastosMes] = await Promise.all([
+  const [colegios, stockTodo, reposiciones, envios, gastosMes, productos] = await Promise.all([
     obtenerColegios(),
     obtenerStock({ colegioId }),
     obtenerReposiciones({ colegioId, limite: 300 }),
     obtenerEnvios({ origen: "LOGISTICA", desde: hace30, hasta: hoy, colegioId }),
     obtenerOtrosGastos(desde, hoy, colegioId),
+    obtenerProductosMapa(),
   ]);
+  // Los acompañantes (salsas) no llevan stock: no salen en "por reponer"
+  const stock = stockTodo.filter((s) => !productos.get(s.producto_id)?.acompanante);
   const nombreColegio = new Map(colegios.map((c) => [c.id, c.nombre]));
   const filaPc = new Map(stock.map((s) => [s.id, s]));
 

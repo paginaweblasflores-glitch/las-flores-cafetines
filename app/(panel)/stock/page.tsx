@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Download } from "lucide-react";
 import { requerirSesion, ROLES_PANEL } from "@/lib/auth";
-import { obtenerCategorias, obtenerColegios, obtenerStock } from "@/lib/data";
+import { obtenerProductosMapa, obtenerCategorias, obtenerColegios, obtenerStock } from "@/lib/data";
 import { Encabezado } from "@/components/encabezado";
 import { Vacio } from "@/components/ui";
 import { TablaStock } from "./tabla";
@@ -20,10 +20,13 @@ export default async function PaginaStock({ searchParams }: PageProps<"/stock">)
     return <Vacio titulo="No hay colegios activos" texto="Crea un colegio en el menú Colegios." />;
   }
 
-  const [stock, categorias] = await Promise.all([
+  const [stockTodo, categorias, productos] = await Promise.all([
     obtenerStock({ colegioId: colegio.id, incluirInactivos: true }),
     obtenerCategorias(),
+    obtenerProductosMapa(),
   ]);
+  // Los acompañantes (salsas) no llevan stock ni precio: se ven en el Catálogo, no aquí
+  const stock = stockTodo.filter((s) => !productos.get(s.producto_id)?.acompanante);
 
   return (
     <div className="mx-auto max-w-[1400px]">

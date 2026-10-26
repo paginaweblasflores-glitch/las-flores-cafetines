@@ -123,7 +123,10 @@ create table productos (
   -- true = lo envía la cocina (sale en su panel), sea del día o no (diario, interdiario o semanal)
   de_cocina     boolean not null default true,
   activo        boolean not null default true,
-  created_at    timestamptz not null default now()
+  created_at    timestamptz not null default now(),
+  -- Acompañante (salsas): la cocina lo manda y el colegio lo recibe solo para el registro.
+  -- No se vende, no lleva precio ni stock y no se cuenta; sí se puede pedir en Reposición.
+  acompanante   boolean not null default false
 );
 create unique index productos_nombre_unico on productos (lower(nombre));
 
@@ -653,7 +656,8 @@ begin
          recibido_por = p_usuario_id, recibido_at = now()
    where id = e.id;
 
-  if p_cantidad_recibida > 0 then
+  -- Acompañantes (salsas): se recibe solo para el registro, no entra al stock
+  if p_cantidad_recibida > 0 and not coalesce((select acompanante from productos where id = e.producto_id), false) then
     if e.origen = 'LOGISTICA' then
       v_costo := e.costo_presentacion;
       if p_cantidad_recibida >= e.cantidad_enviada then

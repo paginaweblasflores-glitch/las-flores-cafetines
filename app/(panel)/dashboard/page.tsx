@@ -64,7 +64,7 @@ export default async function Dashboard() {
 
   const [
     colegiosTodos,
-    stock,
+    stockTodo,
     ventasMes,
     ventasPrev,
     actividad,
@@ -94,6 +94,8 @@ export default async function Dashboard() {
     obtenerEnvios({ estado: "OBSERVADO", desde: new Date(Date.parse(hoy) - 7 * 86400000).toISOString().slice(0, 10), hasta: hoy, colegioId }),
   ]);
   const colegios = colegioId ? colegiosTodos.filter((c) => c.id === colegioId) : colegiosTodos;
+  // Los acompañantes (salsas) no se venden ni llevan stock: fuera de indicadores, avance y "por reponer"
+  const stock = stockTodo.filter((s) => !productos.get(s.producto_id)?.acompanante);
   const nombreColegio = new Map(colegiosTodos.map((c) => [c.id, c.nombre]));
   const corto = (n: string) => n.replace(/^Colegio\s+/i, "");
   const suma = <T,>(a: T[], f: (x: T) => number) => a.reduce((s, x) => s + Number(f(x) || 0), 0);

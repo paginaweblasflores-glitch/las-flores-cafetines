@@ -103,8 +103,11 @@ export function RegistroPersonal({
   const unidadesHoy = ventasHoy.reduce((s, v) => s + v.unidades, 0);
 
   const contadoHoy = (p: Producto) => recienGuardados.has(p.id) || (!!p.ultimoConteo && fechaISOLima(p.ultimoConteo) === hoy);
-  const delDia = productos.filter((p) => p.perecible);
-  const semanales = productos.filter((p) => !p.perecible);
+  // Los acompañantes (salsas) no se cuentan ni se venden: solo se reciben y se piden en Reposición
+  const vendibles = productos.filter((p) => !p.acompanante);
+  const acompanantes = productos.filter((p) => p.acompanante);
+  const delDia = vendibles.filter((p) => p.perecible);
+  const semanales = vendibles.filter((p) => !p.perecible);
   // Conteo flexible: todo se puede contar cualquier día; "contado" = contado HOY
   const contadoEnSeccion = contadoHoy;
   // Flexible: solo se pide contar lo que HAY (llegó o sobró). Lo que no llegó hoy (stock 0) no queda pendiente.
@@ -505,7 +508,7 @@ export function RegistroPersonal({
         {/* ------- Mis productos: lo que hay y los mínimos ------- */}
         {seccion === "productos" && (
           <div className="pt-1">
-            <MisProductos productos={productos} />
+            <MisProductos productos={vendibles} />
           </div>
         )}
 
@@ -513,7 +516,7 @@ export function RegistroPersonal({
         {seccion === "reposicion" && (
           <Reposicion
             colegioId={colegio.id}
-            catalogo={semanales.map((p) => ({
+            catalogo={[...semanales, ...acompanantes].map((p) => ({
               productoId: p.productoId,
               nombre: p.nombre,
               presentacion: p.presentacion,
