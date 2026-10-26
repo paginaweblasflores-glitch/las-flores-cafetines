@@ -88,7 +88,7 @@ export function ModalPrecio({
       <label className="mt-3 flex cursor-pointer items-start gap-2.5 text-sm text-suave">
         <input type="checkbox" checked={descuento} onChange={(e) => setDescuento(e.target.checked)} className="mt-0.5" />
         <span>
-          Es un descuento <span className="text-xs">(por unos días, para que no se pierda)</span>
+          Es un descuento <span className="text-xs">(por unos días)</span>
           {descuento && (
             <span className={`mt-0.5 block text-xs ${descuentoValido ? "text-azul" : "text-rojo"}`}>
               {descuentoValido ? `Se guarda el precio normal ${soles(normal)} para volver después.` : `El descuento debe ser menor a ${soles(normal)}.`}
