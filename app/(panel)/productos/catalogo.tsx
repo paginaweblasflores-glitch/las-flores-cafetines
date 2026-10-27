@@ -20,6 +20,8 @@ type Producto = {
   acompanante: boolean;
   /** Lo creó el personal: falta costo y cómo se compra (se quita al guardar en Editar) */
   por_revisar: boolean;
+  /** Lo prepara el personal: al contar pregunta cuánto preparó */
+  prepara_personal: boolean;
 };
 /** En qué colegio se vende cada producto, si está activo allí y a qué precio (cada colegio tiene el suyo) */
 type Presencia = {
@@ -154,6 +156,7 @@ export function Catalogo({
                           {p.perecible && <span className="chip chip-atencion">Del día</span>}
                           {p.de_cocina && <span className="chip chip-info">Cocina</span>}
                           {p.acompanante && <span className="chip chip-neutro">Acompañante</span>}
+                          {p.prepara_personal && <span className="chip chip-info">Lo prepara el personal</span>}
                           {p.por_revisar && <span className="chip chip-atencion">Por completar · lo creó el personal</span>}
                         </p>
                       </div>
@@ -310,6 +313,7 @@ function ModalProducto({
   const [perecible, setPerecible] = useState(producto.perecible);
   const [deCocina, setDeCocina] = useState(producto.de_cocina);
   const [acompanante, setAcompanante] = useState(producto.acompanante);
+  const [preparaPersonal, setPreparaPersonal] = useState(producto.prepara_personal);
   const [pendiente, iniciar] = useTransition();
   return (
     <Modal
@@ -458,6 +462,15 @@ function ModalProducto({
         </label>
         <OpcionDeCocina valor={deCocina} perecible={perecible} cambiar={setDeCocina} />
         <label className="flex items-start gap-2 rounded-xl border border-borde p-3 text-sm">
+          <input type="checkbox" checked={preparaPersonal} onChange={(e) => setPreparaPersonal(e.target.checked)} className="mt-0.5" />
+          <span>
+            <span className="block font-medium">Lo prepara el personal</span>
+            <span className="block text-xs text-suave">
+              Al contar pregunta «¿Cuántos preparaste hoy?» (hot dog, cancha). Si además no es «del día», lo que sobra pasa al día siguiente.
+            </span>
+          </span>
+        </label>
+        <label className="flex items-start gap-2 rounded-xl border border-borde p-3 text-sm">
           <input type="checkbox" checked={acompanante} onChange={(e) => setAcompanante(e.target.checked)} className="mt-0.5" />
           <span>
             <span className="block font-medium">Es acompañante (salsas)</span>
@@ -487,6 +500,7 @@ function ModalProducto({
                 perecible,
                 deCocina,
                 acompanante,
+                preparaPersonal,
                 colegioIds: elegidos,
                 precios: Object.fromEntries(elegidos.map((id) => [id, Number(precios[id])])),
                 ...(cambioCompra ? { presentacion, unidadesPorPresentacion: unidadesP } : {}),

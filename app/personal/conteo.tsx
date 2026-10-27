@@ -30,6 +30,8 @@ export type ProductoConteo = {
   precioNormal: number | null;
   /** Acompañante (salsas): no se cuenta ni se vende; sí se pide en Reposición */
   acompanante: boolean;
+  /** Lo prepara el mismo personal (hot dog, cancha): al contar pregunta cuánto preparó */
+  preparaPersonal?: boolean;
   /** Cuándo entró en el inventario de arranque (null = falta) */
   arranqueAt?: string | null;
   /** Producto del día: se cuenta a diario y lo que sobra es merma */
@@ -45,8 +47,8 @@ export type ProductoConteo = {
 
 export type Edicion = { preparado?: string; unidades?: string; merma?: string; motivo?: string; motivoOtro?: string };
 
-/** Del día que prepara el mismo personal: antes de contar dice cuánto preparó */
-export const preparaElPersonal = (p: ProductoConteo) => p.perecible && !p.deCocina;
+/** Lo prepara el mismo personal (sea del día o se guarde): antes de contar dice cuánto preparó */
+export const preparaElPersonal = (p: ProductoConteo) => !!p.preparaPersonal;
 
 export const MOTIVO_DEVUELTO = "Devuelto a cocina";
 export const MOTIVOS_MERMA = ["No se vendió", MOTIVO_DEVUELTO, "Se cayó", "Se rompió o malogró", "Se venció", "Otro"];
@@ -181,7 +183,7 @@ export function FilaConteo({
             <Check className="h-4 w-4" />
           </span>
         ) : !contado && !error ? (
-          (p.stock > 0 || preparaElPersonal(p)) && p.perecible ? (
+          (p.stock > 0 && p.perecible) || preparaElPersonal(p) ? (
             <span className="chip shrink-0 chip-atencion">Contar</span>
           ) : (
             <ChevronRight className="h-4 w-4 shrink-0 text-suave" />

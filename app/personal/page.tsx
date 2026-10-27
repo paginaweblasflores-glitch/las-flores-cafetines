@@ -159,8 +159,9 @@ export default async function PaginaPersonal({ searchParams }: PageProps<"/perso
           unidadesPorPresentacion: s.unidades_por_presentacion,
           stock: s.total_unidades,
           perecible: s.perecible,
-          // Del día que prepara el mismo personal (no lo manda cocina): al contar dice cuánto preparó
           deCocina: productosMapa.get(s.producto_id)?.de_cocina !== false,
+          // Lo prepara el mismo personal: al contar dice cuánto preparó
+          preparaPersonal: productosMapa.get(s.producto_id)?.prepara_personal === true,
           stockMinimo: s.stock_minimo,
           categoria: s.categoria ?? "Otros",
           ultimoConteo: s.ultimo_conteo,

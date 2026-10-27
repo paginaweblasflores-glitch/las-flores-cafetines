@@ -25,6 +25,8 @@ export async function editarProducto(
     deCocina?: boolean;
     /** Acompañante (salsas): no se vende, no lleva precio ni stock */
     acompanante?: boolean;
+    /** Lo prepara el personal: al contar pregunta cuánto preparó */
+    preparaPersonal?: boolean;
     colegioIds: number[];
     /** Precio de venta por unidad en cada colegio marcado */
     precios?: Record<number, number>;
@@ -59,7 +61,7 @@ export async function editarProducto(
     check(
       await db()
         .from("productos")
-        .update({ nombre, categoria_id: d.categoriaId, activo: d.activo, perecible: d.perecible, de_cocina: d.deCocina ?? true, por_revisar: false, ...(d.acompanante !== undefined ? { acompanante: d.acompanante } : {}) })
+        .update({ nombre, categoria_id: d.categoriaId, activo: d.activo, perecible: d.perecible, de_cocina: d.deCocina ?? true, por_revisar: false, ...(d.acompanante !== undefined ? { acompanante: d.acompanante } : {}), ...(d.preparaPersonal !== undefined ? { prepara_personal: d.preparaPersonal } : {}) })
         .eq("id", id),
     );
 

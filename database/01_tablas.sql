@@ -128,7 +128,10 @@ create table productos (
   -- No se vende, no lleva precio ni stock y no se cuenta; sí se puede pedir en Reposición.
   acompanante   boolean not null default false,
   -- Lo creó el personal (inventario de arranque): administración debe completar costo y cómo se compra
-  por_revisar   boolean not null default false
+  por_revisar   boolean not null default false,
+  -- Lo prepara el mismo personal (hot dog, cancha): al contar pregunta cuánto preparó.
+  -- Es aparte de "del día": puede prepararse y guardarse para el día siguiente.
+  prepara_personal boolean not null default false
 );
 create unique index productos_nombre_unico on productos (lower(nombre));
 
