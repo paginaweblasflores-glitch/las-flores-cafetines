@@ -3,7 +3,7 @@
 import { refresh } from "next/cache";
 import { sesionAccion, ROLES_PANEL } from "@/lib/auth";
 import { check, db, mensajeError } from "@/lib/supabase";
-import { mayusculas } from "@/lib/format";
+import { hoyISO, mayusculas } from "@/lib/format";
 import type { Presentacion, Resultado } from "@/lib/types";
 
 const PRESENTACIONES: Presentacion[] = ["UNIDAD", "CAJA", "PAQUETE", "BOLSA", "OTRO", "BALDE", "TAPER", "LITRO"];
@@ -53,6 +53,9 @@ export async function editarProducto(
     if (Object.values(precios).some((p) => !Number.isFinite(p) || p < 0)) {
       return { ok: false, error: "Los precios no pueden ser negativos." };
     }
+    // ¿Pasa de "del día" a "se guarda"? (para devolver lo que se retiró hoy al contar)
+    const antes = check(await db().from("productos").select("perecible").eq("id", id).single()) as { perecible: boolean };
+    const pasaAGuardar = antes.perecible && !d.perecible;
     check(
       await db()
         .from("productos")
@@ -110,7 +113,13 @@ export async function editarProducto(
       }
     }
     refresh();
-    return { ok: true, mensaje: "Producto actualizado." };
+    const devueltos = pasaAGuardar ? await devolverSobranteDeHoy(id, nombre, sesion.uid) : [];
+    return {
+      ok: true,
+      mensaje: devueltos.length
+        ? `Producto actualizado. Se devolvió al stock lo que se había retirado hoy al contar: ${devueltos.join(" · ")}.`
+        : "Producto actualizado.",
+    };
   } catch (e) {
     return { ok: false, error: mensajeError(e) };
   }
@@ -248,4 +257,57 @@ export async function eliminarProducto(productoId: number): Promise<Resultado> {
   } catch (e) {
     return { ok: false, error: mensajeError(e) };
   }
+}
+
+/**
+ * Un producto pasa de "del día" a "se guarda" el mismo día en que se contó: lo que sobró y se retiró
+ * como "No se vendió" en el conteo de HOY vuelve al stock (pasa al día siguiente). Solo lo de hoy;
+ * otros motivos (se cayó, se venció, devuelto a cocina) no se tocan.
+ */
+async function devolverSobranteDeHoy(productoId: number, nombre: string, usuarioId: number) {
+  const hoy = hoyISO();
+  const mermas = check(
+    await db()
+      .from("movimientos")
+      .select("colegio_id, cantidad")
+      .eq("producto_id", productoId)
+      .eq("tipo", "MERMA")
+      .eq("fecha", hoy)
+      .eq("observacion", "No se vendió"),
+  ) as { colegio_id: number; cantidad: number }[];
+  if (mermas.length === 0) return [];
+  const porColegio = new Map<number, number>();
+  for (const m of mermas) porColegio.set(m.colegio_id, (porColegio.get(m.colegio_id) ?? 0) + m.cantidad);
+  const filas = check(
+    await db().from("producto_colegio").select("id, colegio_id, stock_unidades, colegios(nombre)").eq("producto_id", productoId),
+  ) as unknown as { id: number; colegio_id: number; stock_unidades: number; colegios: { nombre: string } | null }[];
+  const hechos: string[] = [];
+  for (const f of filas) {
+    const cantidad = porColegio.get(f.colegio_id) ?? 0;
+    if (cantidad <= 0) continue;
+    check(
+      await db().rpc("fn_ajustar_stock", {
+        p_producto_colegio_id: f.id,
+        p_unidades: f.stock_unidades + cantidad,
+        p_tipo: "AJUSTE",
+        p_usuario_id: usuarioId,
+        p_observacion: "Vuelve al stock: el producto pasó a «se guarda» (se había retirado al contar hoy)",
+      }),
+    );
+    // El conteo de hoy deja de mostrar ese sobrante
+    const conteo = check(
+      await db().from("conteos").select("id").eq("colegio_id", f.colegio_id).eq("tipo", "DIA").eq("fecha", hoy),
+    ) as { id: number }[];
+    if (conteo.length) {
+      const item = check(
+        await db().from("conteo_items").select("id, sobrante, quedan").eq("conteo_id", conteo[0].id).eq("producto_colegio_id", f.id),
+      ) as { id: number; sobrante: number; quedan: number }[];
+      if (item.length) {
+        const sobrante = Math.max(0, item[0].sobrante - cantidad);
+        check(await db().from("conteo_items").update({ sobrante, ...(sobrante === 0 ? { motivo: null } : {}) }).eq("id", item[0].id));
+      }
+    }
+    hechos.push(`${cantidad} ${nombre} en ${(f.colegios?.nombre ?? "").replace(/^Colegio\s+/i, "")}`);
+  }
+  return hechos;
 }
