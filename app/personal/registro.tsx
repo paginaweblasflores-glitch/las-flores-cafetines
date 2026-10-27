@@ -30,7 +30,7 @@ import { ModalPrecio } from "./modal-precio";
 import { HojaCorregir, LoContadoHoy, type ContadoHoy } from "./contado-hoy";
 import { InventarioArranque } from "./arranque";
 import { CajaDelDia, type CajaHoy } from "./caja";
-import { evaluar, FilaConteo, HojaConteo, type Edicion, type ProductoConteo } from "./conteo";
+import { evaluar, FilaConteo, HojaConteo, preparaElPersonal, type Edicion, type ProductoConteo } from "./conteo";
 import type { ItemNuevo } from "@/app/actions/reposiciones";
 
 type Producto = ProductoConteo;
@@ -124,7 +124,9 @@ export function RegistroPersonal({
   // Conteo flexible: todo se puede contar cualquier día; "contado" = contado HOY
   const contadoEnSeccion = contadoHoy;
   // Flexible: solo se pide contar lo que HAY (llegó o sobró). Lo que no llegó hoy (stock 0) no queda pendiente.
-  const aplica = (p: Producto) => p.stock > 0 || contadoEnSeccion(p);
+  // Lo que prepara el mismo personal (hot dog, cancha) se cuenta todos los días aunque empiece en 0
+  const hayQueContar = (p: Producto) => p.stock > 0 || preparaElPersonal(p);
+  const aplica = (p: Producto) => hayQueContar(p) || contadoEnSeccion(p);
   const delDiaAplican = delDia.filter(aplica);
   const delDiaContados = delDiaAplican.filter(contadoHoy).length;
   // Los que se guardan no son obligatorios: se cuentan cuando quieran (aquí solo cuántos se contaron hoy)
@@ -138,21 +140,21 @@ export function RegistroPersonal({
       id: "contar",
       titulo: seccion === "dia" ? "Por contar" : "Con stock",
       nota: seccion === "dia" ? undefined : "Cuenta los que quieras, el día que quieras: lo que queda pasa al día siguiente.",
-      items: lista.filter((p) => !contadoEnSeccion(p) && p.stock > 0),
+      items: lista.filter((p) => !contadoEnSeccion(p) && hayQueContar(p)),
     },
     { id: "listos", titulo: seccion === "dia" ? "Ya contados" : "Contados hoy", items: lista.filter((p) => contadoEnSeccion(p)) },
     {
       id: "sinStock",
       titulo: seccion === "dia" ? "Sin stock hoy (no llegó)" : "Sin stock",
       nota: "No es obligatorio contarlos. Ábrelos solo si tienes algo que registrar.",
-      items: lista.filter((p) => !contadoEnSeccion(p) && p.stock <= 0),
+      items: lista.filter((p) => !contadoEnSeccion(p) && !hayQueContar(p)),
     },
   ].filter((g) => g.items.length > 0);
   const deSeccionAplican = deSeccion.filter(aplica);
   const todoContado = deSeccionAplican.length > 0 && deSeccionAplican.every(contadoEnSeccion);
   const abierto = abiertoId === null ? null : (lista.find((p) => p.id === abiertoId) ?? null);
   // "Siguiente": el próximo de la lista que falta contar y no tiene nada escrito
-  const pendiente = (p: Producto) => p.stock > 0 && !contadoEnSeccion(p) && !evaluar(p, ediciones[p.id] ?? {}).hayCambio;
+  const pendiente = (p: Producto) => hayQueContar(p) && !contadoEnSeccion(p) && !evaluar(p, ediciones[p.id] ?? {}).hayCambio;
   const siguienteId = (() => {
     if (!abierto) return null;
     const i = lista.findIndex((p) => p.id === abierto.id);

@@ -181,7 +181,7 @@ export function FilaConteo({
             <Check className="h-4 w-4" />
           </span>
         ) : !contado && !error ? (
-          p.stock > 0 && p.perecible ? (
+          (p.stock > 0 || preparaElPersonal(p)) && p.perecible ? (
             <span className="chip shrink-0 chip-atencion">Contar</span>
           ) : (
             <ChevronRight className="h-4 w-4 shrink-0 text-suave" />
