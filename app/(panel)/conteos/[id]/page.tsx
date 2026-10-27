@@ -150,7 +150,7 @@ export default async function PaginaConteo({ params }: PageProps<"/conteos/[id]"
                   <p className="text-lg font-semibold tabular-nums">{soles(ventaSistema)}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-suave">En físico (efectivo + Yape)</p>
+                  <p className="text-xs text-suave">En efectivo</p>
                   <p className={`text-lg font-semibold tabular-nums ${fisico == null ? "text-suave" : ""}`}>
                     {fisico == null ? "Sin registrar" : soles(fisico)}
                   </p>

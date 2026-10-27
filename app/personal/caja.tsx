@@ -8,10 +8,10 @@ import { horaLima, soles } from "@/lib/format";
 
 export type CajaHoy = { fisico: number; sistema: number; motivo: string | null; hora: string } | null;
 
-const MOTIVOS_RAPIDOS = ["No anoté algunas ventas", "Di vuelto de más", "Yape o Plin pendiente", "Falta contar un producto"];
+const MOTIVOS_RAPIDOS = ["No anoté algunas ventas", "Di vuelto de más", "Pagaron por Yape", "Falta contar un producto"];
 
 /**
- * Caja de hoy: el personal escribe cuánto dinero tiene en físico (efectivo + Yape) y se compara con
+ * Caja de hoy: el personal escribe cuánto dinero tiene en efectivo y se compara con
  * la venta de hoy según el sistema. Si no cuadra, escribe el motivo. Se puede corregir hasta la medianoche.
  */
 export function CajaDelDia({ ventaSistema, registrada }: { ventaSistema: number; registrada: CajaHoy }) {
@@ -55,7 +55,7 @@ export function CajaDelDia({ ventaSistema, registrada }: { ventaSistema: number;
           </p>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <div className="rounded-xl bg-fondo px-3 py-2.5">
-              <p className="text-[11px] text-suave">En caja (físico)</p>
+              <p className="text-[11px] text-suave">En efectivo</p>
               <p className="font-semibold">{soles(registrada.fisico)}</p>
             </div>
             <div className="rounded-xl bg-fondo px-3 py-2.5">
@@ -82,7 +82,7 @@ export function CajaDelDia({ ventaSistema, registrada }: { ventaSistema: number;
       ) : (
       <div className="card mt-4 p-4">
         <label className="block">
-          <span className="label">¿Cuánto tienes en caja? (S/)</span>
+          <span className="label">¿Cuánto tienes en efectivo? (S/)</span>
           <input
             inputMode="decimal"
             value={fisico}
@@ -92,7 +92,7 @@ export function CajaDelDia({ ventaSistema, registrada }: { ventaSistema: number;
             className="input h-16 text-center text-3xl font-semibold placeholder:text-suave/40"
             autoFocus={!registrada}
           />
-          <span className="mt-1 block text-xs text-suave">Todo el dinero de las ventas de hoy: efectivo + Yape/Plin.</span>
+          <span className="mt-1 block text-xs text-suave">Solo el efectivo de las ventas de hoy.</span>
         </label>
 
         {valido &&

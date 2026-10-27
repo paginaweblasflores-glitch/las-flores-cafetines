@@ -406,7 +406,7 @@ export async function crearProductoArranque(d: {
   }
 }
 
-/** Caja del día: cuánto tiene en físico (efectivo + Yape) frente a la venta de hoy del sistema */
+/** Caja del día: cuánto tiene en efectivo frente a la venta de hoy del sistema */
 export async function registrarCaja(
   fisico: number,
   motivo: string | null,

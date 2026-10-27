@@ -215,7 +215,7 @@ create table cierres_dia (
   total_ventas  numeric(12,2) not null default 0,
   unidades      int not null default 0,
   observacion   text,
-  -- Caja del día: lo que el personal tiene en físico (efectivo + Yape) y por qué no cuadra
+  -- Caja del día: lo que el personal tiene en efectivo y por qué no cuadra
   monto_fisico  numeric(12,2),
   motivo        text,
   created_at    timestamptz not null default now(),

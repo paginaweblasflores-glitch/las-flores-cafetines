@@ -1,8 +1,8 @@
 -- =====================================================================
 --  LAS FLORES · 32: CAJA DEL DÍA
 --
---  El personal anota cuánto dinero tiene en físico al cerrar (efectivo +
---  Yape). El sistema lo compara con la venta de hoy según los conteos.
+--  El personal anota cuánto dinero tiene en efectivo al cerrar.
+--  El sistema lo compara con la venta de hoy según los conteos.
 --  Si no cuadra, debe escribir el motivo (ej. "no anoté la chicha").
 --  Se puede corregir el mismo día. Administración lo ve en Conteos.
 --
