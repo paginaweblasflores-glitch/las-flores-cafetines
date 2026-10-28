@@ -56,21 +56,30 @@ const MOTIVO_POR_DEFECTO = MOTIVOS_MERMA[0];
 
 /** Lo que manda la cocina y se acumula: al contar se puede devolver una parte a la cocina (no pasa al día siguiente) */
 export const devuelveACocina = (p: Pick<ProductoConteo, "perecible" | "deCocina">) => !p.perecible && p.deCocina;
+export const MOTIVO_BOTADO = "Se botó (malogrado)";
+/** Lo que se guarda y está en "Del día": por qué sale algo del stock sin venderse */
+export const motivosSale = (p: Pick<ProductoConteo, "deCocina">) => (p.deCocina ? [MOTIVO_BOTADO, MOTIVO_DEVUELTO] : [MOTIVO_BOTADO]);
 /** En "Del día" (lo de cocina o lo que prepara el personal) pero se guarda: lo que sobra pasa a mañana */
 export const seGuardaEnDelDia = (p: ProductoConteo) => !p.perecible && (p.deCocina || !!p.preparaPersonal);
 /** Tiene campo de sobrante: los del día (lo que sobra se retira) y lo de cocina que se acumula (lo devuelto) */
-export const conSobrante = (p: Pick<ProductoConteo, "perecible" | "deCocina">) => p.perecible || devuelveACocina(p);
+export const conSobrante = (p: Pick<ProductoConteo, "perecible" | "deCocina" | "preparaPersonal">) =>
+  p.perecible || devuelveACocina(p) || (!p.perecible && !!p.preparaPersonal);
 
 /** Sobrante: si no lo cambian, es todo lo que queda (los productos del día no pasan al día siguiente) */
 function valorSobrante(e: Edicion, perecible: boolean) {
   return e.merma ?? (perecible ? (e.unidades ?? "") : "");
 }
 
-function leerMerma(e: Edicion, p: Pick<ProductoConteo, "perecible" | "deCocina">) {
+function leerMerma(e: Edicion, p: Pick<ProductoConteo, "perecible" | "deCocina" | "preparaPersonal">) {
   const v = valorSobrante(e, p.perecible);
   const cantidad = v !== "" ? Number(v) : 0;
   // Lo que se acumula y se devuelve: el motivo siempre es "Devuelto a cocina"
-  if (devuelveACocina(p)) return { cantidad, motivo: MOTIVO_DEVUELTO };
+  // Lo que se guarda: sale del stock porque se botó (malogrado) o se devolvió a cocina
+  if (!p.perecible) {
+    const opciones = motivosSale(p);
+    const motivo = e.motivo && opciones.includes(e.motivo) ? e.motivo : opciones.length === 1 ? opciones[0] : "";
+    return { cantidad, motivo };
+  }
   const motivo = (e.motivo ?? MOTIVO_POR_DEFECTO) === "Otro" ? (e.motivoOtro ?? "").trim() : (e.motivo ?? MOTIVO_POR_DEFECTO);
   return { cantidad, motivo };
 }
@@ -102,7 +111,9 @@ export function evaluar(p: ProductoConteo, e: Edicion) {
         : mermaInvalida
           ? `El sobrante no puede ser mayor a lo que queda (${quedan}).`
           : faltaMotivo
-            ? "Escribe el motivo del sobrante."
+            ? p.perecible
+              ? "Escribe el motivo del sobrante."
+              : "Elige por qué sale del stock."
             : null;
   const cambio: CambioRegistro | null =
     hayCambio && !error
@@ -144,7 +155,7 @@ export function FilaConteo({
       <span className="text-verde-700">
         Quedan {r.quedan}
         {r.vendio > 0 ? ` · vendiste ${r.vendio} (${soles(r.vendio * p.precio)})` : r.vendio < 0 ? " · más de lo que había" : ""}
-        {r.hayMerma ? (p.perecible ? ` · sobran ${r.merma.cantidad}` : ` · devuelves ${r.merma.cantidad}`) : ""}
+        {r.hayMerma ? (p.perecible ? ` · sobran ${r.merma.cantidad}` : ` · sale ${r.merma.cantidad}`) : ""}
       </span>
     );
   else if (contado)
@@ -348,7 +359,7 @@ export function HojaConteo({
           />
           {conSobrante(p) && (
             <CampoLitros
-              etiqueta={p.perecible ? "Sobrante (litros)" : "Devuelve a cocina (litros)"}
+              etiqueta={p.perecible ? "Sobrante (litros)" : "Sale del stock (litros)"}
               mlPorVaso={p.unidadesPorPresentacion}
               vasos={valorSobrante(e, p.perecible)}
               cambiar={(v) => editar("merma", v)}
@@ -386,7 +397,7 @@ export function HojaConteo({
         </label>
         {conSobrante(p) && (
           <label className="block">
-            <span className="label">{p.perecible ? "Sobrante (no se vende)" : "Devuelve a cocina"}</span>
+            <span className="label">{p.perecible ? "Sobrante (no se vende)" : "Sale del stock"}</span>
             <input
               type="number"
               inputMode="numeric"
@@ -410,10 +421,29 @@ export function HojaConteo({
         </p>
       )}
 
-      {devuelveACocina(p) && (
-        <p className="mt-2 text-xs text-suave">
-          Lo que no devuelvas pasa al día siguiente y se suma con lo que mande la cocina. Si no devuelves nada, déjalo vacío.
-        </p>
+      {!p.perecible && conSobrante(p) && (
+        <>
+          <p className="mt-2 text-xs text-suave">
+            «Sale del stock»: lo que se botó porque estaba malogrado{p.deCocina ? " o se devolvió a cocina" : ""} (no es venta). Lo demás pasa al
+            día siguiente. Si no sale nada, déjalo vacío.
+          </p>
+          {r.hayMerma && motivosSale(p).length > 1 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {motivosSale(p).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => editar("motivo", m)}
+                  className={`rounded-full px-3 py-2 text-sm font-medium ${
+                    r.merma.motivo === m ? "bg-panel text-white" : "border border-borde bg-white text-tinta"
+                  }`}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {/* Motivo del sobrante: botones grandes, sin listas desplegables */}
@@ -474,7 +504,7 @@ export function HojaConteo({
           {r.hayMerma && (
             <>
               {" "}
-              · <b>{r.merma.cantidad}</b> {p.perecible ? `de sobrante (${r.merma.motivo || "sin motivo"})` : "devueltos a cocina"}
+              · <b>{r.merma.cantidad}</b> {p.perecible ? `de sobrante (${r.merma.motivo || "sin motivo"})` : `salen del stock (${r.merma.motivo || "elige por qué"})`}
             </>
           )}
         </p>
