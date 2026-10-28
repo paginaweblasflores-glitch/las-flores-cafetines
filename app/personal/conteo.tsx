@@ -56,6 +56,8 @@ const MOTIVO_POR_DEFECTO = MOTIVOS_MERMA[0];
 
 /** Lo que manda la cocina y se acumula: al contar se puede devolver una parte a la cocina (no pasa al día siguiente) */
 export const devuelveACocina = (p: Pick<ProductoConteo, "perecible" | "deCocina">) => !p.perecible && p.deCocina;
+/** En "Del día" (lo de cocina o lo que prepara el personal) pero se guarda: lo que sobra pasa a mañana */
+export const seGuardaEnDelDia = (p: ProductoConteo) => !p.perecible && (p.deCocina || !!p.preparaPersonal);
 /** Tiene campo de sobrante: los del día (lo que sobra se retira) y lo de cocina que se acumula (lo devuelto) */
 export const conSobrante = (p: Pick<ProductoConteo, "perecible" | "deCocina">) => p.perecible || devuelveACocina(p);
 
@@ -175,7 +177,11 @@ export function FilaConteo({
       >
         <Inicial nombre={p.nombre} />
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-medium">{p.nombre}</span>
+          <span className="flex items-center gap-1.5">
+            <span className="truncate font-medium">{p.nombre}</span>
+            {/* En "Del día", lo que no se retira al cierre: lo que sobra pasa a mañana */}
+            {seGuardaEnDelDia(p) && <span className="chip chip-info shrink-0">se guarda</span>}
+          </span>
           <span className="block truncate text-xs text-suave">{detalle}</span>
         </span>
         {escrito ? (
@@ -261,6 +267,11 @@ export function HojaConteo({
         </span>
       }
     >
+      {(p.perecible || seGuardaEnDelDia(p)) && (
+        <p className="mb-3 text-xs text-suave">
+          {p.perecible ? "Lo que sobre se retira al cierre." : "Se guarda: lo que quede pasa a mañana."}
+        </p>
+      )}
       {contado && !r.hayCambio && (
         <p className="mb-3 rounded-xl bg-verde-50 px-3 py-2 text-sm text-verde-700">
           Ya está {p.perecible ? "contado hoy" : "contado esta semana"}. Si te equivocaste, escribe lo que hay ahora y se corrige.
