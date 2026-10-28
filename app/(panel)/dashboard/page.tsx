@@ -144,7 +144,12 @@ export default async function Dashboard() {
   const avanceDelDia = (colegioIdDe: number) => {
     // Flexible: lo que no llegó hoy (stock 0 y sin contar) no cuenta como pendiente
     const contadoHoy = (s: (typeof stock)[number]) => !!s.ultimo_conteo && fechaISOLima(s.ultimo_conteo) === hoy;
-    const delDia = stock.filter((s) => s.colegio_id === colegioIdDe && s.perecible && (s.total_unidades > 0 || contadoHoy(s)));
+    // Lo de "Del día" del personal: lo que manda la cocina, lo que prepara el personal y lo que se retira al cierre
+    const deDia = (s: (typeof stock)[number]) => {
+      const p = productos.get(s.producto_id);
+      return s.perecible || !!p?.de_cocina || !!p?.prepara_personal;
+    };
+    const delDia = stock.filter((s) => s.colegio_id === colegioIdDe && deDia(s) && (s.total_unidades > 0 || contadoHoy(s)));
     const contados = delDia.filter(contadoHoy).length;
     return { contados, total: delDia.length };
   };

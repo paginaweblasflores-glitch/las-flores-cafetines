@@ -5,7 +5,7 @@ import { CheckCircle2, PackagePlus, Save, Search } from "lucide-react";
 import { crearProductoArranque, registrarArranque } from "@/app/actions/personal";
 import { avisar, Inicial, Modal } from "@/components/ui";
 import { bajoDeBarra, useTecladoAbierto } from "@/components/navegacion-inferior";
-import { buscarPorNombre, litrosTexto, mayusculas, numero, partesPorEnvase } from "@/lib/format";
+import { buscarPorNombre, litrosTexto, mayusculas, numero, partesPorEnvase, stockEnCompra } from "@/lib/format";
 import type { ProductoConteo } from "./conteo";
 
 /**
@@ -103,40 +103,96 @@ export function InventarioArranque({
   );
 }
 
-/** Una fila: nombre, lo que dice el sistema y la casilla "¿cuántas hay?" (en litros si es bebida en litros) */
+/**
+ * Una fila: nombre, lo que dice el sistema y cuántas hay. Se escribe como está en el almacén:
+ * en litros (bebidas en litros), en paquetes/cajas + sueltas (lo que viene así) o en unidades.
+ */
 function FilaArranque({ p, valor, cambiar }: { p: ProductoConteo; valor: string; cambiar: (v: string) => void }) {
   const enLitros = p.presentacion === "LITRO" && p.unidadesPorPresentacion > 0;
   const porLitro = enLitros ? partesPorEnvase("LITRO", p.unidadesPorPresentacion) : 1;
+  const compra = stockEnCompra(p.presentacion, p.unidadesPorPresentacion);
+  const enPaquetes = !enLitros && compra.factor > 1;
   const [litros, setLitros] = useState(valor === "" ? "" : litrosTexto(Number(valor) / porLitro));
+  const [paquetes, setPaquetes] = useState("");
+  const [sueltas, setSueltas] = useState("");
+  const digitos = (v: string) => v.replace(/\D/g, "");
+  const campo = "input h-11 px-2 text-center text-lg font-semibold placeholder:text-sm placeholder:font-normal";
+
+  // Paquetes + sueltas → unidades
+  const total = (pq: string, su: string) => (pq === "" && su === "" ? "" : String(Number(pq || 0) * compra.factor + Number(su || 0)));
+
   return (
-    <li className={`flex items-center gap-3 px-3.5 py-2.5 ${valor !== "" ? "bg-verde-50/60" : ""}`}>
-      <Inicial nombre={p.nombre} />
-      <div className="min-w-0 flex-1">
-        <p className="truncate font-medium">{p.nombre}</p>
-        <p className="text-xs text-suave">
-          El sistema dice {enLitros ? `${litrosTexto(p.stock / porLitro)} L` : numero(p.stock)}
-          {p.unidadesPorPresentacion > 1 && !enLitros ? " · en unidades" : ""}
-        </p>
+    <li className={`px-3.5 py-2.5 ${valor !== "" ? "bg-verde-50/60" : ""}`}>
+      <div className="flex items-center gap-3">
+        <Inicial nombre={p.nombre} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-medium">{p.nombre}</p>
+          <p className="text-xs text-suave">
+            El sistema dice {enLitros ? `${litrosTexto(p.stock / porLitro)} L` : `${numero(p.stock)} unid.`}
+            {enPaquetes ? ` · ${compra.singular} de ${compra.factor}` : ""}
+          </p>
+        </div>
+        {!enPaquetes && (
+          <div className="flex w-24 shrink-0 items-center gap-1">
+            <input
+              inputMode={enLitros ? "decimal" : "numeric"}
+              value={enLitros ? litros : valor}
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => {
+                if (!enLitros) return cambiar(digitos(e.target.value));
+                const limpio = e.target.value.replace(",", ".").replace(/[^\d.]/g, "");
+                const [ent, ...dec] = limpio.split(".");
+                const v = dec.length ? `${ent}.${dec.join("").slice(0, 2)}` : ent;
+                setLitros(v);
+                cambiar(v === "" ? "" : String(Math.round(Number(v) * porLitro)));
+              }}
+              placeholder="¿Hay?"
+              className={campo}
+              aria-label={`Cuántas hay de ${p.nombre}`}
+            />
+            {enLitros && <span className="text-xs text-suave">L</span>}
+          </div>
+        )}
       </div>
-      <div className="flex w-24 shrink-0 items-center gap-1">
-        <input
-          inputMode={enLitros ? "decimal" : "numeric"}
-          value={enLitros ? litros : valor}
-          onFocus={(e) => e.target.select()}
-          onChange={(e) => {
-            if (!enLitros) return cambiar(e.target.value.replace(/\D/g, ""));
-            const limpio = e.target.value.replace(",", ".").replace(/[^\d.]/g, "");
-            const [ent, ...dec] = limpio.split(".");
-            const v = dec.length ? `${ent}.${dec.join("").slice(0, 2)}` : ent;
-            setLitros(v);
-            cambiar(v === "" ? "" : String(Math.round(Number(v) * porLitro)));
-          }}
-          placeholder="¿Hay?"
-          className="input h-11 px-2 text-center text-lg font-semibold placeholder:text-sm placeholder:font-normal"
-          aria-label={`Cuántas hay de ${p.nombre}`}
-        />
-        {enLitros && <span className="text-xs text-suave">L</span>}
-      </div>
+
+      {/* Lo que viene en paquetes/cajas: se escribe como está (ej. 1 paquete y 4 sueltas) */}
+      {enPaquetes && (
+        <div className="mt-2 flex items-end gap-2 pl-12">
+          <label className="w-24">
+            <span className="mb-0.5 block text-[11px] text-suave capitalize">{compra.plural}</span>
+            <input
+              inputMode="numeric"
+              value={paquetes}
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => {
+                const v = digitos(e.target.value);
+                setPaquetes(v);
+                cambiar(total(v, sueltas));
+              }}
+              placeholder="0"
+              className={campo}
+              aria-label={`${compra.plural} de ${p.nombre}`}
+            />
+          </label>
+          <label className="w-24">
+            <span className="mb-0.5 block text-[11px] text-suave">Sueltas</span>
+            <input
+              inputMode="numeric"
+              value={sueltas}
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => {
+                const v = digitos(e.target.value);
+                setSueltas(v);
+                cambiar(total(paquetes, v));
+              }}
+              placeholder="0"
+              className={campo}
+              aria-label={`Unidades sueltas de ${p.nombre}`}
+            />
+          </label>
+          <span className="pb-2.5 text-sm text-suave">{valor !== "" ? <>= <b className="text-tinta">{numero(Number(valor))}</b> unid.</> : ""}</span>
+        </div>
+      )}
     </li>
   );
 }

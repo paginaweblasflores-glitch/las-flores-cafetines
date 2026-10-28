@@ -116,11 +116,16 @@ export function RegistroPersonal({
   // Los acompañantes (salsas) no se cuentan ni se venden: solo se reciben y se piden en Reposición
   const vendibles = productos.filter((p) => !p.acompanante);
   const acompanantes = productos.filter((p) => p.acompanante);
-  const delDia = vendibles.filter((p) => p.perecible);
-  const semanales = vendibles.filter((p) => !p.perecible);
+  // "Del día": lo que manda la cocina y lo que prepara el personal (se cuenta cada día que hay).
+  // "Contar los demás": lo que manda logística. Si lo que sobra se retira o pasa a mañana lo decide "del día / se guarda".
+  const vaEnDelDia = (p: Producto) => p.perecible || p.deCocina || preparaElPersonal(p);
+  const delDia = vendibles.filter(vaEnDelDia);
+  const semanales = vendibles.filter((p) => !vaEnDelDia(p));
+  // Lo que se guarda (de cocina o de logística): entra al inventario de arranque
+  const guardables = vendibles.filter((p) => !p.perecible);
   // Inventario de arranque: los que se guardan (no los del día); faltan los que aún no se registraron
-  const paraArranque = semanales;
-  const faltanArranque = semanales.filter((p) => !p.arranqueAt);
+  const paraArranque = guardables;
+  const faltanArranque = guardables.filter((p) => !p.arranqueAt);
   // Conteo flexible: todo se puede contar cualquier día; "contado" = contado HOY
   const contadoEnSeccion = contadoHoy;
   // Flexible: solo se pide contar lo que HAY (llegó o sobró). Lo que no llegó hoy (stock 0) no queda pendiente.
