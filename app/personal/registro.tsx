@@ -121,11 +121,10 @@ export function RegistroPersonal({
   const vaEnDelDia = (p: Producto) => p.perecible || p.deCocina || preparaElPersonal(p);
   const delDia = vendibles.filter(vaEnDelDia);
   const semanales = vendibles.filter((p) => !vaEnDelDia(p));
-  // Lo que se guarda (de cocina o de logística): entra al inventario de arranque
-  const guardables = vendibles.filter((p) => !p.perecible);
   // Inventario de arranque: los que se guardan (no los del día); faltan los que aún no se registraron
-  const paraArranque = guardables;
-  const faltanArranque = guardables.filter((p) => !p.arranqueAt);
+  // Inventario de arranque: solo lo que manda logística (lo de cocina siempre llega con su envío)
+  const paraArranque = semanales;
+  const faltanArranque = semanales.filter((p) => !p.arranqueAt);
   // Conteo flexible: todo se puede contar cualquier día; "contado" = contado HOY
   const contadoEnSeccion = contadoHoy;
   // Flexible: solo se pide contar lo que HAY (llegó o sobró). Lo que no llegó hoy (stock 0) no queda pendiente.
