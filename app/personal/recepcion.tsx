@@ -25,6 +25,8 @@ export type EnvioPorRecibir = {
 /** Si llegó menos: faltó o se dañó · si llegó más: la cocina/logística anotó menos de lo que mandó */
 const MOTIVOS = ["No llegó completo", "Llegó aplastado o dañado", "Llegaron de más", "Otro"];
 const DE_MAS = "Llegaron de más";
+/** Si llegó completo solo tienen sentido estos (ej. "las presas vinieron pequeñas") */
+const MOTIVOS_COMPLETO = ["Llegó aplastado o dañado", "Otro"];
 
 /** Lo que llegó al cafetín: envíos de cocina (del día) y entregas de logística (semanal) */
 export function RecepcionEnvios({ envios }: { envios: EnvioPorRecibir[] }) {
@@ -141,8 +143,11 @@ function HojaObservacion({ envio: e, cerrar }: { envio: EnvioPorRecibir; cerrar:
 
   const cantidad = llegaron.trim() === "" ? NaN : Number(llegaron);
   const textoMotivo = motivo === "Otro" ? otro.trim() : motivo;
-  const cantidadValida = Number.isInteger(cantidad) && cantidad >= 0 && cantidad !== e.cantidad && cantidad < 100000;
+  const cantidadValida = Number.isInteger(cantidad) && cantidad >= 0 && cantidad < 100000;
   const deMas = cantidadValida && cantidad > e.cantidad;
+  // Llegó todo, pero quiere dejar una observación (calidad, tamaño...)
+  const completo = cantidadValida && cantidad === e.cantidad;
+  const motivos = completo ? MOTIVOS_COMPLETO : MOTIVOS;
 
   async function guardar() {
     setGuardando(true);
@@ -169,6 +174,7 @@ function HojaObservacion({ envio: e, cerrar }: { envio: EnvioPorRecibir; cerrar:
             const n = Number(v);
             if (v !== "" && n > e.cantidad && motivo !== DE_MAS && motivo !== "Otro") setMotivo(DE_MAS);
             if (v !== "" && n < e.cantidad && motivo === DE_MAS) setMotivo(MOTIVOS[0]);
+            if (v !== "" && n === e.cantidad && !MOTIVOS_COMPLETO.includes(motivo)) setMotivo("Otro");
           }}
           placeholder={`de ${e.cantidad}`}
           className="input h-16 text-center text-3xl font-semibold placeholder:text-base placeholder:font-normal"
@@ -178,7 +184,7 @@ function HojaObservacion({ envio: e, cerrar }: { envio: EnvioPorRecibir; cerrar:
 
       <p className="label mt-4">¿Qué pasó?</p>
       <div className="flex flex-wrap gap-2">
-        {MOTIVOS.map((m) => (
+        {motivos.map((m) => (
           <button
             key={m}
             type="button"
@@ -190,20 +196,28 @@ function HojaObservacion({ envio: e, cerrar }: { envio: EnvioPorRecibir; cerrar:
         ))}
       </div>
       {motivo === "Otro" && (
-        <input value={otro} onChange={(ev) => setOtro(ev.target.value)} className="input mt-2" placeholder="Escribe el motivo" aria-label="Otro motivo" />
+        <input
+          value={otro}
+          onChange={(ev) => setOtro(ev.target.value)}
+          className="input mt-2"
+          placeholder={completo ? "Ej: las presas vinieron muy pequeñas" : "Escribe el motivo"}
+          aria-label="Otro motivo"
+        />
       )}
 
       {llegaron !== "" && !cantidadValida && (
         <p className="mt-3 rounded-xl bg-rojo-50 px-3 py-2 text-sm text-rojo">
-          Escribe cuántas llegaron de verdad (menos o más de {e.cantidad}). Si llegó exacto, usa &quot;Llegó conforme&quot;.
+          Escribe cuántas llegaron de verdad (un número entero).
         </p>
       )}
       {cantidadValida && (
         <p className="mt-3 rounded-xl bg-ambar-50 px-3 py-2 text-sm text-[#8a5a00]">
           Entran {cantidad} al cafetín.{" "}
-          {deMas
-            ? `Llegaron ${cantidad - e.cantidad} más de lo enviado (${textoMotivo || "sin motivo"}).`
-            : `Faltan ${e.cantidad - cantidad} (${textoMotivo || "sin motivo"}).`}
+          {completo
+            ? `Llegaron completas, con observación: ${textoMotivo || "escribe qué pasó"}.`
+            : deMas
+              ? `Llegaron ${cantidad - e.cantidad} más de lo enviado (${textoMotivo || "sin motivo"}).`
+              : `Faltan ${e.cantidad - cantidad} (${textoMotivo || "sin motivo"}).`}
         </p>
       )}
 

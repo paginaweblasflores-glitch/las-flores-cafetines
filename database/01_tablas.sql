@@ -649,9 +649,13 @@ begin
   end if;
 
   v_pre := case when e.origen = 'LOGISTICA' then 'Entrega de logística' else 'Envío de cocina' end;
-  if p_cantidad_recibida = e.cantidad_enviada then
+  if p_cantidad_recibida = e.cantidad_enviada and v_motivo is null then
     v_estado := 'CONFORME';
     v_obs    := v_pre || ': recibido conforme';
+  elsif p_cantidad_recibida = e.cantidad_enviada then
+    -- Llegó completo pero con observación (ej. "las presas vinieron pequeñas")
+    v_estado := 'OBSERVADO';
+    v_obs    := v_pre || ': llegaron completas las ' || p_cantidad_recibida || ' (' || v_motivo || ')';
   else
     if v_motivo is null then raise exception 'Indica el motivo de la diferencia'; end if;
     v_estado := 'OBSERVADO';

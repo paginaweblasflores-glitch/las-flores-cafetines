@@ -377,7 +377,7 @@ export function PanelCocina({
                                 <p className="text-xs text-suave">Enviado {horaLima(e.hora)}</p>
                                 {e.estado === "OBSERVADO" && (
                                   <p className="mt-1 text-xs text-[#8a5a00]">
-                                    Llegaron {e.recibida} de {e.enviada} · {e.motivo}
+                                    {e.recibida === e.enviada ? "Llegaron completas" : `Llegaron ${e.recibida} de ${e.enviada}`} · {e.motivo}
                                   </p>
                                 )}
                               </div>
