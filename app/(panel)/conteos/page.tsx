@@ -27,11 +27,13 @@ export default async function PaginaConteos({ searchParams }: PageProps<"/conteo
     obtenerUsuariosMapa(),
     db()
       .from("cierres_dia")
-      .select("fecha, total_ventas, monto_fisico, motivo")
+      .select("fecha, total_ventas, monto_fisico, motivo, usuario_id, created_at")
       .eq("colegio_id", colegio.id)
       .gte("fecha", desde)
       .lte("fecha", hasta)
-      .then(check) as Promise<{ fecha: string; total_ventas: number; monto_fisico: number | null; motivo: string | null }[]>,
+      .then(check) as Promise<
+      { fecha: string; total_ventas: number; monto_fisico: number | null; motivo: string | null; usuario_id: number | null; created_at: string }[]
+    >,
   ]);
   const cajaDe = new Map(cajas.filter((c) => c.monto_fisico != null).map((c) => [c.fecha, c]));
 
@@ -66,24 +68,43 @@ export default async function PaginaConteos({ searchParams }: PageProps<"/conteo
         tipo="DIA"
         porColegio={false}
         titulo={colegio.nombre}
-        filas={conteos.map((c) => {
-          const ultimo = c.items.reduce((a, i) => (i.updated_at > a ? i.updated_at : a), c.updated_at);
-          const caja = cajaDe.get(c.fecha);
-          return {
-            id: c.id,
-            fecha: c.fecha,
-            colegioId: c.colegio_id,
-            colegio: colegio.nombre,
-            contados: c.items.length,
-            total: c.items.length,
-            unidades: c.items.reduce((a, i) => a + i.vendido, 0),
-            venta: c.items.reduce((a, i) => a + Number(i.monto), 0),
-            sobrante: c.items.reduce((a, i) => a + i.sobrante, 0),
-            registro: c.usuario_id ? (usuarios.get(c.usuario_id)?.nombre ?? "") : "",
-            ultimo,
-            caja: caja ? { fisico: Number(caja.monto_fisico), sistema: Number(caja.total_ventas), motivo: caja.motivo } : null,
-          };
-        })}
+        filas={[
+          ...conteos.map((c) => {
+            const ultimo = c.items.reduce((a, i) => (i.updated_at > a ? i.updated_at : a), c.updated_at);
+            const caja = cajaDe.get(c.fecha);
+            return {
+              id: c.id,
+              fecha: c.fecha,
+              colegioId: c.colegio_id,
+              colegio: colegio.nombre,
+              contados: c.items.length,
+              total: c.items.length,
+              unidades: c.items.reduce((a, i) => a + i.vendido, 0),
+              venta: c.items.reduce((a, i) => a + Number(i.monto), 0),
+              sobrante: c.items.reduce((a, i) => a + i.sobrante, 0),
+              registro: c.usuario_id ? (usuarios.get(c.usuario_id)?.nombre ?? "") : "",
+              ultimo,
+              caja: caja ? { fisico: Number(caja.monto_fisico), sistema: Number(caja.total_ventas), motivo: caja.motivo } : null,
+            };
+          }),
+          // Días en que registró la caja pero no contó: también se ven (venta del sistema S/ 0)
+          ...cajas
+            .filter((cj) => cj.monto_fisico != null && !conteos.some((c) => c.fecha === cj.fecha))
+            .map((cj) => ({
+              id: 0,
+              fecha: cj.fecha,
+              colegioId: colegio.id,
+              colegio: colegio.nombre,
+              contados: 0,
+              total: 0,
+              unidades: 0,
+              venta: 0,
+              sobrante: 0,
+              registro: cj.usuario_id ? (usuarios.get(cj.usuario_id)?.nombre ?? "") : "",
+              ultimo: cj.created_at,
+              caja: { fisico: Number(cj.monto_fisico), sistema: Number(cj.total_ventas), motivo: cj.motivo },
+            })),
+        ].sort((a, b) => b.fecha.localeCompare(a.fecha))}
       />
     </div>
   );

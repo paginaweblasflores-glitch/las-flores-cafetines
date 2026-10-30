@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
+  Banknote,
   BarChart3,
   Boxes,
   CalendarDays,
@@ -61,6 +62,7 @@ const MENU: Item[] = [
     icono: BarChart3,
     hijos: [
       { href: "/reporte-mensual", texto: "Reporte mensual", icono: FileText },
+      { href: "/efectivo", texto: "Efectivo", icono: Banknote, soloAdmin: true },
       { href: "/ventas", texto: "Ventas del mes", icono: CalendarDays, soloAdmin: true },
       { href: "/movimientos", texto: "Historial", icono: History },
     ],

@@ -45,8 +45,9 @@ export function ListaConteos({
         <div>
           <h2 className="font-medium">{titulo}</h2>
           <p className="text-xs text-suave">
-            {visibles.length} conteo{visibles.length === 1 ? "" : "s"} · vendido{" "}
+            {visibles.filter((f) => f.id > 0).length} conteo{visibles.filter((f) => f.id > 0).length === 1 ? "" : "s"} · vendido{" "}
             {soles(visibles.reduce((a, f) => a + f.venta, 0))}
+            {visibles.some((f) => f.id <= 0) && ` · ${visibles.filter((f) => f.id <= 0).length} día(s) con caja sin conteo`}
           </p>
         </div>
       </div>
@@ -78,17 +79,29 @@ export function ListaConteos({
         }
         filas={visibles.map((f) => {
           return (
-            <tr key={f.id} onClick={() => router.push(`/conteos/${f.id}`)} className="cursor-pointer">
+            <tr
+              key={`${f.id}-${f.fecha}`}
+              onClick={f.id > 0 ? () => router.push(`/conteos/${f.id}`) : undefined}
+              className={f.id > 0 ? "cursor-pointer" : ""}
+            >
               <td className="whitespace-nowrap">
-                <Link href={`/conteos/${f.id}`} className="font-medium text-verde-700 first-letter:uppercase hover:underline">
-                  {nombreConteo(tipo, f.fecha)}
-                </Link>
+                {f.id > 0 ? (
+                  <Link href={`/conteos/${f.id}`} className="font-medium text-verde-700 first-letter:uppercase hover:underline">
+                    {nombreConteo(tipo, f.fecha)}
+                  </Link>
+                ) : (
+                  <span className="font-medium first-letter:uppercase">{nombreConteo(tipo, f.fecha)}</span>
+                )}
               </td>
               {porColegio && <td>{f.colegio}</td>}
               <td>
-                <span className="chip chip-neutro">
-                  {f.contados} producto{f.contados === 1 ? "" : "s"}
-                </span>
+                {f.id > 0 ? (
+                  <span className="chip chip-neutro">
+                    {f.contados} producto{f.contados === 1 ? "" : "s"}
+                  </span>
+                ) : (
+                  <span className="chip chip-atencion">No contó</span>
+                )}
               </td>
               <td className="text-right tabular-nums">{numero(f.unidades)} unid.</td>
               <td className="text-right font-medium tabular-nums">{soles(f.venta)}</td>
@@ -96,6 +109,11 @@ export function ListaConteos({
               <td>
                 {!f.caja ? (
                   <span className="text-xs text-suave">Sin registrar</span>
+                ) : f.id <= 0 || f.caja.sistema === 0 ? (
+                  <span className="text-sm">
+                    <b className="tabular-nums">{soles(f.caja.fisico)}</b> en efectivo
+                    {f.caja.motivo && <span className="block max-w-[220px] text-xs text-[#8a5a00]">{f.caja.motivo}</span>}
+                  </span>
                 ) : Math.round((f.caja.fisico - f.caja.sistema) * 100) === 0 ? (
                   <span className="chip chip-exito">{soles(f.caja.fisico)} · cuadra</span>
                 ) : (
@@ -109,9 +127,7 @@ export function ListaConteos({
                 {f.registro || "—"}
                 <span className="block text-xs">{horaLima(f.ultimo)}</span>
               </td>
-              <td className="w-8 text-suave">
-                <ChevronRight className="h-4 w-4" />
-              </td>
+              <td className="w-8 text-suave">{f.id > 0 && <ChevronRight className="h-4 w-4" />}</td>
             </tr>
           );
         })}
