@@ -43,7 +43,7 @@ export default async function PaginaIngresos({ searchParams }: PageProps<"/ingre
   const filaStock = new Map(stock.map((s) => [s.id, s]));
   /** Costo de lo entregado: con el costo de la entrega, o el del producto si no se indicó */
   const costoEnvio = (e: (typeof envios)[number]) => {
-    const s = filaStock.get(e.producto_colegio_id);
+    const s = filaStock.get(e.producto_colegio_id ?? 0);
     const porCaja = e.unidades_por_caja ?? s?.unidades_por_presentacion ?? 1;
     const costo = e.costo_presentacion != null ? Number(e.costo_presentacion) : Number(s?.costo_presentacion ?? 0);
     return (e.cantidad_enviada * costo) / porCaja;

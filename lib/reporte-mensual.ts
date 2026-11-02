@@ -127,7 +127,8 @@ type Env = {
   origen: string;
   estado: string;
   colegio_id: number;
-  producto_colegio_id: number;
+  producto_colegio_id: number | null;
+  reposicion_item_id: number | null;
   cantidad_enviada: number;
   cantidad_recibida: number | null;
   unidades_por_caja: number | null;
@@ -172,7 +173,7 @@ export async function calcularReporte(mes: string): Promise<DatosReporte> {
         () =>
           db()
             .from("envios")
-            .select("id, lote, origen, estado, colegio_id, producto_colegio_id, cantidad_enviada, cantidad_recibida, unidades_por_caja, costo_presentacion, motivo")
+            .select("id, lote, origen, estado, colegio_id, producto_colegio_id, reposicion_item_id, cantidad_enviada, cantidad_recibida, unidades_por_caja, costo_presentacion, motivo")
             .gte("fecha", desde)
             .lte("fecha", hasta)
             .order("id") as unknown as Consulta<Env>,
@@ -292,7 +293,9 @@ export async function calcularReporte(mes: string): Promise<DatosReporte> {
   const cocina = resumenEnvios("COCINA");
   const logis = resumenEnvios("LOGISTICA");
   const costoLogistica = suma(logis.filas, (x) => {
-    const s = filaStock.get(x.producto_colegio_id);
+    // Lo de fuera del catálogo ya va en otros gastos
+    if (x.reposicion_item_id != null) return 0;
+    const s = filaStock.get(x.producto_colegio_id ?? 0);
     const porCaja = x.unidades_por_caja ?? s?.unidades_por_presentacion ?? 1;
     const c = x.costo_presentacion ?? s?.costo_presentacion ?? 0;
     return ((x.cantidad_recibida ?? 0) * Number(c)) / porCaja;
@@ -448,8 +451,10 @@ export async function calcularCompras(mes: string): Promise<DatosCompras> {
     fecha: string;
     estado: string;
     colegio_id: number;
-    producto_id: number;
-    producto_colegio_id: number;
+    producto_id: number | null;
+    producto_colegio_id: number | null;
+    nombre: string | null;
+    reposicion_item_id: number | null;
     cantidad_enviada: number;
     cantidad_recibida: number | null;
     unidades_por_caja: number | null;
@@ -483,7 +488,7 @@ export async function calcularCompras(mes: string): Promise<DatosCompras> {
         db()
           .from("envios")
           .select(
-            "id, lote, fecha, estado, colegio_id, producto_id, producto_colegio_id, cantidad_enviada, cantidad_recibida, unidades_por_caja, costo_presentacion, motivo, observacion",
+            "id, lote, fecha, estado, colegio_id, producto_id, producto_colegio_id, nombre, reposicion_item_id, cantidad_enviada, cantidad_recibida, unidades_por_caja, costo_presentacion, motivo, observacion",
           )
           .eq("origen", "LOGISTICA")
           .neq("estado", "ANULADO")
@@ -512,7 +517,9 @@ export async function calcularCompras(mes: string): Promise<DatosCompras> {
   const colegio = (id: number) => colegios.find((c) => c.id === id)?.nombre ?? "";
   const filaStock = new Map(stock.map((x) => [x.id, x]));
   const costoDe = (e: EnvL) => {
-    const st = filaStock.get(e.producto_colegio_id);
+    // Lo de fuera del catálogo ya va en otros gastos
+    if (e.reposicion_item_id != null) return 0;
+    const st = filaStock.get(e.producto_colegio_id ?? 0);
     const porCaja = e.unidades_por_caja ?? st?.unidades_por_presentacion ?? 1;
     const c = e.costo_presentacion ?? st?.costo_presentacion ?? 0;
     // Se paga lo que se entregó (lo que llegó si ya se recibió)
@@ -550,6 +557,7 @@ export async function calcularCompras(mes: string): Promise<DatosCompras> {
 
   const porProd = new Map<number, { producto: string; unidades: number; costo: number }>();
   for (const e of envios) {
+    if (e.producto_id == null) continue;
     const a = porProd.get(e.producto_id) ?? { producto: productos.get(e.producto_id)?.nombre ?? "Producto", unidades: 0, costo: 0 };
     a.unidades += e.cantidad_recibida ?? e.cantidad_enviada;
     a.costo += costoDe(e);
@@ -571,7 +579,7 @@ export async function calcularCompras(mes: string): Promise<DatosCompras> {
       items: gastos.map((g) => ({ ...g, colegio: colegio(g.colegio_id), costo: r2(g.costo) })),
     },
     costo: r2(entregas.reduce((a, e) => a + e.costo, 0)),
-    unidades: envios.reduce((a, e) => a + (e.cantidad_recibida ?? e.cantidad_enviada), 0),
+    unidades: envios.filter((e) => e.reposicion_item_id == null).reduce((a, e) => a + (e.cantidad_recibida ?? e.cantidad_enviada), 0),
     porColegio,
     entregas,
     productos: [...porProd.values()]
@@ -583,7 +591,7 @@ export async function calcularCompras(mes: string): Promise<DatosCompras> {
       .map((e) => ({
         fecha: e.fecha,
         colegio: colegio(e.colegio_id),
-        producto: productos.get(e.producto_id)?.nombre ?? "Producto",
+        producto: e.nombre ?? productos.get(e.producto_id ?? 0)?.nombre ?? "Producto",
         enviadas: e.cantidad_enviada,
         llegaron: e.cantidad_recibida ?? 0,
         motivo: e.motivo ?? "",

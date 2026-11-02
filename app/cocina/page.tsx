@@ -43,8 +43,9 @@ export default async function PaginaCocina() {
           .map((e) => ({
             id: e.id,
             colegioId: e.colegio_id,
-            productoColegioId: e.producto_colegio_id,
-            producto: productos.get(e.producto_id)?.nombre ?? "Producto",
+            // Solo envíos de cocina: siempre tienen producto
+            productoColegioId: e.producto_colegio_id!,
+            producto: productos.get(e.producto_id!)?.nombre ?? "Producto",
             enviada: e.cantidad_enviada,
             recibida: e.cantidad_recibida,
             estado: e.estado,

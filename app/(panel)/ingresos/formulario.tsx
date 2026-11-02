@@ -761,7 +761,7 @@ function HojaFueraCatalogo({ linea, onCerrar, onGuardar }: { linea: Agregado; on
   }
 
   return (
-    <Modal abierto onCerrar={onCerrar} titulo={f.nombre} subtitulo="Fuera de catálogo: no se vende ni entra al stock, solo queda el registro y el gasto.">
+    <Modal abierto onCerrar={onCerrar} titulo={f.nombre} subtitulo="Fuera de catálogo: el personal lo recibe, pero no se vende ni entra al stock.">
       <div className="grid gap-3">
         <label>
           <span className="label">Cómo se compró</span>

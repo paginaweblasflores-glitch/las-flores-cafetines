@@ -73,6 +73,8 @@ export async function registrarIngresos(
     const ahora = new Date().toISOString();
     let marcados: number[] = [];
     let pendientes: string[] = [];
+    let colegioReposicion = 0;
+    const nombreFuera = new Map<number, string>();
     const deshacer = async () => {
       if (!reposicion) return;
       await db()
@@ -89,6 +91,8 @@ export async function registrarIngresos(
       ) as { colegio_id: number; estado: string; items: { id: number; nombre: string; producto_id: number | null; quitado: boolean; entregado_at: string | null }[] };
       if (r.estado !== "APROBADA" && r.estado !== "EN_COMPRA") return { ok: false, error: "Esa reposición ya se registró." };
       estadoAntes = r.estado;
+      colegioReposicion = r.colegio_id;
+      for (const i of r.items) nombreFuera.set(i.id, i.nombre);
       if (filas.some((f) => f.colegio_id !== r.colegio_id)) return { ok: false, error: "Hay productos de otro colegio en esta reposición." };
       const porEntregar = r.items.filter((i) => !i.quitado && !i.entregado_at);
       if (fuera.some((f) => !porEntregar.some((i) => i.id === f.itemId && i.producto_id == null))) {
@@ -134,46 +138,61 @@ export async function registrarIngresos(
     // Queda por recibir: el stock sube cuando el personal del colegio la confirma
     const lotes = new Map<number, string>();
     try {
-      if (validas.length) {
-        check(
-          await db()
-            .from("envios")
-            .insert(
-              validas.map((l) => {
-                const f = filas.find((x) => x.id === l.productoColegioId)!;
-                if (!lotes.has(f.colegio_id)) lotes.set(f.colegio_id, crypto.randomUUID());
-                return {
-                  fecha,
-                  colegio_id: f.colegio_id,
-                  producto_id: f.producto_id,
-                  producto_colegio_id: f.id,
-                  cantidad_enviada: l.cajas * (l.cajas > 0 ? l.unidadesPorCaja : 0) + l.sueltas,
-                  cajas: l.cajas,
-                  unidades_por_caja: l.cajas > 0 ? l.unidadesPorCaja : null,
-                  unidades_sueltas: l.sueltas,
-                  costo_presentacion: l.costo,
-                  observacion: observacion.trim() || null,
-                  enviado_por: sesion.uid,
-                  origen: "LOGISTICA",
-                  lote: lotes.get(f.colegio_id),
-                };
-              }),
-            ),
-        );
-      }
+      // Lo de fuera del catálogo va en la misma entrega: el personal lo recibe, pero no entra al stock
+      if (fuera.length) lotes.set(colegioReposicion, crypto.randomUUID());
+      const deFuera = fuera.map((f) => ({
+        fecha,
+        colegio_id: colegioReposicion,
+        producto_id: null,
+        producto_colegio_id: null,
+        nombre: nombreFuera.get(f.itemId) ?? "Producto",
+        reposicion_item_id: f.itemId,
+        cantidad_enviada: f.cajas * (f.cajas > 0 ? f.unidadesPorCaja : 0) + f.sueltas,
+        cajas: f.cajas,
+        unidades_por_caja: f.presentacion === "UNIDAD" ? 1 : f.unidadesPorCaja || 1,
+        unidades_sueltas: f.sueltas,
+        costo_presentacion: f.costo,
+        observacion: observacion.trim() || null,
+        enviado_por: sesion.uid,
+        origen: "LOGISTICA",
+        lote: lotes.get(colegioReposicion),
+      }));
+      const delCatalogo = validas.map((l) => {
+        const f = filas.find((x) => x.id === l.productoColegioId)!;
+        if (!lotes.has(f.colegio_id)) lotes.set(f.colegio_id, crypto.randomUUID());
+        return {
+          fecha,
+          colegio_id: f.colegio_id,
+          producto_id: f.producto_id as number | null,
+          producto_colegio_id: f.id as number | null,
+          nombre: null as string | null,
+          reposicion_item_id: null as number | null,
+          cantidad_enviada: l.cajas * (l.cajas > 0 ? l.unidadesPorCaja : 0) + l.sueltas,
+          cajas: l.cajas,
+          unidades_por_caja: l.cajas > 0 ? l.unidadesPorCaja : null,
+          unidades_sueltas: l.sueltas,
+          costo_presentacion: l.costo,
+          observacion: observacion.trim() || null,
+          enviado_por: sesion.uid,
+          origen: "LOGISTICA",
+          lote: lotes.get(f.colegio_id),
+        };
+      });
+      // Todo junto: si falla, no queda nada a medias
+      check(await db().from("envios").insert([...delCatalogo, ...deFuera]));
     } catch (e) {
       await deshacer();
       throw e;
     }
     refresh();
     const extra =
-      (fuera.length ? ` ${fuera.length} fuera del catálogo: solo queda el registro y el gasto.` : "") +
+      (fuera.length ? ` ${fuera.length} fuera del catálogo: el personal lo recibe, pero no entra al stock.` : "") +
       (pendientes.length ? ` Queda pendiente: ${pendientes.join(", ")}.` : "");
     return {
       ok: true,
       mensaje: validas.length
         ? `Entrega registrada (${validas.length} producto${validas.length === 1 ? "" : "s"}). El stock sube cuando el colegio la recibe.${extra}`
-        : `Reposición registrada.${extra}`,
+        : `Entrega registrada.${extra}`,
     };
   } catch (e) {
     return { ok: false, error: mensajeError(e) };

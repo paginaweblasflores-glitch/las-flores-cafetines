@@ -233,8 +233,8 @@ create table if not exists envios (
   id                  bigint generated always as identity primary key,
   fecha               date not null default fn_hoy(),
   colegio_id          bigint not null references colegios(id) on delete cascade,
-  producto_id         bigint not null references productos(id) on delete cascade,
-  producto_colegio_id bigint not null references producto_colegio(id) on delete cascade,
+  producto_id         bigint references productos(id) on delete cascade,
+  producto_colegio_id bigint references producto_colegio(id) on delete cascade,
   cantidad_enviada    int not null check (cantidad_enviada > 0),
   cantidad_recibida   int check (cantidad_recibida >= 0),
   estado              text not null default 'PENDIENTE'
@@ -256,7 +256,11 @@ create table if not exists envios (
   observacion         text,
   -- Correcciones de logística (fecha, antes → después y motivo)
   correccion          text,
-  constraint envios_cajas_check check (cajas >= 0 and unidades_sueltas >= 0)
+  -- Fuera de catálogo (de una reposición): sin producto, solo su nombre. Se recibe, pero no entra al stock.
+  nombre              text,
+  reposicion_item_id  bigint,
+  constraint envios_cajas_check check (cajas >= 0 and unidades_sueltas >= 0),
+  constraint envios_producto_o_nombre check (producto_colegio_id is not null or nombre is not null)
 );
 create index if not exists envios_origen on envios (origen, estado);
 create index if not exists envios_colegio_estado on envios (colegio_id, estado);
@@ -677,8 +681,9 @@ begin
          recibido_por = p_usuario_id, recibido_at = now()
    where id = e.id;
 
-  -- Acompañantes (salsas): se recibe solo para el registro, no entra al stock
-  if p_cantidad_recibida > 0 and not coalesce((select acompanante from productos where id = e.producto_id), false) then
+  -- Acompañantes (salsas) y fuera de catálogo: se recibe solo para el registro, no entra al stock
+  if p_cantidad_recibida > 0 and e.producto_colegio_id is not null
+     and not coalesce((select acompanante from productos where id = e.producto_id), false) then
     if e.origen = 'LOGISTICA' then
       v_costo := e.costo_presentacion;
       if p_cantidad_recibida >= e.cantidad_enviada then

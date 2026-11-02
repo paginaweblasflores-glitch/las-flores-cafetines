@@ -53,12 +53,13 @@ export async function InicioLogistica({ sesion, colegioId }: { sesion: Sesion; c
   const lotes = agruparLotes(envios);
   const sinRecibir = lotes.filter((l) => l.porRecibir > 0).length;
   const costo = (e: (typeof envios)[number]) => {
-    const st = filaPc.get(e.producto_colegio_id);
+    const st = filaPc.get(e.producto_colegio_id ?? 0);
     const c = e.costo_presentacion ?? st?.costo_presentacion ?? 0;
     return ((e.cantidad_recibida ?? e.cantidad_enviada) * Number(c)) / (e.unidades_por_caja ?? st?.unidades_por_presentacion ?? 1);
   };
   const otrosGastos = gastosMes.reduce((a, g) => a + g.costo, 0);
-  const comprasMes = envios.filter((e) => e.fecha >= desde && e.estado !== "ANULADO").reduce((a, e) => a + costo(e), 0) + otrosGastos;
+  // Lo de fuera del catálogo ya va en otros gastos
+  const comprasMes = envios.filter((e) => e.fecha >= desde && e.estado !== "ANULADO" && e.reposicion_item_id == null).reduce((a, e) => a + costo(e), 0) + otrosGastos;
 
   // ---------------- Para hoy: lo que le toca a logística ----------------
   const corto = (n: string) => n.replace(/^Colegio\s+/i, "");

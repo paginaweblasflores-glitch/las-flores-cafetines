@@ -192,8 +192,11 @@ export type Envio = {
   id: number;
   fecha: string;
   colegio_id: number;
-  producto_id: number;
-  producto_colegio_id: number;
+  /** null = fuera de catálogo (de una reposición): tiene nombre, no entra al stock */
+  producto_id: number | null;
+  producto_colegio_id: number | null;
+  nombre: string | null;
+  reposicion_item_id: number | null;
   cantidad_enviada: number;
   cantidad_recibida: number | null;
   estado: "PENDIENTE" | "CONFORME" | "OBSERVADO" | "ANULADO";

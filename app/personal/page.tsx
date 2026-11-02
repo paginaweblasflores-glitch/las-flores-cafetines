@@ -178,12 +178,15 @@ export default async function PaginaPersonal({ searchParams }: PageProps<"/perso
           id: e.id,
           lote: e.lote,
           origen: e.origen,
-          producto: productosMapa.get(e.producto_id)?.nombre ?? "Producto",
+          producto: e.nombre ?? productosMapa.get(e.producto_id ?? 0)?.nombre ?? "Producto",
           cantidad: e.cantidad_enviada,
+          // Lo de fuera del catálogo no tiene producto: va sin detalle
           detalle:
-            e.origen === "LOGISTICA"
-              ? comoViene(e.cajas, e.unidades_por_caja, e.unidades_sueltas, e.producto_colegio_id)
-              : enBalde(e.cantidad_enviada, e.producto_colegio_id),
+            e.producto_colegio_id == null
+              ? null
+              : e.origen === "LOGISTICA"
+                ? comoViene(e.cajas, e.unidades_por_caja, e.unidades_sueltas, e.producto_colegio_id)
+                : enBalde(e.cantidad_enviada, e.producto_colegio_id),
           hora: e.created_at,
           enviadoPor: e.enviado_por ? (usuarios.get(e.enviado_por)?.nombre ?? null) : null,
           nota: e.observacion,

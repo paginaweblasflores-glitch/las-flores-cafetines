@@ -32,13 +32,13 @@ export default async function PaginaEntrega({ params }: PageProps<"/ingresos/[lo
   const filaStock = new Map(stock.map((s) => [s.id, s]));
   const esLogistica = l.origen === "LOGISTICA";
   const costo = (e: (typeof todos)[number]) => {
-    const s = filaStock.get(e.producto_colegio_id);
+    const s = filaStock.get(e.producto_colegio_id ?? 0);
     const porCaja = e.unidades_por_caja ?? s?.unidades_por_presentacion ?? 1;
     const c = e.costo_presentacion != null ? Number(e.costo_presentacion) : Number(s?.costo_presentacion ?? 0);
     return (e.cantidad_enviada * c) / porCaja;
   };
   const items = [...l.items].sort((a, b) =>
-    (productos.get(a.producto_id)?.nombre ?? "").localeCompare(productos.get(b.producto_id)?.nombre ?? ""),
+    (a.nombre ?? productos.get(a.producto_id ?? 0)?.nombre ?? "").localeCompare(b.nombre ?? productos.get(b.producto_id ?? 0)?.nombre ?? ""),
   );
   const est = estadoLote(l);
   const enviadas = items.reduce((a, e) => a + e.cantidad_enviada, 0);
@@ -101,10 +101,13 @@ export default async function PaginaEntrega({ params }: PageProps<"/ingresos/[lo
             </thead>
             <tbody>
               {items.map((e) => {
-                const nombre = productos.get(e.producto_id)?.nombre ?? "Producto";
+                const nombre = e.nombre ?? productos.get(e.producto_id ?? 0)?.nombre ?? "Producto";
                 return (
                   <tr key={e.id}>
-                    <td className="font-medium">{nombre}</td>
+                    <td className="font-medium">
+                      {nombre}
+                      {e.reposicion_item_id != null && <span className="chip chip-neutro ml-2">Fuera de catálogo</span>}
+                    </td>
                     {esLogistica && (
                       <td className="text-suave">
                         {e.cajas > 0
@@ -131,7 +134,7 @@ export default async function PaginaEntrega({ params }: PageProps<"/ingresos/[lo
                       )}
                       {e.correccion && <span className="mt-1 block text-xs text-[#2b5ea7]">Corregido {e.correccion}</span>}
                       <span className="mt-1 flex flex-wrap gap-3 print:hidden">
-                        {esLogistica && e.estado !== "ANULADO" && (
+                        {esLogistica && e.estado !== "ANULADO" && e.reposicion_item_id == null && (
                           <CorregirEntrega
                             e={{
                               id: e.id,
@@ -143,12 +146,12 @@ export default async function PaginaEntrega({ params }: PageProps<"/ingresos/[lo
                               unidadesPorCaja: e.unidades_por_caja,
                               sueltas: e.unidades_sueltas,
                               nombreCaja: (
-                                NOMBRE_PRESENTACION[filaStock.get(e.producto_colegio_id)?.presentacion ?? "CAJA"] ?? "Caja"
+                                NOMBRE_PRESENTACION[filaStock.get(e.producto_colegio_id ?? 0)?.presentacion ?? "CAJA"] ?? "Caja"
                               ).toLowerCase(),
                             }}
                           />
                         )}
-                        {e.estado === "PENDIENTE" && <AnularEntrega id={e.id} producto={nombre} />}
+                        {e.estado === "PENDIENTE" && e.reposicion_item_id == null && <AnularEntrega id={e.id} producto={nombre} />}
                       </span>
                     </td>
                     <td className="whitespace-nowrap text-suave">
