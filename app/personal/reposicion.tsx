@@ -7,7 +7,7 @@ import { avisar } from "@/components/ui";
 import { buscarPorNombre,
   cantidadConUnidad,
   descPresentacion,
-  ESTADO_REPOSICION,
+  estadoReposicionPersonal,
   fechaHoraLima,
   normalizar,
   numero,
@@ -242,7 +242,7 @@ export function Reposicion({
                     ? "Revisa las cantidades"
                     : `Enviar lista (${items.length} producto${items.length === 1 ? "" : "s"})`}
               </button>
-              <p className="mt-2 text-center text-xs text-suave">Logística la revisa y hace la compra.</p>
+              <p className="mt-2 text-center text-xs text-suave">Le llega a logística.</p>
             </>
           )}
         </>
@@ -448,7 +448,7 @@ function MisPedidos({ enviadas }: { enviadas: ReposicionEnviada[] }) {
   return (
     <ul className="space-y-2">
       {enviadas.map((e) => {
-        const est = ESTADO_REPOSICION[e.estado];
+        const est = estadoReposicionPersonal(e.estado);
         const revisada = e.estado === "APROBADA" || e.estado === "EN_COMPRA" || e.estado === "COMPRADA";
         return (
           <li key={e.id}>

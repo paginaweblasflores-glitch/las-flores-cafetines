@@ -37,9 +37,8 @@ export async function InicioLogistica({ sesion, colegioId }: { sesion: Sesion; c
 
   // Reposiciones que esperan a logística
   const porRevisar = reposiciones.filter((r) => r.estado === "POR_APROBAR");
-  const porComprar = reposiciones.filter((r) => r.estado === "APROBADA");
-  const enCompra = reposiciones.filter((r) => r.estado === "EN_COMPRA");
-  const abiertas = [...porRevisar, ...porComprar, ...enCompra].sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const porComprar = reposiciones.filter((r) => r.estado === "APROBADA" || r.estado === "EN_COMPRA");
+  const abiertas = [...porRevisar, ...porComprar].sort((a, b) => a.created_at.localeCompare(b.created_at));
 
   // Lo pedido en curso (para marcar en "Por reponer")
   const pedido = new Map<string, string>();
@@ -119,8 +118,8 @@ export async function InicioLogistica({ sesion, colegioId }: { sesion: Sesion; c
     { t: "Por revisar", v: numero(porRevisar.length), nota: "reposiciones que pidió el personal", href: "/reposiciones", icono: ClipboardList, alerta: porRevisar.length > 0 },
     {
       t: "Por comprar",
-      v: numero(porComprar.length + enCompra.length),
-      nota: enCompra.length ? `${numero(enCompra.length)} ya en compra` : "aprobadas",
+      v: numero(porComprar.length),
+      nota: "aprobadas",
       href: "/reposiciones",
       icono: ShoppingCart,
       alerta: porComprar.length > 0,
@@ -181,7 +180,7 @@ export async function InicioLogistica({ sesion, colegioId }: { sesion: Sesion; c
           <div className="flex items-center justify-between border-b border-borde px-5 py-4">
             <div>
               <h2 className="font-medium">Reposiciones por atender</h2>
-              <p className="text-xs text-suave">Por revisar, por comprar y en compra · de la más antigua a la más reciente</p>
+              <p className="text-xs text-suave">Por revisar y por comprar · de la más antigua a la más reciente</p>
             </div>
             <Link href="/reposiciones" className="text-sm text-verde-700 hover:underline">
               Ver todas

@@ -22,7 +22,7 @@ import { guardarRegistro } from "@/app/actions/personal";
 import { avisar } from "@/components/ui";
 import { bajoDeBarra, NavegacionInferior, useTecladoAbierto, type ItemNavegacion } from "@/components/navegacion-inferior";
 import { BarraSuperiorMovil, PerfilMovil } from "@/components/movil";
-import { buscarPorNombre, ESTADO_REPOSICION, fechaISOLima, fechaLarga, soles } from "@/lib/format";
+import { buscarPorNombre, estadoReposicionPersonal, fechaISOLima, fechaLarga, soles } from "@/lib/format";
 import { RecepcionEnvios, type EnvioPorRecibir } from "./recepcion";
 import { Reposicion, type ReposicionEnviada } from "./reposicion";
 import { MisProductos } from "./productos";
@@ -495,9 +495,9 @@ export function RegistroPersonal({
                   icono: ClipboardList,
                   titulo: "Reposición",
                   detalle: porAprobar
-                    ? `${porAprobar} lista${porAprobar === 1 ? "" : "s"} esperando aprobación`
+                    ? `${porAprobar} lista${porAprobar === 1 ? "" : "s"} solicitada${porAprobar === 1 ? "" : "s"}`
                     : ultimaRespondida
-                      ? `${ultimaRespondida.codigo}: ${ESTADO_REPOSICION[ultimaRespondida.estado]?.texto.toLowerCase() ?? ""}`
+                      ? `${ultimaRespondida.codigo}: ${estadoReposicionPersonal(ultimaRespondida.estado)?.texto.toLowerCase() ?? ""}`
                       : "Pide productos que se están acabando",
                   marca: 0,
                 },

@@ -58,7 +58,8 @@ export function ListaReposiciones({
     <div className="card overflow-hidden">
       <div className="flex flex-col gap-3 border-b border-borde px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap gap-1.5" role="tablist">
-          {FILTROS.map((f) => {
+          {/* "En compra" ya no se usa: solo sale si quedó alguna de antes */}
+          {FILTROS.filter((f) => f.id !== "EN_COMPRA" || cuenta(f.id) > 0).map((f) => {
             const n = cuenta(f.id);
             const sel = filtro === f.id;
             return (

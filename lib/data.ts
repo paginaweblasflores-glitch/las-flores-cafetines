@@ -256,6 +256,14 @@ export type ItemReposicion = {
   costo: number | null;
   costo_fecha: string | null;
   costo_por: number | null;
+  /** Fuera de catálogo: cómo se compró (se llena en Entregas) */
+  presentacion: string | null;
+  cajas: number | null;
+  unidades_por_caja: number | null;
+  sueltas: number | null;
+  costo_presentacion: number | null;
+  /** Ya salió en una entrega (null = sigue pendiente) */
+  entregado_at: string | null;
 };
 
 export type Reposicion = {
@@ -293,13 +301,13 @@ export async function obtenerReposiciones(
   return filas;
 }
 
-/** Cuántas reposiciones esperan a logística (aviso en el menú); administración solo las ve */
+/** Cuántas reposiciones esperan que logística las apruebe (aviso en el menú); administración solo las ve */
 export async function contarReposicionesPendientes(rol: string) {
   if (rol !== "LOGISTICA") return 0;
   const { count } = await db()
     .from("reposiciones")
     .select("id", { count: "exact", head: true })
-    .in("estado", ["POR_APROBAR", "APROBADA", "EN_COMPRA"]);
+    .eq("estado", "POR_APROBAR");
   return count ?? 0;
 }
 

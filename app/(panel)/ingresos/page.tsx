@@ -7,6 +7,7 @@ import {
   obtenerCategorias,
   obtenerColegios,
   obtenerEnvios,
+  obtenerReposiciones,
   obtenerStock,
   obtenerUsuariosMapa,
 } from "@/lib/data";
@@ -29,13 +30,15 @@ export default async function PaginaIngresos({ searchParams }: PageProps<"/ingre
   // ?obs=1: solo lo que llegó con observación (incompleto o dañado)
   const soloObs = sp.obs === "1";
 
-  const [colegios, stock, usuarios, envios, categorias, confIA] = await Promise.all([
+  const [colegios, stock, usuarios, envios, categorias, confIA, reposiciones] = await Promise.all([
     obtenerColegios(),
     obtenerStock(),
     obtenerUsuariosMapa(),
     obtenerEnvios({ desde, hasta }),
     obtenerCategorias(),
     leerConfiguracion().catch(() => new Map<string, string>()),
+    // Lo aprobado que se puede jalar a una entrega
+    sesion.rol === "LOGISTICA" ? obtenerReposiciones() : Promise.resolve([]),
   ]);
   const filaStock = new Map(stock.map((s) => [s.id, s]));
   /** Costo de lo entregado: con el costo de la entrega, o el del producto si no se indicó */
@@ -125,9 +128,23 @@ export default async function PaginaIngresos({ searchParams }: PageProps<"/ingre
             esAdmin={ROLES_PANEL.includes(sesion.rol)}
             colegios={colegios.map((c) => ({ id: c.id, nombre: c.nombre }))}
             colegioInicial={colegios[0]?.id ?? 0}
+            reposiciones={reposiciones
+              .filter((r) => r.estado === "APROBADA" || r.estado === "EN_COMPRA")
+              .map((r) => ({
+                id: r.id,
+                codigo: r.codigo,
+                colegioId: r.colegio_id,
+                colegio: colegios.find((c) => c.id === r.colegio_id)?.nombre ?? "",
+                // Lo que ya salió en otra entrega no se vuelve a jalar
+                parcial: r.items.some((i) => i.entregado_at),
+                items: r.items
+                  .filter((i) => !i.quitado && !i.entregado_at)
+                  .map((i) => ({ id: i.id, productoId: i.producto_id, nombre: i.nombre, cantidad: i.cantidad_aprobada ?? i.cantidad, unidad: i.unidad })),
+              }))}
             stock={stock.map((s) => ({
               id: s.id,
               colegioId: s.colegio_id,
+              productoId: s.producto_id,
               producto: s.producto,
               presentacion: s.presentacion,
               unidadesPorPresentacion: s.unidades_por_presentacion,

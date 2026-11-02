@@ -271,6 +271,14 @@ export const ESTADO_REPOSICION: Record<string, { texto: string; clase: string }>
   ANULADA: { texto: "Anulada", clase: "chip-neutro" },
 };
 
+/** Lo que ve el personal: "Solicitado" hasta que logística aprueba; desde ahí, "Atendido" y queda */
+export function estadoReposicionPersonal(estado: string) {
+  if (estado === "POR_APROBAR") return { texto: "Solicitado", clase: "chip-atencion" };
+  return estado === "APROBADA" || estado === "EN_COMPRA" || estado === "COMPRADA"
+    ? { texto: "Atendido", clase: "chip-exito" }
+    : ESTADO_REPOSICION[estado];
+}
+
 /** Nombre de un conteo: "jueves 8 de octubre" o "Semana del lunes 5 de octubre" */
 export function nombreConteo(tipo: "DIA" | "SEMANA", fecha: string) {
   return tipo === "SEMANA" ? `Semana del ${fechaLarga(fecha)}` : fechaLarga(fecha);

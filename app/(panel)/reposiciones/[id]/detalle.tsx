@@ -3,8 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import { ArrowLeft, Ban, CheckCheck, CheckCircle2, Clock, Printer, Receipt, RotateCcw, Save, ShoppingCart, Trash2 } from "lucide-react";
-import { iniciarCompra, marcarComprado, registrarCostos, revisarReposicion } from "@/app/actions/reposiciones";
+import { ArrowLeft, Ban, CheckCircle2, Clock, Printer, Receipt, RotateCcw, Trash2, Truck } from "lucide-react";
+import { cerrarPendientes, revisarReposicion } from "@/app/actions/reposiciones";
 import { avisar, Modal } from "@/components/ui";
 import { cantidadConUnidad, ESTADO_REPOSICION, fechaCorta, fechaHoraLima, numero, soles, UNIDADES_REPOSICION } from "@/lib/format";
 import type { Rol } from "@/lib/types";
@@ -22,6 +22,10 @@ type Item = {
   /** Fuera de catálogo: lo que pagó logística */
   costo: number | null;
   costoFecha: string | null;
+  /** Fuera de catálogo: "20 paquetes × 1 · S/ 12.00 c/paquete" */
+  detalleCompra: string | null;
+  /** Ya salió en una entrega */
+  entregado: boolean;
 };
 
 type Datos = {
@@ -60,6 +64,8 @@ export function DetalleReposicion({ rol, r }: { rol: Rol; r: Datos }) {
   const incluidos = r.items.filter((i) => !fuera(i));
   const cantidadMala = revisando && incluidos.some((i) => !Number.isInteger(final(i)) || final(i) <= 0);
   const est = ESTADO_REPOSICION[r.estado];
+  // Se entregó una parte y lo demás sigue pendiente
+  const parcial = (r.estado === "APROBADA" || r.estado === "EN_COMPRA") && r.items.some((i) => i.entregado);
 
   async function aprobar() {
     setOcupado(true);
@@ -84,23 +90,6 @@ export function DetalleReposicion({ rol, r }: { rol: Rol; r: Datos }) {
     } else avisar(res.error, "error");
   }
 
-  async function comprar() {
-    setOcupado(true);
-    const res = await iniciarCompra(r.id);
-    setOcupado(false);
-    if (res.ok) avisar(res.mensaje ?? "Compra iniciada");
-    else avisar(res.error, "error");
-  }
-
-  async function terminar() {
-    setOcupado(true);
-    const res = await marcarComprado(r.id);
-    setOcupado(false);
-    if (res.ok) avisar(res.mensaje ?? "Comprada");
-    else avisar(res.error, "error");
-  }
-  // Para terminar, todo lo de fuera del catálogo debe tener su costo anotado
-  const sinCosto = r.items.filter((i) => !i.enCatalogo && !i.quitado && i.costo == null).length;
 
   return (
     <div className="mx-auto max-w-[1100px]">
@@ -126,23 +115,9 @@ export function DetalleReposicion({ rol, r }: { rol: Rol; r: Datos }) {
         </div>
 
         {/* Qué toca hacer ahora */}
-        <Estado
-          r={r}
-          esLogistica={esLogistica}
-          incluidos={incluidos.length}
-          ocupado={ocupado}
-          comprar={comprar}
-          terminar={terminar}
-          sinCosto={sinCosto}
-        />
+        <Estado r={r} esLogistica={esLogistica} incluidos={incluidos.length} />
 
-        {(r.estado === "APROBADA" || r.estado === "EN_COMPRA" || r.estado === "COMPRADA") && (
-          <CostosFueraCatalogo
-            reposicionId={r.id}
-            items={r.items.filter((i) => !i.enCatalogo && !i.quitado)}
-            editable={esLogistica && r.estado !== "COMPRADA"}
-          />
-        )}
+        <CostosFueraCatalogo items={r.items.filter((i) => !i.enCatalogo && !i.quitado && i.costo != null)} />
 
         {r.nota && (
           <div className="card mb-4 px-5 py-3 text-sm">
@@ -204,9 +179,13 @@ export function DetalleReposicion({ rol, r }: { rol: Rol; r: Datos }) {
                         ) : r.estado === "POR_APROBAR" ? (
                           <span className="text-suave">Por revisar</span>
                         ) : r.estado === "APROBADA" || r.estado === "EN_COMPRA" || r.estado === "COMPRADA" ? (
-                          <b className={i.cantidadAprobada != null ? "text-[#2b5ea7]" : ""}>
-                            {cantidadConUnidad(final(i), i.unidad)}
-                          </b>
+                          <>
+                            <b className={i.cantidadAprobada != null ? "text-[#2b5ea7]" : ""}>
+                              {cantidadConUnidad(final(i), i.unidad)}
+                            </b>
+                            {i.entregado && <span className="chip chip-exito ml-2">Entregado</span>}
+                            {!i.entregado && parcial && <span className="chip chip-atencion ml-2">Pendiente</span>}
+                          </>
                         ) : (
                           <span className="text-suave">—</span>
                         )}
@@ -281,23 +260,7 @@ export function DetalleReposicion({ rol, r }: { rol: Rol; r: Datos }) {
 }
 
 /** Aviso de en qué va la reposición y la acción que le toca a logística */
-function Estado({
-  r,
-  esLogistica,
-  incluidos,
-  ocupado,
-  comprar,
-  terminar,
-  sinCosto,
-}: {
-  r: Datos;
-  esLogistica: boolean;
-  incluidos: number;
-  ocupado: boolean;
-  comprar: () => void;
-  terminar: () => void;
-  sinCosto: number;
-}) {
+function Estado({ r, esLogistica, incluidos }: { r: Datos; esLogistica: boolean; incluidos: number }) {
   const caja = "card mb-4 flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between";
   if (r.estado === "POR_APROBAR") {
     return esLogistica ? null : (
@@ -308,42 +271,36 @@ function Estado({
       </div>
     );
   }
-  if (r.estado === "APROBADA") {
+  // "En compra" era un paso que ya no existe: las que quedaron así siguen como aprobadas
+  if (r.estado === "APROBADA" || r.estado === "EN_COMPRA") {
+    const faltan = r.items.filter((i) => !i.quitado && !i.entregado);
+    const parcial = r.items.some((i) => i.entregado);
     return (
       <div className={`${caja} border-verde/40 bg-verde-50`}>
         <p className="text-sm text-verde-700">
           <b>Aprobada</b> por {r.revisadoPor || "logística"} · {r.revisadoAt ? fechaHoraLima(r.revisadoAt) : ""} ·{" "}
-          {incluidos} producto{incluidos === 1 ? "" : "s"} por comprar
-          {esLogistica && <span className="block text-xs opacity-80">Imprime la lista y empieza la compra.</span>}
+          {parcial ? (
+            <>
+              se entregó una parte · falta: <b>{faltan.map((i) => i.nombre).join(", ")}</b>
+            </>
+          ) : (
+            `${incluidos} producto${incluidos === 1 ? "" : "s"} por comprar`
+          )}
+          {esLogistica && (
+            <span className="block text-xs opacity-80">
+              {parcial
+                ? "Cuando lo tengas, jálalo en Entregas. Si ya no se compra, ciérrala."
+                : "Imprime la lista y compra. Cuando tengas todo, jálala en Entregas para llenar los precios."}
+            </span>
+          )}
         </p>
         {esLogistica && (
-          <button onClick={comprar} disabled={ocupado} className="btn-primario shrink-0">
-            <ShoppingCart className="h-4 w-4" /> {ocupado ? "Guardando..." : "Iniciar compra"}
-          </button>
-        )}
-      </div>
-    );
-  }
-  if (r.estado === "EN_COMPRA") {
-    return (
-      <div className={`${caja} border-[#2b5ea7]/30 bg-[#e8f0fb]`}>
-        <p className="flex items-center gap-2 text-sm text-[#2b5ea7]">
-          <ShoppingCart className="h-4 w-4 shrink-0" />
-          <span>
-            <b>En compra</b> · {r.compraPor || "logística"} · desde {r.compraAt ? fechaHoraLima(r.compraAt) : ""}
-            {esLogistica && (
-              <span className="block text-xs opacity-80">
-                {sinCosto
-                  ? `Anota abajo el costo de ${sinCosto} producto${sinCosto === 1 ? "" : "s"} fuera del catálogo y luego marca "Comprado".`
-                  : 'Cuando tengas todo, marca "Comprado".'}
-              </span>
-            )}
+          <span className="flex shrink-0 flex-wrap gap-2">
+            {parcial && <CerrarPendientes id={r.id} faltan={faltan.map((i) => i.nombre)} />}
+            <Link href="/ingresos" className="btn-primario">
+              <Truck className="h-4 w-4" /> Ir a Entregas
+            </Link>
           </span>
-        </p>
-        {esLogistica && (
-          <button onClick={terminar} disabled={ocupado || sinCosto > 0} className="btn-primario shrink-0">
-            <CheckCheck className="h-4 w-4" /> {ocupado ? "Guardando..." : sinCosto ? "Faltan costos" : "Comprado"}
-          </button>
         )}
       </div>
     );
@@ -356,7 +313,7 @@ function Estado({
           <span>
             <b>Comprada</b> por {r.compradoPor || "logística"} · {r.compradoAt ? fechaHoraLima(r.compradoAt) : ""}
             <span className="block text-xs opacity-80">
-              Lo del catálogo entra al stock cuando se registra la entrega y el colegio la recibe.
+              Entrega registrada. Lo del catálogo entra al stock cuando el colegio la recibe.
             </span>
           </span>
         </p>
@@ -377,6 +334,39 @@ function Estado({
     <div className={`${caja} bg-fondo`}>
       <p className="text-sm text-suave">El personal anuló esta reposición antes de que se revisara.</p>
     </div>
+  );
+}
+
+/** Lo que faltaba ya no se compra: la reposición queda cerrada */
+function CerrarPendientes({ id, faltan }: { id: number; faltan: string[] }) {
+  const [abierto, setAbierto] = useState(false);
+  const [ocupado, setOcupado] = useState(false);
+
+  async function cerrar() {
+    setOcupado(true);
+    const res = await cerrarPendientes(id);
+    setOcupado(false);
+    if (!res.ok) return avisar(res.error, "error");
+    avisar(res.mensaje ?? "Cerrada");
+    setAbierto(false);
+  }
+
+  return (
+    <>
+      <button onClick={() => setAbierto(true)} className="btn-secundario">
+        Ya no se compra
+      </button>
+      <Modal abierto={abierto} onCerrar={() => !ocupado && setAbierto(false)} titulo="¿Ya no se compra?" subtitulo={faltan.join(", ")}>
+        <div className="flex justify-end gap-2">
+          <button onClick={() => setAbierto(false)} disabled={ocupado} className="btn-secundario">
+            Cancelar
+          </button>
+          <button onClick={cerrar} disabled={ocupado} className="btn-primario">
+            {ocupado ? "Guardando..." : "Sí, cerrar"}
+          </button>
+        </div>
+      </Modal>
+    </>
   );
 }
 
@@ -458,48 +448,21 @@ function HojaImpresion({ r, items, final }: { r: Datos; items: Item[]; final: (i
   );
 }
 
-/** Logística anota cuánto pagó por lo que no es del catálogo (se descuenta de la ganancia del mes) */
-function CostosFueraCatalogo({ reposicionId, items, editable }: { reposicionId: number; items: Item[]; editable: boolean }) {
-  const [valores, setValores] = useState<Record<number, string>>(() =>
-    Object.fromEntries(items.map((i) => [i.id, i.costo == null ? "" : String(i.costo)])),
-  );
-  const [ocupado, setOcupado] = useState(false);
+/** Lo comprado fuera del catálogo (se llena en Entregas; se descuenta de la ganancia del mes) */
+function CostosFueraCatalogo({ items }: { items: Item[] }) {
   if (items.length === 0) return null;
-
-  const num = (v: string) => (v.trim() === "" ? null : Number(v));
-  const cambios = items.filter((i) => num(valores[i.id]) !== i.costo);
-  const invalido = items.some((i) => {
-    const n = num(valores[i.id]);
-    return n !== null && (!Number.isFinite(n) || n < 0);
-  });
-  const total = items.reduce((a, i) => a + (num(valores[i.id]) ?? 0), 0);
-  const faltan = items.filter((i) => num(valores[i.id]) === null).length;
-
-  async function guardar() {
-    setOcupado(true);
-    const res = await registrarCostos(
-      reposicionId,
-      cambios.map((i) => ({ id: i.id, costo: num(valores[i.id]) })),
-    );
-    setOcupado(false);
-    if (res.ok) avisar(res.mensaje ?? "Guardado");
-    else avisar(res.error, "error");
-  }
-
+  const total = items.reduce((a, i) => a + (i.costo ?? 0), 0);
   return (
     <div className="card mb-4 overflow-hidden print:hidden">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-borde px-5 py-4">
         <div>
           <h2 className="flex items-center gap-2 font-medium">
-            <Receipt className="h-4 w-4 text-suave" /> Costo de lo comprado fuera del catálogo
+            <Receipt className="h-4 w-4 text-suave" /> Comprado fuera del catálogo
           </h2>
-          <p className="text-xs text-suave">
-            No entra al stock. Anota lo que pagaste (total de cada producto); se descuenta de la ganancia del mes.
-          </p>
+          <p className="text-xs text-suave">No se vende ni entra al stock: queda el registro y se descuenta de la ganancia del mes.</p>
         </div>
         <p className="text-sm">
           Total <b className="tabular-nums">{soles(total)}</b>
-          {faltan > 0 && <span className="ml-2 text-xs text-[#8a5a00]">· {faltan} sin costo</span>}
         </p>
       </div>
       <ul className="divide-y divide-borde">
@@ -508,35 +471,14 @@ function CostosFueraCatalogo({ reposicionId, items, editable }: { reposicionId: 
             <span className="min-w-0">
               <span className="block font-medium">{i.nombre}</span>
               <span className="block text-xs text-suave">
-                {cantidadConUnidad(i.cantidadAprobada ?? i.cantidad, i.unidad)}
-                {i.costoFecha ? ` · anotado el ${fechaCorta(i.costoFecha)}` : ""}
+                {i.detalleCompra ?? cantidadConUnidad(i.cantidadAprobada ?? i.cantidad, i.unidad)}
+                {i.costoFecha ? ` · ${fechaCorta(i.costoFecha)}` : ""}
               </span>
             </span>
-            <label className="flex items-center gap-2 text-sm">
-              <span className="text-suave">S/</span>
-              <input
-                type="number"
-                inputMode="decimal"
-                min="0"
-                step="0.10"
-                value={valores[i.id]}
-                onChange={(e) => setValores((v) => ({ ...v, [i.id]: e.target.value }))}
-                placeholder="0.00"
-                className="input h-10 w-28 text-right disabled:bg-fondo"
-                disabled={!editable}
-                aria-label={`Costo de ${i.nombre}`}
-              />
-            </label>
+            <span className="font-medium tabular-nums">{i.costo == null ? "—" : soles(i.costo)}</span>
           </li>
         ))}
       </ul>
-      {editable && (
-      <div className="flex justify-end border-t border-borde px-5 py-3">
-        <button onClick={guardar} disabled={ocupado || invalido || cambios.length === 0} className="btn-primario">
-          <Save className="h-4 w-4" /> {ocupado ? "Guardando..." : invalido ? "Revisa los montos" : "Guardar costos"}
-        </button>
-      </div>
-      )}
     </div>
   );
 }

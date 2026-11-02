@@ -303,7 +303,15 @@ create table if not exists reposicion_items (
   -- Fuera de catálogo: lo que pagó logística (se descuenta de la ganancia del mes de costo_fecha)
   costo             numeric(10,2) constraint reposicion_items_costo_check check (costo is null or costo >= 0),
   costo_fecha       date,
-  costo_por         bigint references usuarios(id) on delete set null
+  costo_por         bigint references usuarios(id) on delete set null,
+  -- Cómo se compró (igual que una entrega): N cajas de X unidades + Y sueltas, a tanto la caja
+  presentacion      text,
+  cajas             int,
+  unidades_por_caja int,
+  sueltas           int,
+  costo_presentacion numeric(10,2),
+  -- Ya salió en una entrega (lo demás sigue pendiente y se puede volver a jalar)
+  entregado_at      timestamptz
 );
 create index if not exists reposicion_items_reposicion on reposicion_items (reposicion_id);
 

@@ -3,8 +3,7 @@
 import { refresh } from "next/cache";
 import { sesionAccion } from "@/lib/auth";
 import { check, db, mensajeError } from "@/lib/supabase";
-import { enParalelo } from "@/lib/paralelo";
-import { hoyISO, mayusculas, UNIDADES_REPOSICION } from "@/lib/format";
+import { mayusculas, UNIDADES_REPOSICION } from "@/lib/format";
 import type { Resultado } from "@/lib/types";
 
 export type ItemNuevo = {
@@ -45,7 +44,7 @@ export async function crearReposicion(colegioId: number, items: ItemNuevo[], not
       }),
     ) as { codigo: string };
     refresh();
-    return { ok: true, mensaje: `Reposición ${r.codigo} enviada para aprobación.` };
+    return { ok: true, mensaje: `Reposición ${r.codigo} solicitada.` };
   } catch (e) {
     return { ok: false, error: mensajeError(e) };
   }
@@ -90,93 +89,27 @@ export async function revisarReposicion(
     refresh();
     return {
       ok: true,
-      mensaje: estado === "APROBADA" ? "Reposición aprobada. Ya puedes imprimirla e iniciar la compra." : "Reposición marcada como no aprobada.",
+      mensaje: estado === "APROBADA" ? "Reposición aprobada. Imprímela y, hecha la compra, jálala en Entregas." : "Reposición marcada como no aprobada.",
     };
   } catch (e) {
     return { ok: false, error: mensajeError(e) };
   }
 }
 
-/** Logística avisa que empieza la compra de una reposición aprobada */
-export async function iniciarCompra(id: number): Promise<Resultado> {
-  try {
-    const sesion = await sesionAccion(["LOGISTICA"]);
-    const res = check(
-      await db()
-        .from("reposiciones")
-        .update({ estado: "EN_COMPRA", compra_por: sesion.uid, compra_at: new Date().toISOString() })
-        .eq("id", id)
-        .eq("estado", "APROBADA")
-        .select("codigo"),
-    ) as { codigo: string }[];
-    if (res.length === 0) return { ok: false, error: "Esta reposición no está aprobada o ya está en compra." };
-    refresh();
-    return { ok: true, mensaje: `Compra de ${res[0].codigo} iniciada.` };
-  } catch (e) {
-    return { ok: false, error: mensajeError(e) };
-  }
-}
-
-/**
- * Logística anota cuánto pagó por lo que no es del catálogo (descartables, utensilios…).
- * Ese gasto se descuenta de la ganancia del mes en que se anota.
- */
-export async function registrarCostos(reposicionId: number, costos: { id: number; costo: number | null }[]): Promise<Resultado> {
-  try {
-    const sesion = await sesionAccion(["LOGISTICA"]);
-    if (costos.some((c) => c.costo !== null && (!Number.isFinite(c.costo) || c.costo < 0 || c.costo > 100000))) {
-      return { ok: false, error: "Revisa los montos (no pueden ser negativos)." };
-    }
-    const r = check(
-      await db().from("reposiciones").select("estado, items:reposicion_items(id, producto_id, quitado, costo)").eq("id", reposicionId).single(),
-    ) as { estado: string; items: { id: number; producto_id: number | null; quitado: boolean; costo: number | null }[] };
-    if (r.estado !== "APROBADA" && r.estado !== "EN_COMPRA") {
-      return { ok: false, error: "Solo se anotan costos de reposiciones aprobadas o en compra." };
-    }
-    const validos = new Set(r.items.filter((i) => i.producto_id == null && !i.quitado).map((i) => i.id));
-    if (costos.some((c) => !validos.has(c.id))) return { ok: false, error: "Solo se anota el costo de lo que está fuera del catálogo." };
-
-    const hoy = hoyISO();
-    // Solo lo que cambió (re-guardar no mueve el gasto al mes de hoy)
-    const antes = new Map(r.items.map((i) => [i.id, i.costo == null ? null : Number(i.costo)]));
-    await enParalelo(
-      costos.filter((x) => antes.get(x.id) !== x.costo),
-      6,
-      async (c) =>
-        check(
-          await db()
-            .from("reposicion_items")
-            .update(c.costo === null ? { costo: null, costo_fecha: null, costo_por: null } : { costo: c.costo, costo_fecha: hoy, costo_por: sesion.uid })
-            .eq("id", c.id),
-        ),
-    );
-    refresh();
-    const total = costos.reduce((a, c) => a + (c.costo ?? 0), 0);
-    return { ok: true, mensaje: `Costos guardados: S/ ${total.toFixed(2)}.` };
-  } catch (e) {
-    return { ok: false, error: mensajeError(e) };
-  }
-}
-
-/** Logística termina la reposición: ya compró todo (y anotó el costo de lo que no es del catálogo) */
-export async function marcarComprado(id: number): Promise<Resultado> {
+/** Lo que faltaba de una reposición entregada por partes ya no se compra: queda cerrada */
+export async function cerrarPendientes(id: number): Promise<Resultado> {
   try {
     const sesion = await sesionAccion(["LOGISTICA"]);
     const r = check(
-      await db().from("reposiciones").select("codigo, estado, items:reposicion_items(nombre, producto_id, quitado, costo)").eq("id", id).single(),
-    ) as { codigo: string; estado: string; items: { nombre: string; producto_id: number | null; quitado: boolean; costo: number | null }[] };
-    if (r.estado !== "EN_COMPRA") return { ok: false, error: "Primero inicia la compra." };
-    const sinCosto = r.items.filter((i) => i.producto_id == null && !i.quitado && i.costo == null).map((i) => i.nombre);
-    if (sinCosto.length) return { ok: false, error: `Anota cuánto costó: ${sinCosto.join(", ")}.` };
-    check(
-      await db()
-        .from("reposiciones")
-        .update({ estado: "COMPRADA", comprado_por: sesion.uid, comprado_at: new Date().toISOString() })
-        .eq("id", id)
-        .eq("estado", "EN_COMPRA"),
-    );
+      await db().from("reposiciones").select("codigo, estado, items:reposicion_items(id, quitado, entregado_at)").eq("id", id).single(),
+    ) as { codigo: string; estado: string; items: { id: number; quitado: boolean; entregado_at: string | null }[] };
+    if (r.estado !== "APROBADA" && r.estado !== "EN_COMPRA") return { ok: false, error: "Esa reposición ya está cerrada." };
+    if (!r.items.some((i) => i.entregado_at)) return { ok: false, error: "Todavía no se entregó nada de esta reposición." };
+    const faltan = r.items.filter((i) => !i.quitado && !i.entregado_at).map((i) => i.id);
+    if (faltan.length) check(await db().from("reposicion_items").update({ quitado: true }).in("id", faltan));
+    check(await db().from("reposiciones").update({ estado: "COMPRADA", comprado_por: sesion.uid, comprado_at: new Date().toISOString() }).eq("id", id));
     refresh();
-    return { ok: true, mensaje: `${r.codigo} comprada. Recuerda registrar la entrega al colegio.` };
+    return { ok: true, mensaje: `${r.codigo} cerrada.` };
   } catch (e) {
     return { ok: false, error: mensajeError(e) };
   }

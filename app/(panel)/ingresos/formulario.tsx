@@ -1,18 +1,19 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { AlertTriangle, CheckCircle2, Pencil, Plus, Send, Sparkles, Trash2, Truck } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ClipboardList, Pencil, Plus, Send, Sparkles, Trash2, Truck, X } from "lucide-react";
 import { registrarIngresos } from "@/app/actions/inventario";
 import { aprenderEquivalenciasIA, prepararProductosIA, type BoletaLeida, type ItemCreado, type LineaLeida } from "@/app/actions/ia";
 import { avisar, Inicial, Modal } from "@/components/ui";
 import { BuscadorProducto } from "@/components/buscador-producto";
-import { descPresentacion, fechaCorta, hoyISO, mayusculas, NOMBRE_PRESENTACION, numero, soles } from "@/lib/format";
+import { cantidadConUnidad, descPresentacion, fechaCorta, hoyISO, mayusculas, NOMBRE_PRESENTACION, numero, soles } from "@/lib/format";
 import type { Presentacion } from "@/lib/types";
 import { PanelIA } from "./panel-ia";
 
 type ItemStock = {
   id: number;
   colegioId: number;
+  productoId?: number;
   producto: string;
   presentacion: string;
   unidadesPorPresentacion: number;
@@ -27,6 +28,19 @@ type DeIA = Pick<LineaLeida, "texto" | "importe" | "confianza" | "nota" | "apren
 /** Producto que todavía no está en este colegio (se crea o se agrega al registrar) */
 type PorCrear = { productoId: number | null; nombre: string; categoriaId: number | null; presentacion: Presentacion };
 
+/** Reposición aprobada que se puede jalar a la entrega */
+export type ReposicionAprobada = {
+  id: number;
+  codigo: string;
+  colegioId: number;
+  colegio: string;
+  /** Ya se entregó una parte: estos son los que faltan */
+  parcial: boolean;
+  items: { id: number; productoId: number | null; nombre: string; cantidad: number; unidad: string }[];
+};
+/** Lo de la reposición que no es del catálogo: se llena igual, pero no se vende ni entra al stock */
+type FueraCatalogo = { itemId: number; nombre: string; presentacion: Presentacion };
+
 /** Lo que se está cargando arriba (antes de agregarlo a la lista) */
 type Borrador = { productoColegioId: number | null; cajas: string; porCaja: string; sueltas: string; costo: string; ia?: DeIA };
 /** Un producto ya agregado a la entrega */
@@ -39,6 +53,9 @@ type Agregado = {
   costo: number;
   ia?: DeIA;
   nuevo?: PorCrear;
+  fuera?: FueraCatalogo;
+  /** Jalado de una reposición: lo que pidieron, si no calza con cómo se compra */
+  aviso?: string;
 };
 
 const vacio: Borrador = { productoColegioId: null, cajas: "", porCaja: "", sueltas: "", costo: "" };
@@ -59,6 +76,15 @@ let contador = 0;
 const nuevaClave = () => `l${++contador}`;
 const PRESENTACIONES_COMPRA: Presentacion[] = ["UNIDAD", "CAJA", "PAQUETE", "BOLSA", "OTRO"];
 
+/** Cómo viene en la lista de reposición, según cómo se compra el producto */
+function cantidadesDePedido(cantidad: number, unidad: string, presentacion: string) {
+  const unidades = unidad === "DOCENA" ? cantidad * 12 : cantidad;
+  if (presentacion === unidad && presentacion !== "UNIDAD") return { cajas: cantidad, sueltas: 0, calza: true };
+  if (unidad === "UNIDAD" || unidad === "DOCENA") return { cajas: 0, sueltas: unidades, calza: true };
+  // Pidieron en otra presentación (ej. kilos, o bolsas de lo que se compra por caja): se deja para revisar
+  return presentacion === "UNIDAD" ? { cajas: 0, sueltas: unidades, calza: false } : { cajas: cantidad, sueltas: 0, calza: false };
+}
+
 /** Unidades y costo de un producto (el costo es por caja/paquete, o por unidad si se compra suelto) */
 function calcular(presentacion: string, a: Agregado) {
   const esUnidad = presentacion === "UNIDAD";
@@ -76,6 +102,7 @@ export function FormularioEntrega({
   categorias,
   iaConectada,
   esAdmin,
+  reposiciones,
 }: {
   colegios: { id: number; nombre: string }[];
   colegioInicial: number;
@@ -83,8 +110,12 @@ export function FormularioEntrega({
   categorias: { id: number; nombre: string }[];
   iaConectada: boolean;
   esAdmin: boolean;
+  reposiciones: ReposicionAprobada[];
 }) {
   const [colegioId, setColegioId] = useState(colegioInicial);
+  /** La reposición que se jaló (al registrar, queda comprada) */
+  const [jalada, setJalada] = useState<ReposicionAprobada | null>(null);
+  const [editandoFuera, setEditandoFuera] = useState<Agregado | null>(null);
   const [fecha, setFecha] = useState(hoyISO());
   const [obs, setObs] = useState("");
   const [b, setB] = useState<Borrador>(vacio);
@@ -107,6 +138,7 @@ export function FormularioEntrega({
   /** Nombre y presentación de una línea (sea del catálogo o por crear) */
   const info = (x: Agregado) => {
     if (x.nuevo) return { producto: x.nuevo.nombre, presentacion: x.nuevo.presentacion };
+    if (x.fuera) return { producto: x.fuera.nombre, presentacion: x.fuera.presentacion };
     const i = item(x.productoColegioId);
     return i ? { producto: i.producto, presentacion: i.presentacion } : null;
   };
@@ -140,6 +172,33 @@ export function FormularioEntrega({
   const porCrear = lista.filter((x) => x.nuevo);
   const usoIA = lista.some((x) => x.ia);
 
+  /** Pasa la lista aprobada a la entrega: cantidades y costos del catálogo ya puestos, para corregir lo que cambió en la compra */
+  function jalar(r: ReposicionAprobada) {
+    if (lista.length > 0) return avisar("Primero registra o quita los productos que ya agregaste.", "error");
+    const lineas = r.items.map((i): Agregado => {
+      const s = stock.find((x) => x.colegioId === r.colegioId && x.productoId === i.productoId);
+      const presentacion = (s?.presentacion ?? (["CAJA", "PAQUETE", "BOLSA"].includes(i.unidad) ? i.unidad : "UNIDAD")) as Presentacion;
+      const c = cantidadesDePedido(i.cantidad, i.unidad, presentacion);
+      const base = { clave: nuevaClave(), cajas: c.cajas, sueltas: c.sueltas, porCaja: s?.unidadesPorPresentacion ?? 1, costo: s?.costo ?? 0 };
+      const aviso = c.calza ? undefined : `Pidieron ${cantidadConUnidad(i.cantidad, i.unidad)}: revisa la cantidad.`;
+      if (s) return { ...base, productoColegioId: s.id, aviso };
+      if (i.productoId) return { ...base, productoColegioId: null, aviso, nuevo: { productoId: i.productoId, nombre: i.nombre, categoriaId: null, presentacion } };
+      return { ...base, productoColegioId: null, aviso, fuera: { itemId: i.id, nombre: i.nombre, presentacion } };
+    });
+    setColegioId(r.colegioId);
+    setB(vacio);
+    setLista(lineas);
+    setJalada(r);
+    if (lineas.some((x) => x.fuera)) avisar("Llena el costo de lo que está fuera del catálogo.");
+    zonaCarga.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
+
+  function soltar() {
+    setJalada(null);
+    setLista([]);
+    setB(vacio);
+  }
+
   function elegir(id: number | null) {
     const nuevo = item(id);
     setB({
@@ -163,6 +222,7 @@ export function FormularioEntrega({
   /** Volver a cargar arriba un producto de la lista para corregirlo (los nuevos se corrigen en su ventana) */
   function editar(x: Agregado) {
     if (x.nuevo) return setEditandoNuevo(x);
+    if (x.fuera) return setEditandoFuera(x);
     setLista((l) => l.filter((y) => y.clave !== x.clave));
     setB({
       productoColegioId: x.productoColegioId,
@@ -231,6 +291,11 @@ export function FormularioEntrega({
       setEditandoNuevo(sinCategoria[0]);
       return avisar(`Elige la categoría de "${sinCategoria[0].nuevo!.nombre}".`, "error");
     }
+    const sinCosto = lista.find((x) => x.fuera && !(x.costo > 0));
+    if (sinCosto) {
+      setEditandoFuera(sinCosto);
+      return avisar(`Escribe el costo de "${sinCosto.fuera!.nombre}".`, "error");
+    }
     iniciar(async () => {
       let lineas = lista;
       let creadosNuevos = 0;
@@ -269,6 +334,21 @@ export function FormularioEntrega({
             costo: x.costo,
           })),
         obs,
+        jalada
+          ? {
+              id: jalada.id,
+              fuera: lineas
+                .filter((x) => x.fuera)
+                .map((x) => ({
+                  itemId: x.fuera!.itemId,
+                  presentacion: x.fuera!.presentacion,
+                  cajas: x.cajas,
+                  unidadesPorCaja: x.porCaja || 1,
+                  sueltas: x.sueltas,
+                  costo: x.costo,
+                })),
+            }
+          : undefined,
       );
       if (!r.ok) return avisar(r.error, "error");
       // 3) Aprender cómo sale cada producto en la boleta
@@ -282,6 +362,7 @@ export function FormularioEntrega({
       setB(vacio);
       setObs("");
       setTotalBoleta("");
+      setJalada(null);
     });
   }
 
@@ -293,7 +374,29 @@ export function FormularioEntrega({
   };
   const campo = "input text-base";
 
+  const porJalar = reposiciones.filter((r) => r.id !== jalada?.id && r.items.length > 0);
+
   return (
+    <div className="grid gap-4">
+    {/* Solo sale si hay una reposición aprobada */}
+    {porJalar.length > 0 && (
+      <div className="card divide-y divide-borde overflow-hidden border-verde/40">
+        {porJalar.map((r) => (
+          <div key={r.id} className="flex flex-col gap-3 bg-verde-50/40 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="flex items-center gap-2.5 text-sm">
+              <ClipboardList className="h-4 w-4 shrink-0 text-verde-700" />
+              <span>
+                <b>{r.codigo}</b> aprobada · {r.colegio} ·{" "}
+                {r.parcial ? `falta: ${r.items.map((i) => i.nombre).join(", ")}` : `${r.items.length} producto${r.items.length === 1 ? "" : "s"}`}
+              </span>
+            </p>
+            <button onClick={() => jalar(r)} disabled={pendiente} className="btn-primario shrink-0">
+              <ClipboardList className="h-4 w-4" /> Jalar a la entrega
+            </button>
+          </div>
+        ))}
+      </div>
+    )}
     <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,48rem)_360px]">
       {/* En celular la IA va arriba; en PC, a la derecha */}
       <div className="lg:sticky lg:top-6 lg:order-2">
@@ -306,6 +409,14 @@ export function FormularioEntrega({
             <Truck className="h-4 w-4" />
           </span>
           Nueva entrega
+          {jalada && (
+            <span className="chip chip-info ml-auto">
+              De {jalada.codigo}
+              <button onClick={soltar} disabled={pendiente} className="ml-1" aria-label={`Soltar ${jalada.codigo}`} title="Soltar la reposición">
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          )}
         </h2>
 
         <div className="grid gap-3 sm:grid-cols-3">
@@ -313,7 +424,7 @@ export function FormularioEntrega({
             <span className="label">Colegio</span>
             <select
               value={colegioId}
-              disabled={lista.length > 0}
+              disabled={lista.length > 0 || !!jalada}
               onChange={(e) => {
                 setColegioId(Number(e.target.value));
                 setB(vacio);
@@ -471,7 +582,8 @@ export function FormularioEntrega({
                       x.sueltas ? `${x.sueltas} ${unidad ? "unidades" : "sueltas"}` : "",
                     ].filter(Boolean);
                     const difiere = x.ia?.importe != null && noCuadra(c.costo, x.ia.importe);
-                    const revisar = (x.ia && x.ia.confianza !== "ALTA") || difiere;
+                    const faltaCosto = !!x.fuera && !(x.costo > 0);
+                    const revisar = (x.ia && x.ia.confianza !== "ALTA") || difiere || faltaCosto || !!x.aviso;
                     return (
                       <tr key={x.clave} className={revisar ? "bg-ambar-50/50" : ""}>
                         <td>
@@ -487,6 +599,8 @@ export function FormularioEntrega({
                                     <span className="chip bg-[#f1ebfa] text-[#6a3fb0]">Nuevo</span>
                                   ))}
                                 {x.ia && x.ia.confianza !== "ALTA" && <span className="chip chip-atencion">Revisar</span>}
+                                {x.fuera && <span className="chip chip-neutro">Fuera de catálogo</span>}
+                                {faltaCosto && <span className="chip chip-atencion">Falta costo</span>}
                               </span>
                               {x.ia && (
                                 <span className="block text-xs text-suave">
@@ -496,6 +610,7 @@ export function FormularioEntrega({
                                 </span>
                               )}
                               {x.ia?.nota && <span className="block text-xs text-[#8a5a00]">{x.ia.nota}</span>}
+                              {x.aviso && <span className="block text-xs text-[#8a5a00]">{x.aviso}</span>}
                             </span>
                           </span>
                         </td>
@@ -596,6 +711,17 @@ export function FormularioEntrega({
         </div>
       </div>
 
+      {editandoFuera && (
+        <HojaFueraCatalogo
+          linea={editandoFuera}
+          onCerrar={() => setEditandoFuera(null)}
+          onGuardar={(nueva) => {
+            setLista((l) => l.map((y) => (y.clave === nueva.clave ? nueva : y)));
+            setEditandoFuera(null);
+          }}
+        />
+      )}
+
       {editandoNuevo && (
         <HojaPorCrear
           linea={editandoNuevo}
@@ -610,6 +736,78 @@ export function FormularioEntrega({
         />
       )}
     </div>
+    </div>
+  );
+}
+
+/** Lo de fuera del catálogo: se llena como los demás, pero no se vende ni entra al stock (solo registro y gasto) */
+function HojaFueraCatalogo({ linea, onCerrar, onGuardar }: { linea: Agregado; onCerrar: () => void; onGuardar: (a: Agregado) => void }) {
+  const f = linea.fuera!;
+  const [presentacion, setPresentacion] = useState<Presentacion>(f.presentacion);
+  const [cajas, setCajas] = useState(linea.cajas ? String(linea.cajas) : "");
+  const [porCaja, setPorCaja] = useState(String(linea.porCaja));
+  const [sueltas, setSueltas] = useState(linea.sueltas ? String(linea.sueltas) : "");
+  const [costo, setCosto] = useState(linea.costo ? String(linea.costo) : "");
+  const unidad = presentacion === "UNIDAD";
+  const nombreCaja = (NOMBRE_PRESENTACION[presentacion] ?? "caja").toLowerCase();
+  const pc = unidad ? 1 : n(porCaja) || 1;
+  const lista: Agregado = { ...linea, cajas: unidad ? 0 : n(cajas), porCaja: pc, sueltas: unidad ? n(cajas) * pc + n(sueltas) : n(sueltas), costo: n(costo), fuera: { ...f, presentacion } };
+  const c = calcular(presentacion, lista);
+
+  function guardar() {
+    if (c.unidades <= 0) return avisar("Escribe la cantidad.", "error");
+    if (!(n(costo) > 0)) return avisar("Escribe el costo.", "error");
+    onGuardar(lista);
+  }
+
+  return (
+    <Modal abierto onCerrar={onCerrar} titulo={f.nombre} subtitulo="Fuera de catálogo: no se vende ni entra al stock, solo queda el registro y el gasto.">
+      <div className="grid gap-3">
+        <label>
+          <span className="label">Cómo se compró</span>
+          <select value={presentacion} onChange={(e) => setPresentacion(e.target.value as Presentacion)} className="input">
+            {PRESENTACIONES_COMPRA.map((p) => (
+              <option key={p} value={p}>
+                {p === "UNIDAD" ? "Por unidad" : NOMBRE_PRESENTACION[p]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className={`grid items-end gap-3 ${unidad ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-4"}`} onFocus={seleccionarTodo}>
+          {!unidad && (
+            <>
+              <label>
+                <span className="label capitalize">{nombreCaja}s</span>
+                <input inputMode="numeric" value={cajas} onChange={(e) => setCajas(soloDigitos(e.target.value))} className="input text-base" />
+              </label>
+              <label>
+                <span className="label">Unid. por {nombreCaja}</span>
+                <input inputMode="numeric" value={porCaja} onChange={(e) => setPorCaja(soloDigitos(e.target.value))} className="input text-base" />
+              </label>
+            </>
+          )}
+          <label>
+            <span className="label">{unidad ? "Unidades" : "Sueltas"}</span>
+            <input inputMode="numeric" value={sueltas} onChange={(e) => setSueltas(soloDigitos(e.target.value))} className="input text-base" />
+          </label>
+          <label>
+            <span className="label">Costo x {unidad ? "unidad" : nombreCaja} S/</span>
+            <input inputMode="decimal" value={costo} onChange={(e) => setCosto(soloDecimal(e.target.value))} className="input text-base" autoFocus />
+          </label>
+        </div>
+        <p className="text-sm">
+          <b>{numero(c.unidades)} unidades</b> · costo <b className="text-verde-700">{soles(c.costo)}</b>
+        </p>
+        <div className="mt-1 flex justify-end gap-2">
+          <button onClick={onCerrar} className="btn-secundario">
+            Cancelar
+          </button>
+          <button onClick={guardar} className="btn-primario">
+            Listo
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

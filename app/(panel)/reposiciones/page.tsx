@@ -21,8 +21,8 @@ export default async function PaginaReposiciones() {
         titulo="Reposiciones"
         descripcion={
           sesion.rol === "LOGISTICA"
-            ? "Listas de pedido del personal. Revísalas, apruébalas, imprime y compra; al final anota los costos y marca \"Comprado\"."
-            : "Listas de pedido que envía el personal. Logística las revisa, compra y cierra; aquí puedes seguirlas."
+            ? "Listas de pedido del personal. Revísalas, apruébalas e imprime para comprar; hecha la compra, jálalas en Entregas."
+            : "Listas de pedido que envía el personal. Logística las revisa, compra y entrega; aquí puedes seguirlas."
         }
       />
       <ListaReposiciones
