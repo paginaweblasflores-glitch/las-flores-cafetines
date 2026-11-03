@@ -107,7 +107,7 @@ export async function obtenerMovimientos(f: {
 }
 
 export const obtenerProductosMapa = cache(async () => {
-  const filas = check(await db().from("productos").select("id, nombre, categoria_id, activo, de_cocina, acompanante, por_revisar, prepara_personal")) as {
+  const filas = check(await db().from("productos").select("id, nombre, categoria_id, activo, de_cocina, acompanante, por_revisar, prepara_personal, envio_insumo")) as {
     id: number;
     nombre: string;
     categoria_id: number | null;
@@ -120,6 +120,8 @@ export const obtenerProductosMapa = cache(async () => {
     por_revisar: boolean;
     /** Lo prepara el personal: al contar pregunta cuánto preparó */
     prepara_personal: boolean;
+    /** Lo que manda la cocina es insumo: se recibe para el registro, no entra al stock */
+    envio_insumo: boolean;
   }[];
   return new Map(filas.map((p) => [p.id, p]));
 });

@@ -131,7 +131,10 @@ create table productos (
   por_revisar   boolean not null default false,
   -- Lo prepara el mismo personal (hot dog, cancha): al contar pregunta cuánto preparó.
   -- Es aparte de "del día": puede prepararse y guardarse para el día siguiente.
-  prepara_personal boolean not null default false
+  prepara_personal boolean not null default false,
+  -- Lo que manda la cocina es insumo (hot dog): se recibe para el registro, no entra al stock.
+  -- Lo que se vende es lo que prepara el personal.
+  envio_insumo  boolean not null default false
 );
 create unique index productos_nombre_unico on productos (lower(nombre));
 
@@ -681,9 +684,9 @@ begin
          recibido_por = p_usuario_id, recibido_at = now()
    where id = e.id;
 
-  -- Acompañantes (salsas) y fuera de catálogo: se recibe solo para el registro, no entra al stock
+  -- Acompañantes (salsas), insumos (hot dog) y fuera de catálogo: se recibe solo para el registro, no entra al stock
   if p_cantidad_recibida > 0 and e.producto_colegio_id is not null
-     and not coalesce((select acompanante from productos where id = e.producto_id), false) then
+     and not coalesce((select acompanante or envio_insumo from productos where id = e.producto_id), false) then
     if e.origen = 'LOGISTICA' then
       v_costo := e.costo_presentacion;
       if p_cantidad_recibida >= e.cantidad_enviada then

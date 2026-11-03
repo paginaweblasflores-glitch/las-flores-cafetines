@@ -135,6 +135,12 @@ export default async function PaginaPersonal({ searchParams }: PageProps<"/perso
   const filaStock = new Map(stock.map((s) => [s.id, s]));
   const enBalde = (vasos: number, pcId: number) => {
     const s = filaStock.get(pcId);
+    // Lo que solo se recibe y viene por paquete (insumo como el hot dog, acompañantes): "4 paquetes de 24"
+    if (s && (productosMapa.get(s.producto_id)?.acompanante || productosMapa.get(s.producto_id)?.envio_insumo) && ["CAJA", "PAQUETE", "BOLSA"].includes(s.presentacion) && s.unidades_por_presentacion > 1) {
+      const cuantos = Math.round((vasos / s.unidades_por_presentacion) * 100) / 100;
+      const nombre = NOMBRE_PRESENTACION[s.presentacion].toLowerCase();
+      return `${cuantos} ${cuantos === 1 ? nombre : `${nombre}s`} de ${s.unidades_por_presentacion}`;
+    }
     const e = s ? ENVASES[s.presentacion] : undefined;
     if (!s || !e) return null;
     if (s.presentacion === "LITRO") return enEnvases(vasos, s.unidades_por_presentacion, s.presentacion);

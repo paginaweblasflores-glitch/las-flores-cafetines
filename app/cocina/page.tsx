@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { requerirSesion } from "@/lib/auth";
 import { obtenerColegios, obtenerEnvios, obtenerProductosMapa, obtenerStock, obtenerUsuariosMapa } from "@/lib/data";
-import { ENVASES, hoyISO } from "@/lib/format";
+import { ENVASES, hoyISO, NOMBRE_PRESENTACION } from "@/lib/format";
 import { Avisos } from "@/components/ui";
 import { PanelCocina } from "./panel";
 
@@ -37,6 +37,11 @@ export default async function PaginaCocina() {
             // Balde o taper: la cocina escribe envases y se guardan como vasos o porciones
             vasosPorBalde: s.presentacion in ENVASES ? s.unidades_por_presentacion : null,
             envase: s.presentacion in ENVASES ? s.presentacion : null,
+            // Lo que solo se recibe y viene por paquete (insumo como el hot dog, acompañantes): la cocina escribe paquetes
+            paquete:
+              (productos.get(s.producto_id)?.acompanante || productos.get(s.producto_id)?.envio_insumo) && ["CAJA", "PAQUETE", "BOLSA"].includes(s.presentacion) && s.unidades_por_presentacion > 1
+                ? { nombre: NOMBRE_PRESENTACION[s.presentacion].toLowerCase(), unidades: s.unidades_por_presentacion }
+                : null,
           }))}
         envios={envios
           .filter((e) => e.estado !== "ANULADO")

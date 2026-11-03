@@ -17,6 +17,8 @@ type Producto = {
   vasosPorBalde: number | null;
   /** "BALDE" o "TAPER" (null si va por unidad) */
   envase: string | null;
+  /** Viene por paquete: la cocina escribe paquetes y se guardan unidades */
+  paquete: { nombre: string; unidades: number } | null;
 };
 type EnvioHoy = {
   id: number;
@@ -130,7 +132,11 @@ export function PanelCocina({
   const n = (v: string | undefined) => (v === undefined || v.trim() === "" ? 0 : Number(v));
   /** Lo que se guarda: unidades (o vasos/porciones, si viene en balde, taper o litros) */
   const unidadesDe = (p: Producto) =>
-    p.vasosPorBalde ? Math.round(n(cantidades[p.id]) * partesPorEnvase(p.envase ?? "BALDE", p.vasosPorBalde)) : n(cantidades[p.id]);
+    p.paquete
+      ? n(cantidades[p.id]) * p.paquete.unidades
+      : p.vasosPorBalde
+        ? Math.round(n(cantidades[p.id]) * partesPorEnvase(p.envase ?? "BALDE", p.vasosPorBalde))
+        : n(cantidades[p.id]);
   const lineas = faltan
     .filter((p) => unidadesDe(p) > 0)
     .map((p) => ({ productoColegioId: p.id, cantidad: unidadesDe(p), nombre: p.nombre }));
@@ -284,7 +290,9 @@ export function PanelCocina({
                           <div className="min-w-0">
                             <p className="truncate font-medium">{p.nombre}</p>
                             <p className="text-xs text-suave">
-                              {p.vasosPorBalde ? (
+                              {p.paquete ? (
+                                <span className="capitalize">{p.paquete.nombre}s</span>
+                              ) : p.vasosPorBalde ? (
                                 <>
                                   {p.envase === "LITRO" ? (
                                     <>Escribe litros (1 litro = {Math.round(partesPorEnvase("LITRO", p.vasosPorBalde) * 100) / 100} vasos)</>
@@ -365,6 +373,9 @@ export function PanelCocina({
                                   {e.producto}{" "}
                                   <span className="text-suave">
                                     × {e.enviada}
+                                    {productoDe(e.productoColegioId)?.paquete
+                                      ? ` unid. (${paquetesTexto(e.enviada, productoDe(e.productoColegioId)!.paquete!)})`
+                                      : ""}
                                     {productoDe(e.productoColegioId)?.vasosPorBalde
                                       ? ` ${ENVASES[productoDe(e.productoColegioId)!.envase ?? "BALDE"].partes} (${enEnvases(
                                           e.enviada,
@@ -450,7 +461,7 @@ export function PanelCocina({
         </div>
       )}
 
-      {editando && <HojaCorregir key={editando.id} envio={editando} cerrar={() => setEditando(null)} />}
+      {editando && <HojaCorregir key={editando.id} envio={editando} paquete={productoDe(editando.productoColegioId)?.paquete ?? null} cerrar={() => setEditando(null)} />}
 
       <NavegacionInferior items={menu} activo={seccion} cambiar={setSeccion} />
     </div>
@@ -458,10 +469,18 @@ export function PanelCocina({
 }
 
 /** Corregir la cantidad de algo ya enviado, mientras el colegio no lo haya recibido */
-function HojaCorregir({ envio, cerrar }: { envio: EnvioHoy; cerrar: () => void }) {
-  const [valor, setValor] = useState(String(envio.enviada));
+/** "4 paquetes" (o "1 paquete + 3 unid." si no da exacto) */
+function paquetesTexto(unidades: number, p: { nombre: string; unidades: number }) {
+  const enteros = Math.floor(unidades / p.unidades);
+  const resto = unidades - enteros * p.unidades;
+  return `${enteros} ${enteros === 1 ? p.nombre : `${p.nombre}s`}${resto ? ` + ${resto} unid.` : ""}`;
+}
+
+function HojaCorregir({ envio, paquete, cerrar }: { envio: EnvioHoy; paquete: Producto["paquete"]; cerrar: () => void }) {
+  // Por paquete: se corrige en paquetes, igual que al enviar
+  const [valor, setValor] = useState(String(paquete ? Math.round(envio.enviada / paquete.unidades) : envio.enviada));
   const [guardando, setGuardando] = useState(false);
-  const cantidad = valor === "" ? NaN : Number(valor);
+  const cantidad = valor === "" ? NaN : Number(valor) * (paquete?.unidades ?? 1);
   const valido = Number.isInteger(cantidad) && cantidad >= 1 && cantidad <= 10000;
 
   async function guardar() {
@@ -476,9 +495,9 @@ function HojaCorregir({ envio, cerrar }: { envio: EnvioHoy; cerrar: () => void }
   }
 
   return (
-    <Modal abierto onCerrar={cerrar} titulo={envio.producto} subtitulo={`Enviaste ${envio.enviada} · aún no lo reciben`}>
+    <Modal abierto onCerrar={cerrar} titulo={envio.producto} subtitulo={`Enviaste ${paquete ? paquetesTexto(envio.enviada, paquete) : envio.enviada} · aún no lo reciben`}>
       <label className="block">
-        <span className="label">Cantidad correcta</span>
+        <span className="label">{paquete ? `¿Cuántos ${paquete.nombre}s?` : "Cantidad correcta"}</span>
         <input
           type="number"
           inputMode="numeric"
