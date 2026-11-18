@@ -46,6 +46,11 @@ const OPCIONES_UNIDAD = Object.entries(UNIDADES_REPOSICION).map(([id, [uno]]) =>
   texto: uno.charAt(0).toUpperCase() + uno.slice(1),
 }));
 
+/** ¿Es algo que envía la cocina? (por el producto o por el nombre escrito a mano) */
+function esDeCocina(deCocina: { productoId: number; nombre: string }[], x: { productoId: number | null; nombre: string }) {
+  return deCocina.some((p) => (x.productoId != null ? p.productoId === x.productoId : normalizar(p.nombre) === normalizar(x.nombre)));
+}
+
 /** Unidad sugerida: como viene el producto (caja, paquete...) */
 const unidadDe = (p: ProductoCatalogo) => (UNIDADES_REPOSICION[p.presentacion] ? p.presentacion : "UNIDAD");
 
@@ -53,12 +58,15 @@ const unidadDe = (p: ProductoCatalogo) => (UNIDADES_REPOSICION[p.presentacion] ?
 export function Reposicion({
   colegioId,
   catalogo,
+  deCocina,
   enviadas,
   precarga = [],
   alPrecargar,
 }: {
   colegioId: number;
   catalogo: ProductoCatalogo[];
+  /** Lo que envía la cocina: no se pide por reposición (tampoco escrito a mano) */
+  deCocina: { productoId: number; nombre: string }[];
   enviadas: ReposicionEnviada[];
   /** Productos que se agregan a la lista al abrir (desde "Se está acabando") */
   precarga?: ItemNuevo[];
@@ -72,13 +80,15 @@ export function Reposicion({
   // Borrador: la lista queda guardada en el celular hasta que se envía
   const clave = `lf_reposicion_${colegioId}`;
   const cargado = useRef(false);
+  const cocinaInicial = useRef(deCocina);
   const precargaInicial = useRef(precarga);
   const avisarPrecarga = useRef(alPrecargar);
   useEffect(() => {
     let guardados: ItemNuevo[] = [];
     try {
       const g = JSON.parse(localStorage.getItem(clave) ?? "null") as { items: ItemNuevo[]; nota: string } | null;
-      if (g?.items?.length) guardados = g.items;
+      // Un borrador antiguo puede tener algo de la cocina: se deja fuera
+      if (g?.items?.length) guardados = g.items.filter((x) => !esDeCocina(cocinaInicial.current, x));
       // eslint-disable-next-line react-hooks/set-state-in-effect
       if (g?.nota) setNota(g.nota);
     } catch {}
@@ -162,7 +172,7 @@ export function Reposicion({
 
       {vista === "nueva" ? (
         <>
-          <Agregar catalogo={catalogo} agregar={agregar} />
+          <Agregar catalogo={catalogo} deCocina={deCocina} agregar={agregar} />
 
           {/* La lista armada */}
           <section className="mt-5">
@@ -226,7 +236,7 @@ export function Reposicion({
                   value={nota}
                   onChange={(e) => setNota(e.target.value)}
                   rows={2}
-                  placeholder="Ej.: la salchicha es urgente"
+                  placeholder="Ej.: los vasos son urgentes"
                   className="input text-base"
                 />
               </label>
@@ -256,7 +266,15 @@ export function Reposicion({
 /* ------------------------------------------------------------------ */
 
 /** Agregar a la lista: del catálogo o escrito a mano */
-function Agregar({ catalogo, agregar }: { catalogo: ProductoCatalogo[]; agregar: (x: ItemNuevo) => void }) {
+function Agregar({
+  catalogo,
+  deCocina,
+  agregar,
+}: {
+  catalogo: ProductoCatalogo[];
+  deCocina: { productoId: number; nombre: string }[];
+  agregar: (x: ItemNuevo) => void;
+}) {
   const [modo, setModo] = useState<"catalogo" | "otro">("catalogo");
   const [busqueda, setBusqueda] = useState("");
   const [elegido, setElegido] = useState<ProductoCatalogo | null>(null);
@@ -268,7 +286,9 @@ function Agregar({ catalogo, agregar }: { catalogo: ProductoCatalogo[]; agregar:
   const q = normalizar(busqueda);
   const resultados = buscarPorNombre(catalogo, busqueda, (p) => p.nombre);
   const n = Number(cantidad);
-  const listo = Number.isInteger(n) && n > 0 && (modo === "catalogo" ? !!elegido : nombre.trim().length > 0);
+  // Escrito a mano, pero es de la cocina: no se puede pedir
+  const escritoDeCocina = modo === "otro" && nombre.trim().length > 0 && esDeCocina(deCocina, { productoId: null, nombre });
+  const listo = Number.isInteger(n) && n > 0 && !escritoDeCocina && (modo === "catalogo" ? !!elegido : nombre.trim().length > 0);
 
   function elegir(p: ProductoCatalogo) {
     setElegido(p);
@@ -382,6 +402,11 @@ function Agregar({ catalogo, agregar }: { catalogo: ProductoCatalogo[]; agregar:
             placeholder="Ej.: Cucharón, platos descartables"
             className="input h-11 text-base uppercase placeholder:normal-case"
           />
+          {escritoDeCocina && (
+            <span className="mt-1.5 block rounded-lg bg-ambar-50 px-3 py-2 text-xs text-[#8a5a00]">
+              Eso lo envía la cocina: no se pide por reposición.
+            </span>
+          )}
         </label>
       )}
 

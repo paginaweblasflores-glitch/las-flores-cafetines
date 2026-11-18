@@ -555,13 +555,15 @@ export function RegistroPersonal({
         {seccion === "reposicion" && (
           <Reposicion
             colegioId={colegio.id}
-            catalogo={[...semanales, ...acompanantes].map((p) => ({
+            // Solo lo que manda logística: lo de la cocina no se pide por reposición
+            catalogo={[...semanales, ...acompanantes].filter((p) => !p.deCocina).map((p) => ({
               productoId: p.productoId,
               nombre: p.nombre,
               presentacion: p.presentacion,
               unidadesPorPresentacion: p.unidadesPorPresentacion,
               stock: p.stock,
             }))}
+            deCocina={productos.filter((p) => p.deCocina).map((p) => ({ productoId: p.productoId, nombre: p.nombre }))}
             enviadas={reposiciones}
             precarga={precarga}
             alPrecargar={() => setPrecarga([])}

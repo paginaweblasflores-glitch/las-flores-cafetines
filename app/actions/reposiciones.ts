@@ -3,7 +3,7 @@
 import { refresh } from "next/cache";
 import { sesionAccion } from "@/lib/auth";
 import { check, db, mensajeError } from "@/lib/supabase";
-import { mayusculas, UNIDADES_REPOSICION } from "@/lib/format";
+import { mayusculas, normalizar, UNIDADES_REPOSICION } from "@/lib/format";
 import type { Resultado } from "@/lib/types";
 
 export type ItemNuevo = {
@@ -28,6 +28,14 @@ export async function crearReposicion(colegioId: number, items: ItemNuevo[], not
       }
       if (!UNIDADES_REPOSICION[it.unidad]) return { ok: false, error: `Unidad no válida en "${it.nombre}".` };
       if (!it.productoId && !it.nombre.trim()) return { ok: false, error: "Falta el nombre de un producto." };
+    }
+    // Lo que envía la cocina no se pide por reposición (solo lo de logística), ni escrito a mano
+    const deCocina = check(await db().from("productos").select("id, nombre").eq("de_cocina", true)) as { id: number; nombre: string }[];
+    const deLaCocina = items.find(
+      (it) => deCocina.some((p) => p.id === it.productoId) || (!it.productoId && deCocina.some((p) => normalizar(p.nombre) === normalizar(it.nombre))),
+    );
+    if (deLaCocina) {
+      return { ok: false, error: `${mayusculas(deLaCocina.nombre)} lo envía la cocina: no se pide por reposición. Quítalo de la lista.` };
     }
 
     const r = check(
